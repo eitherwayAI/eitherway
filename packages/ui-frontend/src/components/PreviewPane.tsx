@@ -10,6 +10,8 @@ interface PreviewPaneProps {
 // Global singleton to prevent multiple WebContainer instances
 let webContainerInstance: WebContainer | null = null;
 let bootPromise: Promise<WebContainer> | null = null;
+let currentRunningSessionId: string | null = null; // Track which session has a running server
+let currentServerUrl: string | null = null; // Track the current server URL
 
 async function getWebContainer(): Promise<WebContainer> {
   if (webContainerInstance) {
@@ -35,12 +37,16 @@ async function tearDownWebContainer() {
       await webContainerInstance.teardown();
       webContainerInstance = null;
       bootPromise = null;
+      currentRunningSessionId = null;
+      currentServerUrl = null;
       console.log('[WebContainer] Container torn down successfully');
     } catch (err) {
       console.error('[WebContainer] Error tearing down:', err);
       // Force reset even if teardown fails
       webContainerInstance = null;
       bootPromise = null;
+      currentRunningSessionId = null;
+      currentServerUrl = null;
     }
   }
 }
@@ -113,6 +119,21 @@ export default function PreviewPane({ files, sessionId, onUrlChange }: PreviewPa
         // Update current session
         currentSessionRef.current = sessionId;
 
+        // Check if this session already has a running server (from previous mount)
+        if (currentRunningSessionId === sessionId && currentServerUrl && webContainerInstance) {
+          console.log('[PreviewPane] Session', sessionId, 'already has a running server, reusing URL:', currentServerUrl);
+
+          if (!mounted) return;
+
+          containerRef.current = webContainerInstance;
+          setPreviewUrl(currentServerUrl);
+          if (onUrlChange) onUrlChange(currentServerUrl);
+          setContainerReady(true);
+          setLoading(false);
+          setServerStatus('Preview ready');
+          return;
+        }
+
         if (!mounted) {
           return;
         }
@@ -136,6 +157,9 @@ export default function PreviewPane({ files, sessionId, onUrlChange }: PreviewPa
             setPreviewUrl(url);
             if (onUrlChange) onUrlChange(url);
             setLoading(false);
+            // Track this session as having a running server
+            currentRunningSessionId = sessionId;
+            currentServerUrl = url;
           }
         });
 
@@ -182,6 +206,13 @@ export default function PreviewPane({ files, sessionId, onUrlChange }: PreviewPa
 
     if (files.length === 0) {
       console.log('[PreviewPane] No files to sync');
+      return;
+    }
+
+    // If this session already has a running server, skip re-syncing and server startup
+    if (currentRunningSessionId === sessionId && currentServerUrl) {
+      console.log('[PreviewPane] Session', sessionId, 'already has a running server at', currentServerUrl, '- skipping sync and server startup');
+      serverStartedRef.current = true; // Mark as started locally
       return;
     }
 
@@ -411,6 +442,9 @@ server.listen(PORT, () => {
                     if (onUrlChange) onUrlChange(url);
                     setServerStatus('Preview ready');
                     setLoading(false);
+                    // Track this session as having a running server
+                    currentRunningSessionId = sessionId;
+                    currentServerUrl = url;
                   }
                 } else if (typeof container.origin === 'string') {
                   // Some WebContainer versions expose origin
@@ -420,6 +454,9 @@ server.listen(PORT, () => {
                   if (onUrlChange) onUrlChange(url);
                   setServerStatus('Preview ready');
                   setLoading(false);
+                  // Track this session as having a running server
+                  currentRunningSessionId = sessionId;
+                  currentServerUrl = url;
                 } else {
                   console.warn('[PreviewPane] No method available to get server URL, waiting for server-ready event');
                   setServerStatus('Waiting for server URL...');
