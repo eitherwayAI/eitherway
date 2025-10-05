@@ -209,11 +209,13 @@ export default function PreviewPane({ files, sessionId, onUrlChange }: PreviewPa
       return;
     }
 
-    // If this session already has a running server, skip re-syncing and server startup
-    if (currentRunningSessionId === sessionId && currentServerUrl) {
-      console.log('[PreviewPane] Session', sessionId, 'already has a running server at', currentServerUrl, '- skipping sync and server startup');
-      serverStartedRef.current = true; // Mark as started locally
-      return;
+    // Check if server is already running for this session
+    const serverAlreadyRunning = currentRunningSessionId === sessionId && serverStartedRef.current;
+
+    if (serverAlreadyRunning) {
+      console.log('[PreviewPane] Server already running for session', sessionId, '- re-syncing files only');
+    } else {
+      console.log('[PreviewPane] ✅ Starting file sync and server...');
     }
 
     console.log('[PreviewPane] ✅ Starting file sync...');
@@ -299,6 +301,20 @@ export default function PreviewPane({ files, sessionId, onUrlChange }: PreviewPa
         }
 
         await containerRef.current.mount(fileTree);
+
+        console.log('[PreviewPane] Files synced to WebContainer, serverAlreadyRunning:', serverAlreadyRunning);
+
+        // If server is already running, just update the files and we're done
+        if (serverAlreadyRunning) {
+          console.log('[PreviewPane] Files updated, server already running - refresh should show changes');
+          setLoading(false);
+
+          // Trigger a refresh of the iframe to show updated files
+          if (previewUrl) {
+            setRefreshKey(prev => prev + 1);
+          }
+          return;
+        }
 
         // Check if there's a package.json
         const hasPackageJson = findFile(files, 'package.json');

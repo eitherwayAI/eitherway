@@ -58,6 +58,22 @@ export class DatabaseAgent {
       actor: 'user'
     });
 
+    // Load previous conversation history from database
+    const previousMessages = await this.messagesRepo.findRecentBySession(this.sessionId, 50);
+
+    // Convert database messages to Agent message format (filter out system/tool messages)
+    const conversationHistory = previousMessages
+      .filter(msg => msg.role === 'user' || msg.role === 'assistant')
+      .map(msg => ({
+        role: msg.role as 'user' | 'assistant',
+        content: typeof msg.content === 'object' && msg.content.text
+          ? msg.content.text
+          : msg.content
+      }));
+
+    // Load conversation history into agent
+    this.agent.loadConversationHistory(conversationHistory);
+
     const userMessage = await this.messagesRepo.create(
       this.sessionId,
       'user' as const,

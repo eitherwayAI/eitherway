@@ -156,9 +156,35 @@ fastify.register(async (fastify) => {
           await agent.saveTranscript();
 
         } catch (error: any) {
+          // Log the full error for debugging
+          console.error('[Agent Error]', error);
+
+          // Parse error message for better display
+          let errorMessage = error.message || 'Unknown error occurred';
+
+          // Check if it's an Anthropic API error
+          if (error.message && error.message.includes('"type":"api_error"')) {
+            try {
+              // Try to parse the JSON error
+              const jsonMatch = error.message.match(/\{.*\}/);
+              if (jsonMatch) {
+                const errorObj = JSON.parse(jsonMatch[0]);
+                if (errorObj.error?.message) {
+                  errorMessage = `Anthropic API Error: ${errorObj.error.message}`;
+                  if (errorObj.request_id) {
+                    errorMessage += ` (Request ID: ${errorObj.request_id})`;
+                  }
+                }
+              }
+            } catch (parseError) {
+              // If parsing fails, use the original message
+              console.error('[Error Parsing]', parseError);
+            }
+          }
+
           connection.socket.send(JSON.stringify({
             type: 'error',
-            message: error.message
+            message: errorMessage
           }));
         }
       }

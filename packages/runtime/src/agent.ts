@@ -90,6 +90,13 @@ export class Agent {
   }
 
   /**
+   * Load conversation history (for restoring state)
+   */
+  loadConversationHistory(messages: Message[]): void {
+    this.conversationHistory = messages;
+  }
+
+  /**
    * Process a user request through the agent workflow
    */
   async processRequest(userMessage: string): Promise<string> {
