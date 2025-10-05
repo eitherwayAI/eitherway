@@ -33,7 +33,7 @@ export interface ToolResult {
 export type MessageRole = "user" | "assistant";
 
 export interface MessageContent {
-  type: "text" | "tool_use" | "tool_result";
+  type: "text" | "tool_use" | "tool_result" | "server_tool_use" | "web_search_tool_result";
   [key: string]: any;
 }
 
@@ -92,10 +92,11 @@ export interface AgentConfig {
     logFile: string;
   };
   tools: {
-    websearch: {
-      provider: string;
-      defaultTopK: number;
-      maxRecencyDays: number;
+    webSearch?: {
+      enabled: boolean;
+      maxUses?: number;
+      allowedDomains?: string[];
+      blockedDomains?: string[];
     };
     imagegen: {
       provider: string;

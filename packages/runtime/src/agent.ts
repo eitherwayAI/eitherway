@@ -40,7 +40,7 @@ Determinism:
 
 Safety:
   - File operations restricted to allowed workspaces and globs.
-  - Web search & image gen respect rate limits (10/min search, 5/min images).
+  - Web search is server-side with automatic rate limiting and citations.
   - All tool calls are logged with metrics (latency, sizes, file counts).
 
 Output contract:
@@ -52,7 +52,7 @@ Tools available:
   - either-search-files: Search code (supports regex, context lines)
   - either-line-replace: Edit lines (returns unified diff, verifies with sha256)
   - either-write: Create files (returns diff summary)
-  - websearch--web_search: Web search (Tavily provider, returns title/url/snippet)
+  - web_search: Search the web for up-to-date information (server-side, automatic citations)
   - eithergen--generate_image: Generate images (OpenAI/custom provider, saves to disk)`;
 
 
@@ -62,6 +62,12 @@ export interface AgentOptions {
   agentConfig: AgentConfig;
   executors: ToolExecutor[];
   dryRun?: boolean;
+  webSearch?: {
+    enabled: boolean;
+    maxUses?: number;
+    allowedDomains?: string[];
+    blockedDomains?: string[];
+  };
 }
 
 export class Agent {
@@ -121,7 +127,8 @@ export class Agent {
             if (delta.type === 'text') {
               process.stdout.write(delta.content);
             }
-          }
+          },
+          webSearchConfig: this.options.webSearch
         }
       );
 
@@ -158,10 +165,11 @@ export class Agent {
       // Add assistant message to history
       this.conversationHistory.push({
         role: 'assistant',
-        content: response.content
+        content: response.content as any
       });
 
-      // If no tool uses, we're done - run verification if we executed tools
+      // If no tool uses (client-side tools), we're done - run verification if we executed tools
+      // Server-side tools (web search) are already executed and don't need processing
       if (toolUses.length === 0) {
         finalResponse = textBlocks;
 

@@ -16,16 +16,21 @@ export interface ModelResponse {
   id: string;
   role: 'assistant';
   content: Array<{
-    type: 'text' | 'tool_use';
+    type: 'text' | 'tool_use' | 'server_tool_use' | 'web_search_tool_result';
     text?: string;
     id?: string;
     name?: string;
     input?: Record<string, any>;
+    tool_use_id?: string;
+    content?: any;
   }>;
   stopReason: string | null;
   usage: {
     inputTokens: number;
     outputTokens: number;
+    serverToolUse?: {
+      webSearchRequests?: number;
+    };
   };
 }
 
@@ -56,14 +61,43 @@ export class ModelClient {
     options?: {
       onDelta?: (delta: StreamDelta) => void;
       onComplete?: (response: ModelResponse) => void;
+      webSearchConfig?: {
+        enabled: boolean;
+        maxUses?: number;
+        allowedDomains?: string[];
+        blockedDomains?: string[];
+      };
     }
   ): Promise<ModelResponse> {
+    const allTools: any[] = [...tools];
+
+    if (options?.webSearchConfig?.enabled) {
+      const webSearchTool: any = {
+        type: 'web_search_20250305',
+        name: 'web_search'
+      };
+
+      if (options.webSearchConfig.maxUses !== undefined) {
+        webSearchTool.max_uses = options.webSearchConfig.maxUses;
+      }
+
+      if (options.webSearchConfig.allowedDomains && options.webSearchConfig.allowedDomains.length > 0) {
+        webSearchTool.allowed_domains = options.webSearchConfig.allowedDomains;
+      }
+
+      if (options.webSearchConfig.blockedDomains && options.webSearchConfig.blockedDomains.length > 0) {
+        webSearchTool.blocked_domains = options.webSearchConfig.blockedDomains;
+      }
+
+      allTools.push(webSearchTool);
+    }
+
     const params: Anthropic.MessageCreateParams = {
       model: this.config.model,
       max_tokens: this.config.maxTokens,
       system: systemPrompt,
       messages: this.convertMessages(messages),
-      tools: tools as any[], // Anthropic SDK types match our ToolDefinition
+      tools: allTools,
     };
 
     // Claude 4.5 doesn't allow both temperature and top_p - only include one
@@ -118,6 +152,19 @@ export class ModelClient {
               name: event.content_block.name,
               inputJson: ''
             };
+          } else if ((event.content_block as any).type === 'server_tool_use') {
+            currentToolUse = {
+              type: 'server_tool_use',
+              id: (event.content_block as any).id,
+              name: (event.content_block as any).name,
+              inputJson: ''
+            };
+          } else if ((event.content_block as any).type === 'web_search_tool_result') {
+            contentBlocks.push({
+              type: 'web_search_tool_result',
+              tool_use_id: (event.content_block as any).tool_use_id,
+              content: (event.content_block as any).content
+            });
           }
           break;
 
@@ -220,7 +267,8 @@ export class ModelClient {
       stopReason: response.stop_reason,
       usage: {
         inputTokens: response.usage.input_tokens,
-        outputTokens: response.usage.output_tokens
+        outputTokens: response.usage.output_tokens,
+        serverToolUse: (response.usage as any).server_tool_use
       }
     };
   }

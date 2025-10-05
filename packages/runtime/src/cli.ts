@@ -66,7 +66,8 @@ Configuration:
       claudeConfig,
       agentConfig,
       executors: getAllExecutors(),
-      dryRun
+      dryRun,
+      webSearch: agentConfig.tools.webSearch
     });
 
     console.log('\n=== EitherWay Agent ===');

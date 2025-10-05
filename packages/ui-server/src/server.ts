@@ -93,7 +93,8 @@ fastify.register(async (fastify) => {
             claudeConfig,
             agentConfig,
             executors: getAllExecutors(),
-            dryRun: false
+            dryRun: false,
+            webSearch: agentConfig.tools.webSearch
           });
 
           // Send status update

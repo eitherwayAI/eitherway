@@ -38,10 +38,11 @@
     "logFile": "./logs/agent.log"
   },
   "tools": {
-    "websearch": {
-      "provider": "tavily",
-      "defaultTopK": 5,
-      "maxRecencyDays": 365
+    "webSearch": {
+      "enabled": true,
+      "maxUses": 5,
+      "allowedDomains": [],
+      "blockedDomains": []
     },
     "imagegen": {
       "provider": "openai",

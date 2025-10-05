@@ -149,60 +149,6 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
     }
   },
 
-  'websearch--web_search': {
-    name: 'websearch--web_search',
-    description: 'Search the web for docs, best practices, and real-time info. Supports domain filtering and localization.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        query: {
-          type: 'string',
-          description: 'Search query'
-        },
-        top_k: {
-          type: 'integer',
-          minimum: 1,
-          maximum: 10,
-          description: 'Number of top results to return',
-          default: 5
-        },
-        recency_days: {
-          type: 'integer',
-          minimum: 0,
-          description: 'Only return results from the last N days (0 = no limit)'
-        },
-        site: {
-          type: 'string',
-          description: 'Optional domain filter (e.g., "stackoverflow.com")'
-        },
-        allowed_domains: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Only include results from these domains (cannot be used with blocked_domains)'
-        },
-        blocked_domains: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Never include results from these domains (cannot be used with allowed_domains)'
-        },
-        user_location: {
-          type: 'object',
-          description: 'Localize search results based on user location',
-          properties: {
-            type: { type: 'string', enum: ['approximate'], description: 'Location type' },
-            city: { type: 'string', description: 'City name' },
-            region: { type: 'string', description: 'Region or state' },
-            country: { type: 'string', description: 'Country' },
-            timezone: { type: 'string', description: 'IANA timezone ID' }
-          },
-          required: ['type']
-        }
-      },
-      required: ['query'],
-      additionalProperties: false
-    }
-  },
-
   'eithergen--generate_image': {
     name: 'eithergen--generate_image',
     description: 'Generate hero images, icons, or illustrations and save to disk.',
@@ -245,7 +191,6 @@ export const EITHER_VIEW_SCHEMA = TOOL_SCHEMAS['either-view'];
 export const EITHER_SEARCH_FILES_SCHEMA = TOOL_SCHEMAS['either-search-files'];
 export const EITHER_WRITE_SCHEMA = TOOL_SCHEMAS['either-write'];
 export const EITHER_LINE_REPLACE_SCHEMA = TOOL_SCHEMAS['either-line-replace'];
-export const WEBSEARCH_SCHEMA = TOOL_SCHEMAS['websearch--web_search'];
 export const IMAGEGEN_SCHEMA = TOOL_SCHEMAS['eithergen--generate_image'];
 
 // Get all tool definitions as array for Claude API
