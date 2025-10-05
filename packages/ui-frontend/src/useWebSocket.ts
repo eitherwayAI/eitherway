@@ -18,16 +18,20 @@ export function useWebSocket(url: string, sessionId: string | null) {
   }, []);
 
   useEffect(() => {
+    // Immediately clear files when session changes to prevent stale data
+    setFiles([]);
+
     const fetchFiles = async () => {
       if (!sessionId) {
-        setFiles([]);
         return;
       }
 
       try {
+        console.log('[useWebSocket] Fetching files for session:', sessionId);
         const response = await fetch(`/api/sessions/${sessionId}/files/tree`);
         const data = await response.json();
         if (data.files) {
+          console.log('[useWebSocket] Received', data.files.length, 'files for session:', sessionId);
           setFiles(data.files);
         }
       } catch (error) {

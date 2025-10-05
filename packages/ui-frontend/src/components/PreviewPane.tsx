@@ -4,6 +4,7 @@ import { WebContainer } from '@webcontainer/api';
 interface PreviewPaneProps {
   files: any[];
   sessionId: string | null;
+  onUrlChange?: (url: string) => void;
 }
 
 // Global singleton to prevent multiple WebContainer instances
@@ -26,7 +27,25 @@ async function getWebContainer(): Promise<WebContainer> {
   return webContainerInstance;
 }
 
-export default function PreviewPane({ files, sessionId }: PreviewPaneProps) {
+// Helper to tear down WebContainer completely
+async function tearDownWebContainer() {
+  if (webContainerInstance) {
+    try {
+      console.log('[WebContainer] Tearing down container...');
+      await webContainerInstance.teardown();
+      webContainerInstance = null;
+      bootPromise = null;
+      console.log('[WebContainer] Container torn down successfully');
+    } catch (err) {
+      console.error('[WebContainer] Error tearing down:', err);
+      // Force reset even if teardown fails
+      webContainerInstance = null;
+      bootPromise = null;
+    }
+  }
+}
+
+export default function PreviewPane({ files, sessionId, onUrlChange }: PreviewPaneProps) {
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +55,8 @@ export default function PreviewPane({ files, sessionId }: PreviewPaneProps) {
   const containerRef = useRef<WebContainer | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const serverStartedRef = useRef(false);
+  const currentSessionRef = useRef<string | null>(null);
+  const isTearingDownRef = useRef(false);
 
   // Refresh iframe when files change
   useEffect(() => {
@@ -52,18 +73,57 @@ export default function PreviewPane({ files, sessionId }: PreviewPaneProps) {
     setRefreshKey(prev => prev + 1);
   };
 
-  // Boot WebContainer once on mount
+  // Handle session changes: teardown old container, then boot new one
   useEffect(() => {
-    let mounted = true;
+    // Don't boot if there's no session
+    if (!sessionId) {
+      return;
+    }
 
-    const bootContainer = async () => {
+    let mounted = true;
+    const isSessionChange = currentSessionRef.current !== null && currentSessionRef.current !== sessionId;
+
+    const setupContainer = async () => {
       try {
+        // If session changed, teardown old container first
+        if (isSessionChange) {
+          console.log('[PreviewPane] Session changed from', currentSessionRef.current, 'to', sessionId);
+
+          // Reset state
+          setPreviewUrl('');
+          setLoading(true);
+          setError(null);
+          setContainerReady(false);
+          setServerStatus('Not started');
+          serverStartedRef.current = false;
+
+          if (onUrlChange) {
+            onUrlChange('');
+          }
+
+          // Teardown and wait for completion
+          isTearingDownRef.current = true;
+          containerRef.current = null; // Clear ref immediately
+          await tearDownWebContainer();
+          isTearingDownRef.current = false;
+
+          console.log('[PreviewPane] Teardown complete, starting new container...');
+        }
+
+        // Update current session
+        currentSessionRef.current = sessionId;
+
+        if (!mounted) {
+          return;
+        }
+
         setLoading(true);
         setError(null);
 
+        console.log('[WebContainer] Booting for session:', sessionId);
         const container = await getWebContainer();
 
-        if (!mounted) {
+        if (!mounted || isTearingDownRef.current) {
           return;
         }
 
@@ -74,6 +134,7 @@ export default function PreviewPane({ files, sessionId }: PreviewPaneProps) {
           console.log('[WebContainer] Server ready on port', port, 'URL:', url);
           if (mounted) {
             setPreviewUrl(url);
+            if (onUrlChange) onUrlChange(url);
             setLoading(false);
           }
         });
@@ -90,7 +151,7 @@ export default function PreviewPane({ files, sessionId }: PreviewPaneProps) {
         setLoading(false);
         setContainerReady(true); // This will trigger the file sync useEffect
       } catch (err: any) {
-        console.error('WebContainer boot error:', err);
+        console.error('WebContainer setup error:', err);
         if (mounted) {
           setError(err.message);
           setLoading(false);
@@ -98,16 +159,21 @@ export default function PreviewPane({ files, sessionId }: PreviewPaneProps) {
       }
     };
 
-    bootContainer();
+    setupContainer();
 
     return () => {
       mounted = false;
     };
-  }, []); // Only run once
+  }, [sessionId, onUrlChange]); // Run when session changes
 
   // Sync files and run dev server when files change
   useEffect(() => {
     console.log('[PreviewPane] Sync triggered - containerReady:', containerReady, 'files:', files.length);
+
+    if (isTearingDownRef.current) {
+      console.log('[PreviewPane] Container is being torn down, skipping sync');
+      return;
+    }
 
     if (!containerRef.current) {
       console.log('[PreviewPane] Container not ready (containerRef is null)');
@@ -186,12 +252,22 @@ export default function PreviewPane({ files, sessionId }: PreviewPaneProps) {
       try {
         setLoading(true);
 
+        // Check if container is still valid before syncing
+        if (isTearingDownRef.current || !containerRef.current) {
+          console.log('[PreviewPane] Container no longer valid, aborting sync');
+          return;
+        }
+
         // Sync files to WebContainer
         const fileTree = await syncFilesToContainer(files);
 
-        if (containerRef.current) {
-          await containerRef.current.mount(fileTree);
+        // Check again after async operation
+        if (isTearingDownRef.current || !containerRef.current) {
+          console.log('[PreviewPane] Container torn down during sync, aborting');
+          return;
         }
+
+        await containerRef.current.mount(fileTree);
 
         // Check if there's a package.json
         const hasPackageJson = findFile(files, 'package.json');
@@ -207,11 +283,23 @@ export default function PreviewPane({ files, sessionId }: PreviewPaneProps) {
           indexPath: hasIndexHtml?.path || anyHtmlFile?.path
         });
 
-        if (hasPackageJson && containerRef.current) {
+        if (hasPackageJson && containerRef.current && !isTearingDownRef.current) {
           setServerStatus('Installing dependencies...');
+
+          // Check before each operation
+          if (!containerRef.current || isTearingDownRef.current) {
+            console.log('[PreviewPane] Container torn down, aborting npm install');
+            return;
+          }
+
           // Install dependencies
           const installProcess = await containerRef.current.spawn('npm', ['install']);
           await installProcess.exit;
+
+          if (!containerRef.current || isTearingDownRef.current) {
+            console.log('[PreviewPane] Container torn down, aborting npm run dev');
+            return;
+          }
 
           setServerStatus('Starting dev server...');
           // Start dev server
@@ -225,7 +313,7 @@ export default function PreviewPane({ files, sessionId }: PreviewPaneProps) {
           }));
 
           serverStartedRef.current = true;
-        } else if ((hasIndexHtml || anyHtmlFile) && containerRef.current) {
+        } else if ((hasIndexHtml || anyHtmlFile) && containerRef.current && !isTearingDownRef.current) {
           setServerStatus('Starting static server...');
           // For simple HTML apps, start a static server using Node.js http-server
           // Find the directory containing the HTML file
@@ -234,6 +322,11 @@ export default function PreviewPane({ files, sessionId }: PreviewPaneProps) {
           const baseDir = indexPath.includes('/') ? indexPath.substring(0, indexPath.lastIndexOf('/')) : '.';
 
           console.log('[PreviewPane] Starting static server for:', indexPath, 'baseDir:', baseDir);
+
+          if (!containerRef.current || isTearingDownRef.current) {
+            console.log('[PreviewPane] Container torn down, aborting static server');
+            return;
+          }
 
           // Extract the HTML filename for the default route
           const htmlFileName = indexPath.includes('/') ? indexPath.substring(indexPath.lastIndexOf('/') + 1) : indexPath;
@@ -315,6 +408,7 @@ server.listen(PORT, () => {
                   if (url) {
                     console.log('[PreviewPane] Got server URL via getServerUrl:', url);
                     setPreviewUrl(url);
+                    if (onUrlChange) onUrlChange(url);
                     setServerStatus('Preview ready');
                     setLoading(false);
                   }
@@ -323,6 +417,7 @@ server.listen(PORT, () => {
                   const url = `${container.origin}:3000`;
                   console.log('[PreviewPane] Using container origin:', url);
                   setPreviewUrl(url);
+                  if (onUrlChange) onUrlChange(url);
                   setServerStatus('Preview ready');
                   setLoading(false);
                 } else {

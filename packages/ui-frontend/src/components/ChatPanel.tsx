@@ -62,15 +62,17 @@ export default function ChatPanel({ messages, onSendMessage, disabled }: ChatPan
       </div>
 
       <form onSubmit={handleSubmit} className="chat-input-container">
-        <textarea
-          className="chat-input"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Describe the app you want to build..."
-          rows={3}
-          disabled={disabled}
-        />
+        <div className="chat-input-wrapper">
+          <textarea
+            className="chat-input"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Describe the app you want to build..."
+            rows={3}
+            disabled={disabled}
+          />
+        </div>
         <button
           type="submit"
           className="chat-send-btn"
