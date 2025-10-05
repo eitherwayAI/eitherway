@@ -7,11 +7,15 @@ interface Message {
   files?: any[];
 }
 
-export function useWebSocket(url: string) {
+export function useWebSocket(url: string, sessionId: string | null) {
   const [connected, setConnected] = useState(false);
   const [messages, setMessages] = useState<any[]>([]);
   const [files, setFiles] = useState<any[]>([]);
   const ws = useRef<WebSocket | null>(null);
+
+  const clearMessages = useCallback((newMessages: any[] = []) => {
+    setMessages(newMessages);
+  }, []);
 
   // Fetch initial files
   useEffect(() => {
@@ -116,6 +120,7 @@ export function useWebSocket(url: string) {
     connected,
     messages,
     files,
-    sendMessage
+    sendMessage,
+    clearMessages
   };
 }

@@ -10,6 +10,7 @@
     "start": "node --env-file=../../.env dist/server.js"
   },
   "dependencies": {
+    "@eitherway/database": "*",
     "@eitherway/runtime": "*",
     "@eitherway/tools-impl": "*",
     "fastify": "^4.25.2",

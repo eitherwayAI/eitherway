@@ -1,155 +1,169 @@
-# 🧮 Advanced Scientific Calculator
+# Burger House Website
 
-A groundbreaking scientific calculator with stunning 3D animations and modern glassmorphic design.
+A modern, responsive website for a gourmet burger restaurant built with HTML, CSS, and JavaScript.
 
-![Calculator Preview](calculator-preview.png)
+## Features
 
-## ✨ Features
+### Design Trends Implemented (Based on 2025 Research)
 
-### 🔢 Mathematical Functions
-- **Basic Operations:** Addition, subtraction, multiplication, division
-- **Trigonometric Functions:** sin, cos, tan, sin⁻¹, cos⁻¹, tan⁻¹
-- **Logarithms:** log (base 10), ln (natural log)
-- **Advanced:** Square root, power, factorial, reciprocal, absolute value
-- **Constants:** π (pi), e (Euler's number)
-- **Angle Modes:** DEG (degrees) and RAD (radians)
+1. **Minimalist Design with Bold Photography**
+   - Clean layouts with high-quality food imagery
+   - Strategic use of white space
+   - Focus on visual storytelling
 
-### 🎨 Design Features
-- **Glassmorphic UI:** Semi-transparent panels with backdrop blur
-- **3D Animations:** Floating geometric shapes (cubes, spheres, pyramids, torus)
-- **Interactive:** Shapes react to mouse movement
-- **Gradient Buttons:** Modern gradient designs with ripple effects
-- **Glow Effects:** Purple accent glows throughout
-- **Smooth Animations:** Floating calculator, shimmer effects, button transitions
+2. **Warm, Appetizing Color Palette**
+   - Primary: Orange (#FF6B35) - energetic and appetizing
+   - Secondary: Golden (#F7931E) - warm and inviting
+   - Creates hunger appeal and brand recognition
 
-### 🚀 User Experience
-- **Auto-Closing Brackets:** Function brackets close automatically
-- **Keyboard Support:** Full keyboard input support
-- **Error Handling:** Visual shake animation for errors
-- **Responsive Design:** Works on all screen sizes
-- **Visual Feedback:** Button press animations and hover effects
+3. **Mobile-First Responsive Design**
+   - Fully responsive across all devices
+   - Touch-friendly navigation
+   - Optimized for mobile ordering
 
-## 🎯 How to Use
+4. **Interactive Elements**
+   - Smooth scroll animations
+   - Hover effects on menu items
+   - Add-to-cart functionality with visual feedback
+   - Floating hero image animation
 
-### Basic Calculations
-1. Click number buttons or type on keyboard
-2. Click operator buttons (+, -, ×, ÷)
-3. Press `=` or Enter to calculate
+5. **Clear Call-to-Actions**
+   - Prominent "Order Now" buttons
+   - Easy-to-find contact information
+   - Newsletter subscription
 
-### Trigonometric Functions
-1. Click a trig function button (sin, cos, tan, etc.)
-2. The bracket opens and closes automatically
-3. Type your number (e.g., 120)
-4. Press `=` to calculate
-5. **Example:** tan⁻¹(120) = 89.52° (in DEG mode)
+## Website Sections
 
-### Angle Mode
-- Click **DEG** for degrees (default)
-- Click **RAD** for radians
-- The active mode is highlighted in purple
+### 1. Hero Section
+- Eye-catching headline with gradient background
+- Large hero burger image with floating animation
+- Clear CTAs: "View Menu" and "Order Online"
+- Sets the tone for the brand experience
 
-### Keyboard Shortcuts
-- **Numbers:** 0-9
-- **Operators:** +, -, *, /
-- **Decimal:** .
-- **Parentheses:** ( )
-- **Calculate:** Enter or =
-- **Clear:** Escape
-- **Backspace:** Delete last character
+### 2. About Section
+- Brand story and philosophy
+- Four key features with icons:
+  - Premium Beef
+  - Artisan Buns
+  - Fresh Ingredients
+  - Expert Chefs
+- Visual storytelling with chef and ingredient images
 
-## 🛠️ Technical Details
+### 3. Menu Section
+- 6 signature burgers with professional photography
+- Detailed descriptions for each item
+- Price display and "Add to Order" buttons
+- Badge system (Popular, New, Veggie, Premium)
+- Sides & Drinks section
+- Hover effects for enhanced interactivity
 
-### Files Structure
+### 4. Testimonials Section
+- Customer reviews with star ratings
+- Gradient background for visual appeal
+- Social proof to build trust
+
+### 5. Contact Section
+- Location and hours information
+- Phone and email contact
+- Contact form for inquiries
+- Grid layout for easy scanning
+
+### 6. Footer
+- Quick links navigation
+- Newsletter subscription
+- Social media links
+- Copyright information
+
+## Technical Features
+
+- **Smooth Scrolling**: Anchor links with smooth scroll behavior
+- **Sticky Navigation**: Fixed header that stays visible while scrolling
+- **Mobile Menu**: Hamburger menu for mobile devices
+- **Form Validation**: Contact and newsletter forms with validation
+- **Notifications**: Toast notifications for user actions
+- **Scroll Animations**: Elements fade in as you scroll
+- **Lazy Loading**: Optimized image loading (ready for implementation)
+
+## File Structure
+
 ```
-├── index.html          # Main HTML structure
-├── styles.css          # Modern styling with animations
-├── script.js           # Calculator logic and functions
-├── animation.js        # 3D animation system
-├── calculator-preview.png  # Preview image
-├── README.md          # This file
-└── CHANGES.md         # Detailed changelog
+burger-website/
+│
+├── index.html          # Main HTML file
+├── styles.css          # All styling
+├── script.js           # JavaScript functionality
+├── README.md           # Documentation
+│
+└── images/             # Burger images
+    ├── hero-burger.jpg
+    ├── burger-classic.jpg
+    ├── burger-bacon.jpg
+    ├── burger-mushroom.jpg
+    ├── burger-spicy.jpg
+    ├── burger-veggie.jpg
+    ├── burger-premium.jpg
+    ├── about-burger-1.jpg
+    └── about-burger-2.jpg
 ```
 
-### Technologies Used
-- **HTML5 Canvas:** For 3D animations
-- **Vanilla JavaScript:** No frameworks needed
-- **CSS3:** Advanced animations and effects
-- **Glassmorphism:** Modern UI design trend
+## Browser Compatibility
 
-### Browser Support
-- ✅ Chrome 90+
-- ✅ Firefox 88+
-- ✅ Safari 14+
-- ✅ Edge 90+
+- Chrome (latest)
+- Firefox (latest)
+- Safari (latest)
+- Edge (latest)
+- Mobile browsers (iOS Safari, Chrome Mobile)
 
-## 🐛 Bug Fixes
+## Customization
 
-### Fixed Issues
-1. ✅ **Trigonometric Functions:** All trig functions now work correctly
-2. ✅ **Auto-Closing Brackets:** Functions automatically close brackets
-3. ✅ **Expression Evaluation:** Improved regex-based parsing
-4. ✅ **Error Handling:** Better error messages and recovery
+### Colors
+Edit the CSS variables in `styles.css`:
+```css
+:root {
+    --primary-color: #FF6B35;
+    --secondary-color: #F7931E;
+    --dark-color: #1a1a1a;
+    --light-color: #f8f8f8;
+}
+```
 
-### What Was Wrong Before
-- Trigonometric functions like `tan⁻¹(120)` returned errors
-- Users had to manually close brackets after typing `sin(`
-- Parentheses counting logic was broken
-- Basic styling with no animations
+### Menu Items
+Update the menu items in `index.html` within the `.menu-grid` section.
 
-## 🎨 Design Philosophy
+### Contact Information
+Update address, phone, email, and hours in the contact section.
 
-### Visual Hierarchy
-1. **Background:** Pure black with 3D shapes
-2. **Calculator:** Glassmorphic panel with purple glow
-3. **Display:** Gradient background with shimmer effect
-4. **Buttons:** Categorized by color (numbers, operators, functions)
+## Performance Optimizations
 
-### Color Palette
-- **Primary:** Purple (#8a2be2) and Indigo (#4b0082)
-- **Accent:** Cyan (#00d2ff), Orange (#ffa502), Red (#ff4757)
-- **Background:** Pure Black (#0a0a0a)
-- **Text:** White with purple glow
+- Minified CSS and JavaScript (for production)
+- Optimized images with proper compression
+- Lazy loading for images
+- CSS animations using transform and opacity for better performance
+- Minimal external dependencies
 
-### Animation System
-- **Shapes:** 15 floating 3D shapes
-- **Types:** Cubes, spheres, pyramids, torus
-- **Movement:** Continuous floating with depth
-- **Interaction:** Mouse attraction effect
-- **Performance:** Optimized with requestAnimationFrame
+## Future Enhancements
 
-## 📱 Responsive Design
+- Online ordering system integration
+- Reservation booking system
+- Menu filtering (vegetarian, gluten-free, etc.)
+- Multi-language support
+- Dark mode toggle
+- Integration with delivery platforms
+- Customer loyalty program
+- Blog section for burger recipes and news
 
-### Desktop (> 500px)
-- Full-size calculator with all features
-- Large buttons and display
-- Full 3D animation system
+## Credits
 
-### Mobile (< 500px)
-- Compact layout
-- Smaller buttons and text
-- Optimized animations
+Design inspired by 2025 restaurant website trends including:
+- Minimalist aesthetics with bold photography
+- Scrapbook-inspired playful elements
+- Sensorial and immersive experiences
+- Mobile-first approach
 
-## 🔮 Future Enhancements
+## License
 
-Potential features for future versions:
-- [ ] Scientific notation support
-- [ ] History of calculations
-- [ ] More 3D shape types
-- [ ] Custom color themes
-- [ ] Graph plotting
-- [ ] Matrix operations
-- [ ] Complex numbers
-
-## 📄 License
-
-This project is open source and available for educational purposes.
-
-## 🤝 Contributing
-
-Feel free to fork, modify, and improve this calculator!
+This project is open source and available for personal and commercial use.
 
 ---
 
-**Made with ❤️ and lots of math**
-
-*Enjoy calculating in style!* ✨
+**Built with ❤️ for burger lovers everywhere**

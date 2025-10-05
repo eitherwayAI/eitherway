@@ -40,12 +40,7 @@ export default function ChatPanel({ messages, onSendMessage, disabled }: ChatPan
   };
 
   return (
-    <div className="chat-panel">
-      <div className="chat-header">
-        <span>💬</span>
-        <span>Chat with Agent</span>
-      </div>
-
+    <>
       <div className="chat-messages">
         {messages.length === 0 && (
           <div className="chat-message system">
@@ -84,6 +79,6 @@ export default function ChatPanel({ messages, onSendMessage, disabled }: ChatPan
           Send
         </button>
       </form>
-    </div>
+    </>
   );
 }

@@ -3,82 +3,353 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scientific Calculator</title>
+    <title>Burger House - Gourmet Burgers & More</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <canvas id="animation-canvas"></canvas>
-    
-    <div class="calculator">
-        <div class="display-container">
-            <div class="expression" id="expression"></div>
-            <div class="display" id="display">0</div>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-wrapper">
+                <div class="logo">
+                    <h1>BURGER HOUSE</h1>
+                    <p class="tagline">Gourmet Burgers & More</p>
+                </div>
+                <ul class="nav-menu">
+                    <li><a href="#home">Home</a></li>
+                    <li><a href="#about">About</a></li>
+                    <li><a href="#menu">Menu</a></li>
+                    <li><a href="#contact">Contact</a></li>
+                    <li><a href="#order" class="btn-order">Order Now</a></li>
+                </ul>
+                <div class="hamburger">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
         </div>
-        
-        <div class="mode-toggle">
-            <button class="mode-btn active" id="deg-btn" onclick="setAngleMode('deg')"><span>DEG</span></button>
-            <button class="mode-btn" id="rad-btn" onclick="setAngleMode('rad')"><span>RAD</span></button>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="home" class="hero">
+        <div class="hero-overlay"></div>
+        <div class="hero-content">
+            <div class="hero-text">
+                <h2 class="hero-subtitle">Welcome to</h2>
+                <h1 class="hero-title">BURGER HOUSE</h1>
+                <p class="hero-description">Crafting the perfect burger experience with premium ingredients, bold flavors, and unforgettable taste</p>
+                <div class="hero-buttons">
+                    <a href="#menu" class="btn btn-primary">View Menu</a>
+                    <a href="#order" class="btn btn-secondary">Order Online</a>
+                </div>
+            </div>
         </div>
-
-        <div class="buttons">
-            <!-- Row 1: Advanced Functions -->
-            <button class="btn function" onclick="appendFunction('sin(')">sin</button>
-            <button class="btn function" onclick="appendFunction('cos(')">cos</button>
-            <button class="btn function" onclick="appendFunction('tan(')">tan</button>
-            <button class="btn function" onclick="appendFunction('log(')">log</button>
-            <button class="btn function" onclick="appendFunction('ln(')">ln</button>
-
-            <!-- Row 2: More Functions -->
-            <button class="btn function" onclick="appendFunction('asin(')">sin⁻¹</button>
-            <button class="btn function" onclick="appendFunction('acos(')">cos⁻¹</button>
-            <button class="btn function" onclick="appendFunction('atan(')">tan⁻¹</button>
-            <button class="btn function" onclick="appendFunction('sqrt(')">√</button>
-            <button class="btn function" onclick="appendOperator('^')">xʸ</button>
-
-            <!-- Row 3: Constants and Memory -->
-            <button class="btn function" onclick="appendNumber('π')">π</button>
-            <button class="btn function" onclick="appendNumber('e')">e</button>
-            <button class="btn function" onclick="appendFunction('abs(')">|x|</button>
-            <button class="btn operator" onclick="appendOperator('(')">(</button>
-            <button class="btn operator" onclick="appendOperator(')')">)</button>
-
-            <!-- Row 4: Clear and Operations -->
-            <button class="btn clear" onclick="clearAll()">AC</button>
-            <button class="btn clear" onclick="clearEntry()">CE</button>
-            <button class="btn operator" onclick="appendOperator('%')">%</button>
-            <button class="btn operator" onclick="appendOperator('/')">÷</button>
-            <button class="btn function" onclick="factorial()">x!</button>
-
-            <!-- Row 5: Numbers 7-9 -->
-            <button class="btn number" onclick="appendNumber('7')">7</button>
-            <button class="btn number" onclick="appendNumber('8')">8</button>
-            <button class="btn number" onclick="appendNumber('9')">9</button>
-            <button class="btn operator" onclick="appendOperator('*')">×</button>
-            <button class="btn function" onclick="square()">x²</button>
-
-            <!-- Row 6: Numbers 4-6 -->
-            <button class="btn number" onclick="appendNumber('4')">4</button>
-            <button class="btn number" onclick="appendNumber('5')">5</button>
-            <button class="btn number" onclick="appendNumber('6')">6</button>
-            <button class="btn operator" onclick="appendOperator('-')">−</button>
-            <button class="btn function" onclick="reciprocal()">1/x</button>
-
-            <!-- Row 7: Numbers 1-3 -->
-            <button class="btn number" onclick="appendNumber('1')">1</button>
-            <button class="btn number" onclick="appendNumber('2')">2</button>
-            <button class="btn number" onclick="appendNumber('3')">3</button>
-            <button class="btn operator" onclick="appendOperator('+')">+</button>
-            <button class="btn function" onclick="toggleSign()">±</button>
-
-            <!-- Row 8: Zero and Decimal -->
-            <button class="btn number zero" onclick="appendNumber('0')">0</button>
-            <button class="btn number" onclick="appendNumber('.')">.</button>
-            <button class="btn backspace" onclick="backspace()">⌫</button>
-            <button class="btn equals" onclick="calculate()">=</button>
+        <div class="hero-image-container">
+            <img src="hero-burger.jpg" alt="Delicious gourmet burger" class="hero-burger-img">
         </div>
-    </div>
+    </section>
 
-    <script src="animation.js"></script>
+    <!-- About Section -->
+    <section id="about" class="about">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">Our Story</span>
+                <h2 class="section-title">Passion for Perfect Burgers</h2>
+            </div>
+            <div class="about-content">
+                <div class="about-text">
+                    <p class="about-intro">At Burger House, we believe that a great burger is more than just food—it's an experience. Since our founding, we've been dedicated to crafting burgers that combine premium ingredients, innovative flavors, and time-honored techniques.</p>
+                    <div class="about-features">
+                        <div class="feature">
+                            <div class="feature-icon">🥩</div>
+                            <h3>Premium Beef</h3>
+                            <p>100% grass-fed, locally sourced beef ground fresh daily</p>
+                        </div>
+                        <div class="feature">
+                            <div class="feature-icon">🍞</div>
+                            <h3>Artisan Buns</h3>
+                            <p>Freshly baked brioche buns made in-house every morning</p>
+                        </div>
+                        <div class="feature">
+                            <div class="feature-icon">🌱</div>
+                            <h3>Fresh Ingredients</h3>
+                            <p>Locally sourced vegetables and house-made sauces</p>
+                        </div>
+                        <div class="feature">
+                            <div class="feature-icon">👨‍🍳</div>
+                            <h3>Expert Chefs</h3>
+                            <p>Passionate culinary team with years of experience</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="about-images">
+                    <img src="about-burger-1.jpg" alt="Chef preparing burger" class="about-img about-img-1">
+                    <img src="about-burger-2.jpg" alt="Fresh ingredients" class="about-img about-img-2">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Menu Section -->
+    <section id="menu" class="menu">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">Our Menu</span>
+                <h2 class="section-title">Signature Burgers</h2>
+                <p class="section-description">Each burger is a masterpiece, crafted with care and served with passion</p>
+            </div>
+            <div class="menu-grid">
+                <div class="menu-item">
+                    <div class="menu-item-image">
+                        <img src="burger-classic.jpg" alt="Classic Burger">
+                        <span class="menu-badge">Popular</span>
+                    </div>
+                    <div class="menu-item-content">
+                        <h3>The Classic</h3>
+                        <p>Our signature beef patty with lettuce, tomato, pickles, onions, and our secret sauce on a toasted brioche bun</p>
+                        <div class="menu-item-footer">
+                            <span class="price">$12.99</span>
+                            <button class="btn-add">Add to Order</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="menu-item">
+                    <div class="menu-item-image">
+                        <img src="burger-bacon.jpg" alt="Bacon Cheeseburger">
+                        <span class="menu-badge badge-new">New</span>
+                    </div>
+                    <div class="menu-item-content">
+                        <h3>Bacon Bliss</h3>
+                        <p>Double beef patty, crispy bacon, aged cheddar, caramelized onions, and smoky BBQ sauce</p>
+                        <div class="menu-item-footer">
+                            <span class="price">$15.99</span>
+                            <button class="btn-add">Add to Order</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="menu-item">
+                    <div class="menu-item-image">
+                        <img src="burger-mushroom.jpg" alt="Mushroom Swiss Burger">
+                    </div>
+                    <div class="menu-item-content">
+                        <h3>Mushroom Swiss</h3>
+                        <p>Juicy beef patty topped with sautéed mushrooms, Swiss cheese, garlic aioli, and arugula</p>
+                        <div class="menu-item-footer">
+                            <span class="price">$14.99</span>
+                            <button class="btn-add">Add to Order</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="menu-item">
+                    <div class="menu-item-image">
+                        <img src="burger-spicy.jpg" alt="Spicy Jalapeño Burger">
+                    </div>
+                    <div class="menu-item-content">
+                        <h3>Spicy Jalapeño</h3>
+                        <p>Pepper jack cheese, jalapeños, chipotle mayo, crispy onion rings, and our spicy house sauce</p>
+                        <div class="menu-item-footer">
+                            <span class="price">$13.99</span>
+                            <button class="btn-add">Add to Order</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="menu-item">
+                    <div class="menu-item-image">
+                        <img src="burger-veggie.jpg" alt="Veggie Burger">
+                        <span class="menu-badge badge-veggie">Veggie</span>
+                    </div>
+                    <div class="menu-item-content">
+                        <h3>Garden Delight</h3>
+                        <p>House-made veggie patty with avocado, sprouts, tomato, cucumber, and herb mayo</p>
+                        <div class="menu-item-footer">
+                            <span class="price">$11.99</span>
+                            <button class="btn-add">Add to Order</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="menu-item">
+                    <div class="menu-item-image">
+                        <img src="burger-premium.jpg" alt="Premium Wagyu Burger">
+                        <span class="menu-badge badge-premium">Premium</span>
+                    </div>
+                    <div class="menu-item-content">
+                        <h3>Wagyu Deluxe</h3>
+                        <p>Premium wagyu beef, truffle aioli, caramelized onions, brie cheese, and arugula</p>
+                        <div class="menu-item-footer">
+                            <span class="price">$19.99</span>
+                            <button class="btn-add">Add to Order</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="menu-extras">
+                <h3>Sides & Drinks</h3>
+                <div class="extras-grid">
+                    <div class="extra-item">
+                        <span class="extra-name">Classic Fries</span>
+                        <span class="extra-price">$4.99</span>
+                    </div>
+                    <div class="extra-item">
+                        <span class="extra-name">Sweet Potato Fries</span>
+                        <span class="extra-price">$5.99</span>
+                    </div>
+                    <div class="extra-item">
+                        <span class="extra-name">Onion Rings</span>
+                        <span class="extra-price">$5.49</span>
+                    </div>
+                    <div class="extra-item">
+                        <span class="extra-name">Milkshakes</span>
+                        <span class="extra-price">$6.99</span>
+                    </div>
+                    <div class="extra-item">
+                        <span class="extra-name">Soft Drinks</span>
+                        <span class="extra-price">$2.99</span>
+                    </div>
+                    <div class="extra-item">
+                        <span class="extra-name">Craft Beer</span>
+                        <span class="extra-price">$7.99</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials Section -->
+    <section class="testimonials">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">What People Say</span>
+                <h2 class="section-title">Customer Reviews</h2>
+            </div>
+            <div class="testimonials-grid">
+                <div class="testimonial-card">
+                    <div class="stars">★★★★★</div>
+                    <p class="testimonial-text">"Best burgers in town! The Classic is absolutely perfect, and the fries are crispy and delicious. Will definitely be back!"</p>
+                    <div class="testimonial-author">
+                        <strong>Sarah M.</strong>
+                        <span>Local Food Blogger</span>
+                    </div>
+                </div>
+                <div class="testimonial-card">
+                    <div class="stars">★★★★★</div>
+                    <p class="testimonial-text">"The Wagyu Deluxe is worth every penny. The quality of ingredients really shines through. Amazing atmosphere too!"</p>
+                    <div class="testimonial-author">
+                        <strong>Mike R.</strong>
+                        <span>Regular Customer</span>
+                    </div>
+                </div>
+                <div class="testimonial-card">
+                    <div class="stars">★★★★★</div>
+                    <p class="testimonial-text">"Finally, a place that makes a great veggie burger! The Garden Delight is packed with flavor and so fresh."</p>
+                    <div class="testimonial-author">
+                        <strong>Emma L.</strong>
+                        <span>Vegetarian Foodie</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="contact" class="contact">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-label">Visit Us</span>
+                <h2 class="section-title">Location & Hours</h2>
+            </div>
+            <div class="contact-content">
+                <div class="contact-info">
+                    <div class="info-card">
+                        <h3>📍 Address</h3>
+                        <p>123 Burger Street<br>Downtown District<br>City, State 12345</p>
+                    </div>
+                    <div class="info-card">
+                        <h3>📞 Phone</h3>
+                        <p>(555) 123-4567</p>
+                        <a href="tel:5551234567" class="contact-link">Call Us</a>
+                    </div>
+                    <div class="info-card">
+                        <h3>⏰ Hours</h3>
+                        <p>Monday - Thursday: 11am - 10pm<br>
+                        Friday - Saturday: 11am - 11pm<br>
+                        Sunday: 12pm - 9pm</p>
+                    </div>
+                    <div class="info-card">
+                        <h3>📧 Email</h3>
+                        <p>info@burgerhouse.com</p>
+                        <a href="mailto:info@burgerhouse.com" class="contact-link">Email Us</a>
+                    </div>
+                </div>
+                <div class="contact-form-wrapper">
+                    <h3>Send Us a Message</h3>
+                    <form class="contact-form">
+                        <input type="text" placeholder="Your Name" required>
+                        <input type="email" placeholder="Your Email" required>
+                        <input type="tel" placeholder="Phone Number">
+                        <textarea placeholder="Your Message" rows="5" required></textarea>
+                        <button type="submit" class="btn btn-primary">Send Message</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>BURGER HOUSE</h3>
+                    <p>Crafting perfect burgers since 2020. Quality ingredients, bold flavors, unforgettable experiences.</p>
+                    <div class="social-links">
+                        <a href="#" aria-label="Facebook">📘</a>
+                        <a href="#" aria-label="Instagram">📷</a>
+                        <a href="#" aria-label="Twitter">🐦</a>
+                    </div>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="#home">Home</a></li>
+                        <li><a href="#about">About</a></li>
+                        <li><a href="#menu">Menu</a></li>
+                        <li><a href="#contact">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Order Online</h4>
+                    <ul>
+                        <li><a href="#">Delivery</a></li>
+                        <li><a href="#">Takeout</a></li>
+                        <li><a href="#">Catering</a></li>
+                        <li><a href="#">Gift Cards</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Newsletter</h4>
+                    <p>Subscribe for exclusive deals and updates!</p>
+                    <form class="newsletter-form">
+                        <input type="email" placeholder="Your email">
+                        <button type="submit">Subscribe</button>
+                    </form>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 Burger House. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
     <script src="script.js"></script>
 </body>
 </html>

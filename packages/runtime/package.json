@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
+    "@eitherway/database": "*",
     "@eitherway/tools-core": "*",
     "@eitherway/tools-impl": "*",
     "zod": "^3.22.4"

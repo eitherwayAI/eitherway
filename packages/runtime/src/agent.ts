@@ -117,6 +117,9 @@ export class Agent {
     while (turnCount < maxTurns) {
       turnCount++;
 
+      // Validate conversation history before sending to Claude
+      this.validateConversationHistory();
+
       // Send message to Claude
       const response = await this.modelClient.sendMessage(
         this.conversationHistory,
@@ -284,5 +287,45 @@ export class Agent {
       : `**Changed (${files.length} files):**\n${files.map(f => `  - ${f}`).join('\n')}\n`;
 
     return summary;
+  }
+
+  /**
+   * Validate that server_tool_use blocks are properly paired with web_search_tool_result
+   * This prevents the error: "web_search tool use without corresponding web_search_tool_result"
+   */
+  private validateConversationHistory(): void {
+    this.conversationHistory.forEach((msg, idx) => {
+      if (msg.role === 'assistant' && Array.isArray(msg.content)) {
+        const serverToolUses = msg.content.filter((b: any) => b.type === 'server_tool_use');
+        const webSearchResults = msg.content.filter((b: any) => b.type === 'web_search_tool_result');
+
+        if (serverToolUses.length > 0) {
+          // Verify each server_tool_use has a corresponding web_search_tool_result
+          serverToolUses.forEach((stu: any) => {
+            const hasMatchingResult = webSearchResults.some((wsr: any) => wsr.tool_use_id === stu.id);
+
+            if (!hasMatchingResult) {
+              console.error(`\n❌ CONVERSATION HISTORY VALIDATION ERROR:`);
+              console.error(`   Message [${idx}] has server_tool_use (${stu.id}) without web_search_tool_result`);
+              console.error(`   This will cause Claude API to reject the request.`);
+              console.error(`\n   Message content blocks:`);
+              if (Array.isArray(msg.content)) {
+                msg.content.forEach((block: any, blockIdx: number) => {
+                  console.error(`     [${blockIdx}] ${block.type}`);
+                });
+              }
+              console.error('');
+
+              throw new Error(
+                `Conversation history validation failed: ` +
+                `Message ${idx} has server_tool_use "${stu.name}" (${stu.id}) ` +
+                `without corresponding web_search_tool_result. ` +
+                `This indicates a bug in the streaming or content block handling.`
+              );
+            }
+          });
+        }
+      }
+    });
   }
 }

@@ -2,11 +2,9 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "noUnusedParameters": false
   },
   "include": ["src/**/*"],
-  "references": [
-    { "path": "../runtime" },
-    { "path": "../tools-impl" }
-  ]
+  "exclude": ["node_modules", "dist"]
 }
