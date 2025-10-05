@@ -1,0 +1,20 @@
+{
+  "name": "@eitherway/evaluations",
+  "version": "0.1.0",
+  "description": "Scripted evaluations and golden transcripts",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "eval": "tsx src/run-evals.ts"
+  },
+  "dependencies": {
+    "@eitherway/runtime": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.0"
+  }
+}

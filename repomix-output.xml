@@ -1,0 +1,7004 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+4. Repository files, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+<additional_info>
+
+</additional_info>
+
+</file_summary>
+
+<directory_structure>
+configs/
+  agent.json
+  anthropic.example.json
+examples/
+  basic-usage.ts
+packages/
+  evaluations/
+    src/
+      calculator-eval.ts
+      run-evals.ts
+    package.json
+    tsconfig.json
+  runtime/
+    src/
+      agent.ts
+      cli.ts
+      config.ts
+      index.ts
+      metrics.ts
+      model-client.ts
+      rate-limiter.ts
+      tool-runner.ts
+      transcript.ts
+      verifier.ts
+    package.json
+    tsconfig.json
+  tools-core/
+    src/
+      index.ts
+      schemas.ts
+      types.ts
+      validator.ts
+    package.json
+    tsconfig.json
+  tools-impl/
+    src/
+      either-line-replace.ts
+      either-search-files.ts
+      either-view.ts
+      either-write.ts
+      imagegen.ts
+      index.ts
+      security.ts
+      websearch.ts
+    package.json
+    tsconfig.json
+  ui/
+    package.json
+    tsconfig.json
+  ui-frontend/
+    src/
+      components/
+        ChatPanel.tsx
+        CodeViewer.tsx
+        FileTree.tsx
+        PreviewPane.tsx
+      App.tsx
+      main.tsx
+      styles.css
+      useWebSocket.ts
+    index.html
+    package.json
+    tsconfig.json
+    tsconfig.node.json
+    vite.config.ts
+  ui-server/
+    src/
+      server.ts
+    package.json
+    tsconfig.json
+workspace/
+  index.html
+  README.md
+  script.js
+  styles.css
+.gitignore
+package.json
+README.md
+tsconfig.json
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="configs/agent.json">
+{
+  "policy": {
+    "deterministic": true,
+    "singleAgent": true,
+    "parallelTools": true
+  },
+  "security": {
+    "allowedWorkspaces": [
+      "workspace/**"
+    ],
+    "deniedPaths": [
+      ".env",
+      "*.key",
+      "*.pem",
+      "configs/anthropic.json",
+      "node_modules/**"
+    ],
+    "maxFileSize": 1048576,
+    "secretPatterns": [
+      "sk-ant-[a-zA-Z0-9-_]+",
+      "AIza[0-9A-Za-z-_]{35}",
+      "sk-[a-zA-Z0-9]{32,}",
+      "-----BEGIN.*PRIVATE KEY-----"
+    ],
+    "redactSecrets": true
+  },
+  "limits": {
+    "maxToolPayloadSize": 524288,
+    "maxConcurrentTools": 10,
+    "maxSearchResults": 1000,
+    "chunkSize": 4096
+  },
+  "logging": {
+    "level": "info",
+    "captureTranscripts": true,
+    "transcriptDir": "./transcripts",
+    "logFile": "./logs/agent.log"
+  },
+  "tools": {
+    "websearch": {
+      "provider": "tavily",
+      "defaultTopK": 5,
+      "maxRecencyDays": 365
+    },
+    "imagegen": {
+      "provider": "openai",
+      "defaultSize": "1024x1024",
+      "supportedProviders": ["openai", "stability", "fal", "replicate", "custom"]
+    }
+  }
+}
+</file>
+
+<file path="configs/anthropic.example.json">
+{
+  "apiKey": "sk-ant-...",
+  "model": "claude-sonnet-4-5-20250929",
+  "maxTokens": 8192,
+  "temperature": 0.2,
+  "topP": 0.9,
+  "streaming": true,
+  "provider": "anthropic",
+  "providerConfig": {
+    "anthropic": {
+      "baseURL": "https://api.anthropic.com"
+    },
+    "vertex": {
+      "projectId": "your-project-id",
+      "location": "us-central1",
+      "model": "claude-sonnet-4-5@20250929"
+    },
+    "bedrock": {
+      "region": "us-east-1",
+      "modelId": "anthropic.claude-sonnet-4-5-v2:0"
+    }
+  },
+  "thinking": {
+    "enabled": false,
+    "budget": "medium"
+  },
+  "promptCaching": {
+    "enabled": false
+  }
+}
+</file>
+
+<file path="examples/basic-usage.ts">
+/**
+ * Basic usage example for EitherWay Agent
+ */
+
+import { Agent, ConfigLoader } from '@eitherway/runtime';
+import { getAllExecutors } from '@eitherway/tools-impl';
+
+async function main() {
+  // Load configuration
+  const loader = new ConfigLoader('./configs');
+  const { claudeConfig, agentConfig } = await loader.loadAll();
+
+  // Create agent
+  const agent = new Agent({
+    workingDir: process.cwd(),
+    claudeConfig,
+    agentConfig,
+    executors: getAllExecutors(),
+    dryRun: false // Set to true for dry-run mode
+  });
+
+  // Process a request
+  const response = await agent.processRequest(
+    'Build me a simple calculator with addition and subtraction'
+  );
+
+  console.log('Response:', response);
+
+  // Save transcript
+  await agent.saveTranscript();
+}
+
+main().catch(console.error);
+</file>
+
+<file path="packages/evaluations/src/calculator-eval.ts">
+/**
+ * Acceptance test for "Build me a calculator" request
+ * Tests Stages 1-2: Analyze and Plan
+ */
+
+import { Agent } from '@eitherway/runtime';
+import { ConfigLoader } from '@eitherway/runtime';
+import { getAllExecutors } from '@eitherway/tools-impl';
+
+interface EvalResult {
+  passed: boolean;
+  checks: Array<{
+    name: string;
+    passed: boolean;
+    details?: string;
+  }>;
+  transcript?: any;
+}
+
+/**
+ * Run calculator evaluation
+ */
+export async function runCalculatorEval(dryRun: boolean = true): Promise<EvalResult> {
+  const request = 'Build me a calculator';
+
+  try {
+    // Load config
+    const loader = new ConfigLoader('./configs');
+    const { claudeConfig, agentConfig } = await loader.loadAll();
+
+    // Create agent in dry-run mode
+    const agent = new Agent({
+      workingDir: process.cwd(),
+      claudeConfig,
+      agentConfig,
+      executors: getAllExecutors(),
+      dryRun
+    });
+
+    // Process request
+    const response = await agent.processRequest(request);
+    // const transcript = agent.getCurrentTranscript(); // TODO: Implement transcript getter
+
+    // Evaluation checks
+    const checks = [];
+
+    // Check 1: Agent produces a response
+    checks.push({
+      name: 'Agent produces response',
+      passed: response.length > 0,
+      details: `Response length: ${response.length} characters`
+    });
+
+    // Check 2: Response contains analysis (Stage 1)
+    const hasAnalysis =
+      response.toLowerCase().includes('calculator') &&
+      (response.toLowerCase().includes('intent') ||
+       response.toLowerCase().includes('scope') ||
+       response.toLowerCase().includes('requirement'));
+
+    checks.push({
+      name: 'Stage 1: Contains analysis of request',
+      passed: hasAnalysis,
+      details: hasAnalysis ? 'Found analysis keywords' : 'Missing analysis indicators'
+    });
+
+    // Check 3: Response contains architecture plan (Stage 2)
+    const hasPlan =
+      (response.toLowerCase().includes('component') ||
+       response.toLowerCase().includes('file') ||
+       response.toLowerCase().includes('design')) &&
+      (response.toLowerCase().includes('structure') ||
+       response.toLowerCase().includes('architecture'));
+
+    checks.push({
+      name: 'Stage 2: Contains architecture plan',
+      passed: hasPlan,
+      details: hasPlan ? 'Found architecture planning' : 'Missing architecture plan'
+    });
+
+    // Check 4: Response mentions expected features
+    const mentionsUI = response.toLowerCase().includes('ui') ||
+                       response.toLowerCase().includes('interface') ||
+                       response.toLowerCase().includes('button');
+
+    checks.push({
+      name: 'Identifies UI requirements',
+      passed: mentionsUI,
+      details: mentionsUI ? 'UI mentioned' : 'UI not explicitly mentioned'
+    });
+
+    // Check 5: Response mentions operations/logic
+    const mentionsLogic = response.toLowerCase().includes('operation') ||
+                          response.toLowerCase().includes('calculation') ||
+                          response.toLowerCase().includes('arithmetic');
+
+    checks.push({
+      name: 'Identifies calculator operations',
+      passed: mentionsLogic,
+      details: mentionsLogic ? 'Operations mentioned' : 'Operations not mentioned'
+    });
+
+    // Check 6: In dry-run mode, no files should be created
+    if (dryRun) {
+      const noToolExecution = !response.includes('Successfully wrote') &&
+                              !response.includes('Successfully replaced');
+      checks.push({
+        name: 'Dry run: No file modifications',
+        passed: noToolExecution,
+        details: noToolExecution ? 'No files modified' : 'Files were modified in dry-run mode'
+      });
+    }
+
+    const allPassed = checks.every(c => c.passed);
+
+    return {
+      passed: allPassed,
+      checks
+    };
+
+  } catch (error: any) {
+    return {
+      passed: false,
+      checks: [
+        {
+          name: 'Execution',
+          passed: false,
+          details: `Error: ${error.message}`
+        }
+      ]
+    };
+  }
+}
+</file>
+
+<file path="packages/evaluations/src/run-evals.ts">
+#!/usr/bin/env node
+/**
+ * Evaluation runner for Portion 1 acceptance tests
+ */
+
+import { runCalculatorEval } from './calculator-eval.js';
+
+async function main() {
+  console.log('=== Portion 1 Acceptance Tests ===\n');
+
+  // Test 1: Calculator evaluation
+  console.log('Test 1: Calculator Request (Dry Run)');
+  console.log('Request: "Build me a calculator"');
+  console.log('Expected: Analyze and Plan stages complete\n');
+
+  const result = await runCalculatorEval(true);
+
+  console.log('Results:');
+  for (const check of result.checks) {
+    const icon = check.passed ? '✅' : '❌';
+    console.log(`  ${icon} ${check.name}`);
+    if (check.details) {
+      console.log(`     ${check.details}`);
+    }
+  }
+
+  console.log('\n' + '='.repeat(50));
+  console.log(`Overall: ${result.passed ? '✅ PASSED' : '❌ FAILED'}`);
+  console.log('='.repeat(50) + '\n');
+
+  if (!result.passed) {
+    process.exit(1);
+  }
+}
+
+main().catch((error) => {
+  console.error('Fatal error:', error);
+  process.exit(1);
+});
+</file>
+
+<file path="packages/evaluations/package.json">
+{
+  "name": "@eitherway/evaluations",
+  "version": "0.1.0",
+  "description": "Scripted evaluations and golden transcripts",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "eval": "tsx src/run-evals.ts"
+  },
+  "dependencies": {
+    "@eitherway/runtime": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.0"
+  }
+}
+</file>
+
+<file path="packages/evaluations/tsconfig.json">
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*"],
+  "references": [
+    { "path": "../runtime" }
+  ]
+}
+</file>
+
+<file path="packages/runtime/src/agent.ts">
+/**
+ * Agent Orchestrator with Stage 1-5 workflow
+ * Portion 1: Implements Stages 1-2 (Analyze, Plan)
+ */
+
+import { ModelClient } from './model-client.js';
+import { ToolRunner } from './tool-runner.js';
+import { TranscriptRecorder } from './transcript.js';
+import { VerifierRunner } from './verifier.js';
+import { getAllToolDefinitions } from '@eitherway/tools-core';
+import type {
+  Message,
+  ToolUse,
+  ToolResult,
+  ClaudeConfig,
+  AgentConfig,
+  ToolExecutor
+} from '@eitherway/tools-core';
+
+const SYSTEM_PROMPT = `You are a single agent that builds and edits apps end-to-end.
+Use ONLY the tools listed below. Prefer either-line-replace for small, targeted edits.
+
+READ-BEFORE-WRITE DISCIPLINE (CRITICAL):
+  - ALWAYS use either-view or either-search-files BEFORE any write or edit operation
+  - Verify file contents, line numbers, and context before modifying
+  - Use the needle parameter in either-line-replace to ensure you're editing the right lines
+  - Check sha256 hashes to verify file integrity
+
+For execution:
+  Stage 1: Analyze request (intent, scope, constraints).
+  Stage 2: Plan architecture (design system, components, files).
+  Stage 3: Select tools (name each planned call, READ first for edits).
+  Stage 4: Execute in parallel (emit multiple tool_use blocks that do not conflict).
+  Stage 5: Verify & Respond (self-check diff & tests; concise summary).
+
+Determinism:
+  - Default temperature low (0.2); fix seeds where supported.
+  - Use the smallest change that works; avoid rewrites.
+  - Always prefer either-line-replace over either-write for existing files.
+
+Safety:
+  - File operations restricted to allowed workspaces and globs.
+  - Web search & image gen respect rate limits (10/min search, 5/min images).
+  - All tool calls are logged with metrics (latency, sizes, file counts).
+
+Output contract:
+  - When executing, emit parallel tool_use blocks grouped by task.
+  - After tools, review diffs and summarize what changed and why.
+
+Tools available:
+  - either-view: Read files (returns sha256, line_count, encoding)
+  - either-search-files: Search code (supports regex, context lines)
+  - either-line-replace: Edit lines (returns unified diff, verifies with sha256)
+  - either-write: Create files (returns diff summary)
+  - websearch--web_search: Web search (Tavily provider, returns title/url/snippet)
+  - eithergen--generate_image: Generate images (OpenAI/custom provider, saves to disk)`;
+
+
+export interface AgentOptions {
+  workingDir: string;
+  claudeConfig: ClaudeConfig;
+  agentConfig: AgentConfig;
+  executors: ToolExecutor[];
+  dryRun?: boolean;
+}
+
+export class Agent {
+  private modelClient: ModelClient;
+  private toolRunner: ToolRunner;
+  private recorder: TranscriptRecorder;
+  private conversationHistory: Message[];
+  private options: AgentOptions;
+
+  constructor(options: AgentOptions) {
+    this.options = options;
+    this.modelClient = new ModelClient(options.claudeConfig);
+    this.toolRunner = new ToolRunner(
+      options.executors,
+      options.workingDir,
+      options.agentConfig
+    );
+    this.recorder = new TranscriptRecorder(options.agentConfig);
+    this.conversationHistory = [];
+  }
+
+  /**
+   * Process a user request through the agent workflow
+   */
+  async processRequest(userMessage: string): Promise<string> {
+    // Start transcript
+    const transcriptId = this.recorder.startTranscript(userMessage);
+
+    // Add user message to history
+    this.conversationHistory.push({
+      role: 'user',
+      content: userMessage
+    });
+
+    this.recorder.addEntry({
+      timestamp: new Date().toISOString(),
+      role: 'user',
+      content: userMessage
+    });
+
+    let finalResponse = '';
+    let turnCount = 0;
+    const maxTurns = 20; // Safety limit
+    const changedFiles = new Set<string>();
+    let hasExecutedTools = false;
+
+    while (turnCount < maxTurns) {
+      turnCount++;
+
+      // Send message to Claude
+      const response = await this.modelClient.sendMessage(
+        this.conversationHistory,
+        SYSTEM_PROMPT,
+        getAllToolDefinitions(),
+        {
+          onDelta: (delta) => {
+            if (delta.type === 'text') {
+              process.stdout.write(delta.content);
+            }
+          }
+        }
+      );
+
+      // Record assistant response
+      this.recorder.addEntry({
+        timestamp: new Date().toISOString(),
+        role: 'assistant',
+        content: response.content,
+        metadata: {
+          model: this.options.claudeConfig.model,
+          tokenUsage: {
+            input: response.usage.inputTokens,
+            output: response.usage.outputTokens
+          },
+          stopReason: response.stopReason || undefined
+        }
+      });
+
+      // Extract text and tool uses from response
+      const textBlocks = response.content
+        .filter((c: any) => c.type === 'text')
+        .map((c: any) => c.text)
+        .join('\n');
+
+      const toolUses = response.content
+        .filter((c: any) => c.type === 'tool_use')
+        .map((c: any) => ({
+          type: 'tool_use' as const,
+          id: c.id!,
+          name: c.name!,
+          input: c.input!
+        }));
+
+      // Add assistant message to history
+      this.conversationHistory.push({
+        role: 'assistant',
+        content: response.content
+      });
+
+      // If no tool uses, we're done - run verification if we executed tools
+      if (toolUses.length === 0) {
+        finalResponse = textBlocks;
+
+        // Run verification if tools were executed this session
+        if (hasExecutedTools && !this.options.dryRun) {
+          const verificationSummary = await this.runVerification(changedFiles);
+          finalResponse += verificationSummary;
+        }
+
+        break;
+      }
+
+      // Execute tools (dry run if specified)
+      let toolResults: ToolResult[];
+      if (this.options.dryRun) {
+        toolResults = toolUses.map((tu: ToolUse) => ({
+          type: 'tool_result' as const,
+          tool_use_id: tu.id,
+          content: `[DRY RUN] Would execute: ${tu.name} with input: ${JSON.stringify(tu.input, null, 2)}`
+        }));
+      } else {
+        toolResults = await this.toolRunner.executeTools(toolUses);
+        hasExecutedTools = true;
+
+        // Track changed files
+        for (const result of toolResults) {
+          const metadata = (result as any).metadata;
+          if (metadata?.path && !result.is_error) {
+            changedFiles.add(metadata.path);
+          }
+        }
+      }
+
+      // Record tool results
+      this.recorder.addEntry({
+        timestamp: new Date().toISOString(),
+        role: 'user',
+        content: toolResults
+      });
+
+      // Add tool results to conversation
+      this.conversationHistory.push({
+        role: 'user',
+        content: toolResults
+      });
+
+      // If stop reason was end_turn, continue conversation
+      if (response.stopReason === 'end_turn') {
+        continue;
+      }
+    }
+
+    // End transcript
+    this.recorder.endTranscript(transcriptId, finalResponse);
+
+    return finalResponse;
+  }
+
+  /**
+   * Get conversation history
+   */
+  getHistory(): Message[] {
+    return [...this.conversationHistory];
+  }
+
+  /**
+   * Reset conversation
+   */
+  reset(): void {
+    this.conversationHistory = [];
+    this.toolRunner.clearCache();
+  }
+
+  /**
+   * Save transcript to disk
+   */
+  async saveTranscript(): Promise<void> {
+    await this.recorder.saveCurrentTranscript();
+  }
+
+  /**
+   * Run verification and create summary
+   */
+  private async runVerification(changedFiles: Set<string>): Promise<string> {
+    const verifier = new VerifierRunner(this.options.workingDir);
+
+    // Create change summary
+    const changeSummary = this.createChangeSummary(changedFiles);
+
+    // Run verification
+    const verifyResult = await verifier.run();
+    const verifySummary = VerifierRunner.formatSummary(verifyResult);
+
+    // Get metrics summary
+    const metrics = this.toolRunner.getMetrics();
+    const metricsSummary = metrics.getSummaryString();
+
+    return `\n\n---\n${changeSummary}${verifySummary}\n\n**Metrics:**\n${metricsSummary}`;
+  }
+
+  /**
+   * Create a summary of changed files
+   */
+  private createChangeSummary(changedFiles: Set<string>): string {
+    if (changedFiles.size === 0) {
+      return '';
+    }
+
+    const files = Array.from(changedFiles).sort();
+    const summary = files.length === 1
+      ? `**Changed:** ${files[0]}\n`
+      : `**Changed (${files.length} files):**\n${files.map(f => `  - ${f}`).join('\n')}\n`;
+
+    return summary;
+  }
+}
+</file>
+
+<file path="packages/runtime/src/cli.ts">
+#!/usr/bin/env node
+/**
+ * CLI for the EitherWay agent
+ */
+
+import { Agent } from './agent.js';
+import { ConfigLoader } from './config.js';
+import { getAllExecutors } from '@eitherway/tools-impl';
+
+async function main() {
+  const args = process.argv.slice(2);
+
+  if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
+    console.log(`
+EitherWay Agent CLI - App creation with Claude Sonnet 4.5
+
+Usage:
+  npm run dev [options] "<request>"
+
+Options:
+  --dry-run         Show what would be executed without making changes
+  --config-dir DIR  Configuration directory (default: ./configs)
+  --help, -h        Show this help message
+
+Examples:
+  npm run dev "Build me a calculator"
+  npm run dev --dry-run "Create a todo app"
+
+Configuration:
+  1. Copy configs/anthropic.example.json to configs/anthropic.json
+  2. Add your Anthropic API key
+  3. Adjust agent.json settings as needed
+`);
+    process.exit(0);
+  }
+
+  // Parse options
+  let dryRun = false;
+  let configDir = './configs';
+  let request = '';
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--dry-run') {
+      dryRun = true;
+    } else if (args[i] === '--config-dir') {
+      configDir = args[++i];
+    } else {
+      request = args.slice(i).join(' ');
+      break;
+    }
+  }
+
+  if (!request) {
+    console.error('Error: No request provided');
+    process.exit(1);
+  }
+
+  try {
+    // Load configuration
+    const loader = new ConfigLoader(configDir);
+    const { claudeConfig, agentConfig } = await loader.loadAll();
+
+    // Create agent
+    const agent = new Agent({
+      workingDir: process.cwd(),
+      claudeConfig,
+      agentConfig,
+      executors: getAllExecutors(),
+      dryRun
+    });
+
+    console.log('\n=== EitherWay Agent ===');
+    console.log(`Model: ${claudeConfig.model}`);
+    console.log(`Dry Run: ${dryRun ? 'YES' : 'NO'}`);
+    console.log(`Request: ${request}`);
+    console.log('======================\n');
+
+    // Process request
+    const response = await agent.processRequest(request);
+
+    // Save transcript
+    await agent.saveTranscript();
+
+    console.log('\n======================');
+    console.log('Final Response:');
+    console.log(response);
+    console.log('======================\n');
+
+  } catch (error: any) {
+    console.error('\n❌ Error:', error.message);
+    if (error.stack) {
+      console.error('\nStack trace:');
+      console.error(error.stack);
+    }
+    process.exit(1);
+  }
+}
+
+main();
+</file>
+
+<file path="packages/runtime/src/config.ts">
+/**
+ * Configuration loader
+ */
+
+import { readFile } from 'fs/promises';
+import { resolve } from 'path';
+import type { ClaudeConfig, AgentConfig } from '@eitherway/tools-core';
+
+export class ConfigLoader {
+  private configDir: string;
+
+  constructor(configDir: string = './configs') {
+    this.configDir = configDir;
+  }
+
+  /**
+   * Load Claude/Anthropic configuration
+   */
+  async loadClaudeConfig(): Promise<ClaudeConfig> {
+    const configPath = resolve(this.configDir, 'anthropic.json');
+
+    try {
+      const content = await readFile(configPath, 'utf-8');
+      const config = JSON.parse(content) as ClaudeConfig;
+
+      // Validate required fields
+      if (!config.apiKey) {
+        throw new Error('API key is required in anthropic.json');
+      }
+
+      if (!config.model) {
+        config.model = 'claude-sonnet-4-5-20250929';
+      }
+
+      // Set defaults
+      const claudeConfig: ClaudeConfig = {
+        apiKey: config.apiKey,
+        model: config.model,
+        maxTokens: config.maxTokens || 8192,
+        temperature: config.temperature ?? 0.2,
+        streaming: config.streaming ?? true,
+        provider: config.provider || 'anthropic',
+        providerConfig: config.providerConfig,
+        thinking: config.thinking,
+        promptCaching: config.promptCaching
+      };
+
+      // Only include topP if explicitly set (Claude 4.5 doesn't allow both temperature and topP)
+      if (config.topP !== undefined) {
+        claudeConfig.topP = config.topP;
+      }
+
+      return claudeConfig;
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        throw new Error(
+          `Config file not found: ${configPath}\n` +
+          `Please copy configs/anthropic.example.json to configs/anthropic.json and add your API key.`
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Load agent configuration
+   */
+  async loadAgentConfig(): Promise<AgentConfig> {
+    const configPath = resolve(this.configDir, 'agent.json');
+
+    try {
+      const content = await readFile(configPath, 'utf-8');
+      const config = JSON.parse(content) as AgentConfig;
+
+      return config;
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        throw new Error(`Config file not found: ${configPath}`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Load both configurations
+   */
+  async loadAll(): Promise<{ claudeConfig: ClaudeConfig; agentConfig: AgentConfig }> {
+    const [claudeConfig, agentConfig] = await Promise.all([
+      this.loadClaudeConfig(),
+      this.loadAgentConfig()
+    ]);
+
+    return { claudeConfig, agentConfig };
+  }
+}
+</file>
+
+<file path="packages/runtime/src/index.ts">
+/**
+ * @eitherway/runtime - LLM client, tool runner, orchestration
+ */
+
+export { ModelClient } from './model-client.js';
+export { ToolRunner, SecurityGuard } from './tool-runner.js';
+export { Agent } from './agent.js';
+export { TranscriptRecorder } from './transcript.js';
+export { ConfigLoader } from './config.js';
+export { MetricsCollector } from './metrics.js';
+export { RateLimiter } from './rate-limiter.js';
+
+export type { AgentOptions } from './agent.js';
+export type { ModelResponse, StreamDelta } from './model-client.js';
+export type { ToolMetrics } from './metrics.js';
+</file>
+
+<file path="packages/runtime/src/metrics.ts">
+/**
+ * Structured logging and metrics for tool execution
+ */
+
+import type { AgentConfig } from '@eitherway/tools-core';
+
+export interface ToolMetrics {
+  tool: string;
+  latency_ms: number;
+  input_size: number;
+  output_size: number;
+  file_count?: number;
+  success: boolean;
+  error?: string;
+  timestamp: string;
+}
+
+export class MetricsCollector {
+  private metrics: ToolMetrics[] = [];
+  private config: AgentConfig;
+
+  constructor(config: AgentConfig) {
+    this.config = config;
+  }
+
+  /**
+   * Record tool execution metrics
+   */
+  recordToolExecution(metrics: ToolMetrics): void {
+    this.metrics.push(metrics);
+
+    // Structured log output
+    const level = metrics.success ? 'info' : 'error';
+    const status = metrics.success ? '✓' : '✗';
+
+    this.log(
+      level,
+      `[TOOL] ${status} ${metrics.tool} | ` +
+      `${metrics.latency_ms}ms | ` +
+      `in:${this.formatSize(metrics.input_size)} | ` +
+      `out:${this.formatSize(metrics.output_size)}` +
+      (metrics.file_count !== undefined ? ` | files:${metrics.file_count}` : '') +
+      (metrics.error ? ` | error: ${metrics.error}` : '')
+    );
+  }
+
+  /**
+   * Get all collected metrics
+   */
+  getMetrics(): ToolMetrics[] {
+    return [...this.metrics];
+  }
+
+  /**
+   * Get summary statistics
+   */
+  getSummary(): {
+    totalCalls: number;
+    successRate: number;
+    avgLatency: number;
+    totalInputSize: number;
+    totalOutputSize: number;
+    byTool: Record<string, { calls: number; avgLatency: number }>;
+  } {
+    const totalCalls = this.metrics.length;
+    const successCount = this.metrics.filter(m => m.success).length;
+    const avgLatency = totalCalls > 0
+      ? this.metrics.reduce((sum, m) => sum + m.latency_ms, 0) / totalCalls
+      : 0;
+
+    const byTool: Record<string, { calls: number; avgLatency: number }> = {};
+
+    for (const metric of this.metrics) {
+      if (!byTool[metric.tool]) {
+        byTool[metric.tool] = { calls: 0, avgLatency: 0 };
+      }
+      byTool[metric.tool].calls++;
+      byTool[metric.tool].avgLatency =
+        (byTool[metric.tool].avgLatency * (byTool[metric.tool].calls - 1) + metric.latency_ms) /
+        byTool[metric.tool].calls;
+    }
+
+    return {
+      totalCalls,
+      successRate: totalCalls > 0 ? successCount / totalCalls : 0,
+      avgLatency,
+      totalInputSize: this.metrics.reduce((sum, m) => sum + m.input_size, 0),
+      totalOutputSize: this.metrics.reduce((sum, m) => sum + m.output_size, 0),
+      byTool
+    };
+  }
+
+  /**
+   * Get summary as formatted string
+   */
+  getSummaryString(): string {
+    const summary = this.getSummary();
+
+    if (summary.totalCalls === 0) {
+      return 'No tools executed';
+    }
+
+    const lines: string[] = [
+      `Total calls: ${summary.totalCalls}`,
+      `Success rate: ${(summary.successRate * 100).toFixed(1)}%`,
+      `Avg latency: ${summary.avgLatency.toFixed(0)}ms`
+    ];
+
+    // Add per-tool breakdown
+    const toolNames = Object.keys(summary.byTool).sort();
+    if (toolNames.length > 0) {
+      lines.push('Per-tool:');
+      for (const tool of toolNames) {
+        const stats = summary.byTool[tool];
+        lines.push(`  - ${tool}: ${stats.calls} calls, ${stats.avgLatency.toFixed(0)}ms avg`);
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Clear metrics
+   */
+  clear(): void {
+    this.metrics = [];
+  }
+
+  /**
+   * Format byte size for display
+   */
+  private formatSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes}B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+  }
+
+  /**
+   * Log with level filtering
+   */
+  private log(level: 'debug' | 'info' | 'warn' | 'error', message: string): void {
+    const levels = { debug: 0, info: 1, warn: 2, error: 3 };
+    const configLevel = levels[this.config.logging.level];
+    const messageLevel = levels[level];
+
+    if (messageLevel >= configLevel) {
+      const timestamp = new Date().toISOString();
+      const logMessage = `[${timestamp}] [${level.toUpperCase()}] ${message}`;
+
+      if (level === 'error') {
+        console.error(logMessage);
+      } else {
+        console.log(logMessage);
+      }
+    }
+  }
+}
+</file>
+
+<file path="packages/runtime/src/model-client.ts">
+/**
+ * Model Client for Claude Sonnet 4.5 with streaming support
+ */
+
+import Anthropic from '@anthropic-ai/sdk';
+import { ClaudeConfig, Message, ToolDefinition } from '@eitherway/tools-core';
+
+export interface StreamDelta {
+  type: 'text' | 'tool_use';
+  content: string;
+  toolUseId?: string;
+  toolName?: string;
+}
+
+export interface ModelResponse {
+  id: string;
+  role: 'assistant';
+  content: Array<{
+    type: 'text' | 'tool_use';
+    text?: string;
+    id?: string;
+    name?: string;
+    input?: Record<string, any>;
+  }>;
+  stopReason: string | null;
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+  };
+}
+
+export class ModelClient {
+  private client: Anthropic;
+  private config: ClaudeConfig;
+
+  constructor(config: ClaudeConfig) {
+    this.config = config;
+
+    if (config.provider === 'anthropic') {
+      this.client = new Anthropic({
+        apiKey: config.apiKey,
+        baseURL: config.providerConfig?.anthropic?.baseURL
+      });
+    } else {
+      throw new Error(`Provider ${config.provider} not yet implemented. Use 'anthropic' for Portion 1.`);
+    }
+  }
+
+  /**
+   * Send a message with optional streaming
+   */
+  async sendMessage(
+    messages: Message[],
+    systemPrompt: string,
+    tools: ToolDefinition[],
+    options?: {
+      onDelta?: (delta: StreamDelta) => void;
+      onComplete?: (response: ModelResponse) => void;
+    }
+  ): Promise<ModelResponse> {
+    const params: Anthropic.MessageCreateParams = {
+      model: this.config.model,
+      max_tokens: this.config.maxTokens,
+      system: systemPrompt,
+      messages: this.convertMessages(messages),
+      tools: tools as any[], // Anthropic SDK types match our ToolDefinition
+    };
+
+    // Claude 4.5 doesn't allow both temperature and top_p - only include one
+    if (this.config.topP !== undefined) {
+      params.top_p = this.config.topP;
+    } else {
+      params.temperature = this.config.temperature;
+    }
+
+    if (this.config.streaming && options?.onDelta) {
+      return this.streamMessage(params, options.onDelta, options.onComplete);
+    } else {
+      return this.nonStreamMessage(params);
+    }
+  }
+
+  /**
+   * Streaming message handling
+   */
+  private async streamMessage(
+    params: Anthropic.MessageCreateParams,
+    onDelta: (delta: StreamDelta) => void,
+    onComplete?: (response: ModelResponse) => void
+  ): Promise<ModelResponse> {
+    const stream = await this.client.messages.create({
+      ...params,
+      stream: true
+    });
+
+    let messageId = '';
+    let stopReason: string | null = null;
+    let inputTokens = 0;
+    let outputTokens = 0;
+    const contentBlocks: any[] = [];
+    let currentTextBlock = '';
+    let currentToolUse: any = null;
+
+    for await (const event of stream) {
+      switch (event.type) {
+        case 'message_start':
+          messageId = event.message.id;
+          inputTokens = event.message.usage.input_tokens;
+          break;
+
+        case 'content_block_start':
+          if (event.content_block.type === 'text') {
+            currentTextBlock = '';
+          } else if (event.content_block.type === 'tool_use') {
+            currentToolUse = {
+              type: 'tool_use',
+              id: event.content_block.id,
+              name: event.content_block.name,
+              inputJson: ''
+            };
+          }
+          break;
+
+        case 'content_block_delta':
+          if (event.delta.type === 'text_delta') {
+            currentTextBlock += event.delta.text;
+            onDelta({ type: 'text', content: event.delta.text });
+          } else if (event.delta.type === 'input_json_delta') {
+            // Accumulate tool input JSON (parse only once on content_block_stop)
+            if (currentToolUse) {
+              currentToolUse.inputJson += event.delta.partial_json;
+            }
+          }
+          break;
+
+        case 'content_block_stop':
+          if (currentTextBlock) {
+            contentBlocks.push({ type: 'text', text: currentTextBlock });
+            currentTextBlock = '';
+          } else if (currentToolUse) {
+            // Parse accumulated JSON once at the end
+            try {
+              currentToolUse.input = JSON.parse(currentToolUse.inputJson || '{}');
+            } catch (e) {
+              console.error('Failed to parse tool input JSON:', e);
+              currentToolUse.input = {};
+            }
+            delete currentToolUse.inputJson;
+            contentBlocks.push(currentToolUse);
+            onDelta({
+              type: 'tool_use',
+              content: `[Tool: ${currentToolUse.name}]`,
+              toolUseId: currentToolUse.id,
+              toolName: currentToolUse.name
+            });
+            currentToolUse = null;
+          }
+          break;
+
+        case 'message_delta':
+          if (event.delta.stop_reason) {
+            stopReason = event.delta.stop_reason;
+          }
+          if (event.usage) {
+            outputTokens = event.usage.output_tokens;
+          }
+          break;
+
+        case 'message_stop':
+          // Stream complete
+          break;
+      }
+    }
+
+    const response: ModelResponse = {
+      id: messageId,
+      role: 'assistant',
+      content: contentBlocks,
+      stopReason,
+      usage: {
+        inputTokens,
+        outputTokens
+      }
+    };
+
+    if (onComplete) {
+      onComplete(response);
+    }
+
+    return response;
+  }
+
+  /**
+   * Non-streaming message handling
+   */
+  private async nonStreamMessage(
+    params: Anthropic.MessageCreateParams
+  ): Promise<ModelResponse> {
+    const response = await this.client.messages.create({
+      ...params,
+      stream: false
+    });
+
+    return {
+      id: response.id,
+      role: 'assistant',
+      content: response.content.map((block: any) => {
+        if (block.type === 'text') {
+          return { type: 'text', text: block.text };
+        } else if (block.type === 'tool_use') {
+          return {
+            type: 'tool_use',
+            id: block.id,
+            name: block.name,
+            input: block.input
+          };
+        }
+        return block;
+      }),
+      stopReason: response.stop_reason,
+      usage: {
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens
+      }
+    };
+  }
+
+  /**
+   * Convert our Message format to Anthropic's format
+   */
+  private convertMessages(messages: Message[]): Anthropic.MessageParam[] {
+    return messages.map(msg => ({
+      role: msg.role as 'user' | 'assistant',
+      content: typeof msg.content === 'string'
+        ? msg.content
+        : msg.content as any
+    }));
+  }
+
+  /**
+   * Get current config
+   */
+  getConfig(): ClaudeConfig {
+    return { ...this.config };
+  }
+}
+</file>
+
+<file path="packages/runtime/src/rate-limiter.ts">
+/**
+ * Rate limiting for external API calls
+ */
+
+export interface RateLimitConfig {
+  maxRequests: number;
+  windowMs: number;
+}
+
+export class RateLimiter {
+  private requests: Map<string, number[]>;
+  private config: Map<string, RateLimitConfig>;
+
+  constructor() {
+    this.requests = new Map();
+    this.config = new Map();
+
+    // Default rate limits
+    this.setLimit('websearch', { maxRequests: 10, windowMs: 60000 }); // 10 per minute
+    this.setLimit('eithergen', { maxRequests: 5, windowMs: 60000 });  // 5 per minute
+  }
+
+  /**
+   * Set rate limit for a specific tool
+   */
+  setLimit(tool: string, config: RateLimitConfig): void {
+    this.config.set(tool, config);
+  }
+
+  /**
+   * Check if request is allowed
+   */
+  async checkLimit(tool: string): Promise<{ allowed: boolean; retryAfter?: number }> {
+    const config = this.config.get(tool);
+    if (!config) {
+      // No rate limit configured
+      return { allowed: true };
+    }
+
+    const now = Date.now();
+    const requests = this.requests.get(tool) || [];
+
+    // Remove expired requests
+    const validRequests = requests.filter(time => now - time < config.windowMs);
+
+    if (validRequests.length >= config.maxRequests) {
+      // Rate limit exceeded
+      const oldestRequest = validRequests[0];
+      const retryAfter = Math.ceil((oldestRequest + config.windowMs - now) / 1000);
+
+      return {
+        allowed: false,
+        retryAfter
+      };
+    }
+
+    // Record this request
+    validRequests.push(now);
+    this.requests.set(tool, validRequests);
+
+    return { allowed: true };
+  }
+
+  /**
+   * Reset rate limit for a tool
+   */
+  reset(tool: string): void {
+    this.requests.delete(tool);
+  }
+
+  /**
+   * Get current usage
+   */
+  getUsage(tool: string): { current: number; max: number; windowMs: number } | null {
+    const config = this.config.get(tool);
+    if (!config) return null;
+
+    const now = Date.now();
+    const requests = this.requests.get(tool) || [];
+    const validRequests = requests.filter(time => now - time < config.windowMs);
+
+    return {
+      current: validRequests.length,
+      max: config.maxRequests,
+      windowMs: config.windowMs
+    };
+  }
+}
+</file>
+
+<file path="packages/runtime/src/tool-runner.ts">
+/**
+ * Tool Runner with validation, allowlist, idempotency, metrics, and rate limiting
+ */
+
+import crypto from 'crypto';
+import { getValidator } from '@eitherway/tools-core';
+import type {
+  ToolExecutor,
+  ToolExecutorResult,
+  ToolUse,
+  ToolResult,
+  ExecutionContext,
+  AgentConfig
+} from '@eitherway/tools-core';
+import { MetricsCollector } from './metrics.js';
+import { RateLimiter } from './rate-limiter.js';
+
+export class ToolRunner {
+  private executors: Map<string, ToolExecutor>;
+  private context: ExecutionContext;
+  private executionCache: Map<string, ToolExecutorResult>;
+  private validator = getValidator();
+  private metrics: MetricsCollector;
+  private rateLimiter: RateLimiter;
+
+  constructor(
+    executors: ToolExecutor[],
+    workingDir: string,
+    config: AgentConfig
+  ) {
+    this.executors = new Map();
+    for (const executor of executors) {
+      this.executors.set(executor.name, executor);
+    }
+
+    this.context = {
+      workingDir,
+      allowedPaths: config.security.allowedWorkspaces,
+      deniedPaths: config.security.deniedPaths,
+      config
+    };
+
+    this.executionCache = new Map();
+    this.metrics = new MetricsCollector(config);
+    this.rateLimiter = new RateLimiter();
+  }
+
+  /**
+   * Execute a single tool use with metrics and rate limiting
+   */
+  async executeTool(toolUse: ToolUse): Promise<ToolResult> {
+    const { id, name, input } = toolUse;
+    const startTime = Date.now();
+
+    // Check if tool exists
+    const executor = this.executors.get(name);
+    if (!executor) {
+      return {
+        type: 'tool_result',
+        tool_use_id: id,
+        content: `Error: Unknown tool '${name}'`,
+        is_error: true
+      };
+    }
+
+    // Validate input against schema
+    const validation = this.validator.validate(name, input);
+    if (!validation.valid) {
+      return {
+        type: 'tool_result',
+        tool_use_id: id,
+        content: `Validation error: ${validation.errors.join(', ')}`,
+        is_error: true
+      };
+    }
+
+    // Rate limiting for external APIs
+    if (name.startsWith('websearch') || name.startsWith('eithergen')) {
+      const rateCheck = await this.rateLimiter.checkLimit(name.split('--')[0]);
+      if (!rateCheck.allowed) {
+        return {
+          type: 'tool_result',
+          tool_use_id: id,
+          content: `Rate limit exceeded for ${name}. Retry after ${rateCheck.retryAfter} seconds.`,
+          is_error: true
+        };
+      }
+    }
+
+    // Check idempotency (hash-based deduplication)
+    const cacheKey = this.getCacheKey(name, input);
+    const cached = this.executionCache.get(cacheKey);
+    if (cached) {
+      return {
+        type: 'tool_result',
+        tool_use_id: id,
+        content: cached.content,
+        is_error: cached.isError
+      };
+    }
+
+    try {
+      // Execute the tool
+      const result = await executor.execute(input, this.context);
+
+      // Calculate metrics
+      const latency = Date.now() - startTime;
+      const inputSize = JSON.stringify(input).length;
+      const outputSize = result.content.length;
+      const fileCount = result.metadata?.matchCount || result.metadata?.fileCount;
+
+      // Record metrics
+      this.metrics.recordToolExecution({
+        tool: name,
+        latency_ms: latency,
+        input_size: inputSize,
+        output_size: outputSize,
+        file_count: fileCount,
+        success: !result.isError,
+        error: result.isError ? result.content : undefined,
+        timestamp: new Date().toISOString()
+      });
+
+      // Cache the result
+      this.executionCache.set(cacheKey, result);
+
+      return {
+        type: 'tool_result',
+        tool_use_id: id,
+        content: result.content,
+        is_error: result.isError
+      };
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error);
+      const latency = Date.now() - startTime;
+
+      // Record error metrics
+      this.metrics.recordToolExecution({
+        tool: name,
+        latency_ms: latency,
+        input_size: JSON.stringify(input).length,
+        output_size: errorMessage.length,
+        success: false,
+        error: errorMessage,
+        timestamp: new Date().toISOString()
+      });
+
+      return {
+        type: 'tool_result',
+        tool_use_id: id,
+        content: `Execution error: ${errorMessage}`,
+        is_error: true
+      };
+    }
+  }
+
+  /**
+   * Execute multiple tools with parallel execution where safe
+   * Reads run in parallel; writes are serialized per-path
+   */
+  async executeTools(toolUses: ToolUse[]): Promise<ToolResult[]> {
+    if (toolUses.length === 0) return [];
+    if (toolUses.length === 1) return [await this.executeTool(toolUses[0])];
+
+    // Classify tools into reads and writes
+    const reads: ToolUse[] = [];
+    const writesByPath = new Map<string, ToolUse[]>();
+
+    for (const tu of toolUses) {
+      const isWrite = this.isWriteTool(tu.name);
+
+      if (!isWrite) {
+        reads.push(tu);
+      } else {
+        // Group writes by their target path
+        const path = this.extractPath(tu.input);
+        if (!writesByPath.has(path)) {
+          writesByPath.set(path, []);
+        }
+        writesByPath.get(path)!.push(tu);
+      }
+    }
+
+    // Execute reads in parallel (with concurrency limit)
+    const concurrencyLimit = this.context.config.limits.maxConcurrentTools || 4;
+    const readResults = await this.runWithConcurrency(reads, concurrencyLimit);
+
+    // Execute writes: each path group runs sequentially, different paths in parallel
+    const writeGroups = Array.from(writesByPath.values());
+    const writeResults = await this.runWriteGroupsInParallel(writeGroups, concurrencyLimit);
+
+    // Combine and sort results back to original order
+    const resultMap = new Map<string, ToolResult>();
+    for (const result of [...readResults, ...writeResults]) {
+      resultMap.set(result.tool_use_id, result);
+    }
+
+    return toolUses.map(tu => resultMap.get(tu.id)!);
+  }
+
+  /**
+   * Determine if a tool performs writes
+   */
+  private isWriteTool(name: string): boolean {
+    return name === 'either-write' ||
+           name === 'either-line-replace' ||
+           name === 'eithergen--generate_image';
+  }
+
+  /**
+   * Extract file path from tool input (used for grouping writes)
+   */
+  private extractPath(input: Record<string, any>): string {
+    return (input?.path as string) || '__no_path__';
+  }
+
+  /**
+   * Run tools in parallel with concurrency limit
+   */
+  private async runWithConcurrency(tools: ToolUse[], limit: number): Promise<ToolResult[]> {
+    if (tools.length === 0) return [];
+
+    const results: ToolResult[] = new Array(tools.length);
+    let activeCount = 0;
+    let currentIndex = 0;
+
+    return new Promise((resolve) => {
+      const startNext = () => {
+        while (activeCount < limit && currentIndex < tools.length) {
+          const index = currentIndex++;
+          const tool = tools[index];
+          activeCount++;
+
+          this.executeTool(tool).then(result => {
+            results[index] = result;
+            activeCount--;
+            if (currentIndex < tools.length) {
+              startNext();
+            } else if (activeCount === 0) {
+              resolve(results);
+            }
+          });
+        }
+      };
+
+      startNext();
+    });
+  }
+
+  /**
+   * Execute write groups: sequential within each group, parallel across groups
+   */
+  private async runWriteGroupsInParallel(groups: ToolUse[][], limit: number): Promise<ToolResult[]> {
+    const allResults: ToolResult[] = [];
+    let activeCount = 0;
+    let currentIndex = 0;
+
+    return new Promise((resolve) => {
+      if (groups.length === 0) {
+        resolve([]);
+        return;
+      }
+
+      const startNext = () => {
+        while (activeCount < limit && currentIndex < groups.length) {
+          const group = groups[currentIndex++];
+          activeCount++;
+
+          this.executeSequentially(group).then(results => {
+            allResults.push(...results);
+            activeCount--;
+            if (currentIndex < groups.length) {
+              startNext();
+            } else if (activeCount === 0) {
+              resolve(allResults);
+            }
+          });
+        }
+      };
+
+      startNext();
+    });
+  }
+
+  /**
+   * Execute tools sequentially (for same-path writes)
+   */
+  private async executeSequentially(tools: ToolUse[]): Promise<ToolResult[]> {
+    const results: ToolResult[] = [];
+    for (const tool of tools) {
+      results.push(await this.executeTool(tool));
+    }
+    return results;
+  }
+
+  /**
+   * Generate cache key for idempotency
+   */
+  private getCacheKey(name: string, input: Record<string, any>): string {
+    const payload = JSON.stringify({ name, input });
+    return crypto.createHash('sha256').update(payload).digest('hex');
+  }
+
+  /**
+   * Clear execution cache (useful between turns)
+   */
+  clearCache(): void {
+    this.executionCache.clear();
+  }
+
+  /**
+   * Get available tool names
+   */
+  getAvailableTools(): string[] {
+    return Array.from(this.executors.keys());
+  }
+
+  /**
+   * Check if a tool is available
+   */
+  hasExecutor(name: string): boolean {
+    return this.executors.has(name);
+  }
+
+  /**
+   * Get metrics collector
+   */
+  getMetrics(): MetricsCollector {
+    return this.metrics;
+  }
+
+  /**
+   * Get rate limiter
+   */
+  getRateLimiter(): RateLimiter {
+    return this.rateLimiter;
+  }
+}
+
+/**
+ * Security utilities for path validation
+ */
+export class SecurityGuard {
+  private allowedPaths: string[];
+  private deniedPaths: string[];
+  private secretPatterns: RegExp[];
+
+  constructor(config: AgentConfig['security']) {
+    this.allowedPaths = config.allowedWorkspaces;
+    this.deniedPaths = config.deniedPaths;
+    this.secretPatterns = config.secretPatterns.map(p => new RegExp(p, 'g'));
+  }
+
+  /**
+   * Check if a path is allowed
+   */
+  isPathAllowed(path: string): boolean {
+    // Check denied paths first
+    for (const denied of this.deniedPaths) {
+      if (this.matchGlob(path, denied)) {
+        return false;
+      }
+    }
+
+    // Check allowed paths
+    for (const allowed of this.allowedPaths) {
+      if (this.matchGlob(path, allowed)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Redact secrets from content
+   */
+  redactSecrets(content: string): string {
+    let redacted = content;
+    for (const pattern of this.secretPatterns) {
+      redacted = redacted.replace(pattern, '[REDACTED]');
+    }
+    return redacted;
+  }
+
+  /**
+   * Simple glob matching (supports ** and *)
+   */
+  private matchGlob(path: string, pattern: string): boolean {
+    const regex = this.globToRegExp(pattern);
+    return regex.test(path);
+  }
+
+  // Convert a glob to a RegExp with proper ** semantics:
+  //  - "**/"   => "(?:.*/)?", i.e., zero or more directories (including none)
+  //  - "**"    => ".*"
+  //  - "*"     => "[^/]*"
+  //  - "?"     => "[^/]"
+  private globToRegExp(pattern: string): RegExp {
+    const specials = /[.+^${}()|[\]\\]/;
+    let i = 0;
+    let out = '^';
+    while (i < pattern.length) {
+      const ch = pattern[i];
+      if (ch === '*') {
+        const next = pattern[i + 1];
+        if (next === '*') {
+          const hasSlash = pattern[i + 2] === '/';
+          if (hasSlash) {
+            out += '(?:.*/)?'; // zero or more directories, including none
+            i += 3;
+          } else {
+            out += '.*';       // any characters, including '/'
+            i += 2;
+          }
+        } else {
+          out += '[^/]*';      // any chars except '/'
+          i += 1;
+        }
+      } else if (ch === '?') {
+        out += '[^/]';
+        i += 1;
+      } else {
+        out += specials.test(ch) ? '\\' + ch : ch;
+        i += 1;
+      }
+    }
+    out += '$';
+    return new RegExp(out);
+  }
+}
+</file>
+
+<file path="packages/runtime/src/transcript.ts">
+/**
+ * Transcript capture and logging
+ */
+
+import { writeFile, mkdir } from 'fs/promises';
+import { resolve } from 'path';
+import type { Transcript, TranscriptEntry, AgentConfig } from '@eitherway/tools-core';
+
+export class TranscriptRecorder {
+  private currentTranscript: Transcript | null = null;
+  private config: AgentConfig;
+
+  constructor(config: AgentConfig) {
+    this.config = config;
+  }
+
+  /**
+   * Start a new transcript
+   */
+  startTranscript(request: string): string {
+    const id = this.generateId();
+    const startTime = new Date().toISOString();
+
+    this.currentTranscript = {
+      id,
+      startTime,
+      entries: [],
+      request
+    };
+
+    this.log('info', `Started transcript ${id}`);
+    return id;
+  }
+
+  /**
+   * Add an entry to the current transcript
+   */
+  addEntry(entry: TranscriptEntry): void {
+    if (!this.currentTranscript) {
+      this.log('warn', 'Attempted to add entry without active transcript');
+      return;
+    }
+
+    this.currentTranscript.entries.push(entry);
+  }
+
+  /**
+   * End the current transcript
+   */
+  endTranscript(id: string, result?: string): void {
+    if (!this.currentTranscript || this.currentTranscript.id !== id) {
+      this.log('warn', `Transcript ${id} not found or mismatch`);
+      return;
+    }
+
+    this.currentTranscript.endTime = new Date().toISOString();
+    this.currentTranscript.result = result;
+
+    this.log('info', `Ended transcript ${id}`);
+  }
+
+  /**
+   * Save current transcript to disk
+   */
+  async saveCurrentTranscript(): Promise<void> {
+    if (!this.currentTranscript) {
+      return;
+    }
+
+    if (!this.config.logging.captureTranscripts) {
+      return;
+    }
+
+    try {
+      const dir = this.config.logging.transcriptDir;
+      await mkdir(dir, { recursive: true });
+
+      const filename = `transcript-${this.currentTranscript.id}.json`;
+      const filepath = resolve(dir, filename);
+
+      await writeFile(
+        filepath,
+        JSON.stringify(this.currentTranscript, null, 2),
+        'utf-8'
+      );
+
+      this.log('info', `Saved transcript to ${filepath}`);
+    } catch (error: any) {
+      this.log('error', `Failed to save transcript: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get current transcript
+   */
+  getCurrentTranscript(): Transcript | null {
+    return this.currentTranscript ? { ...this.currentTranscript } : null;
+  }
+
+  /**
+   * Log a message
+   */
+  private log(level: 'debug' | 'info' | 'warn' | 'error', message: string): void {
+    const levels = { debug: 0, info: 1, warn: 2, error: 3 };
+    const configLevel = levels[this.config.logging.level];
+    const messageLevel = levels[level];
+
+    if (messageLevel >= configLevel) {
+      const timestamp = new Date().toISOString();
+      const logMessage = `[${timestamp}] [${level.toUpperCase()}] ${message}`;
+
+      if (level === 'error') {
+        console.error(logMessage);
+      } else {
+        console.log(logMessage);
+      }
+    }
+  }
+
+  /**
+   * Generate unique ID for transcript
+   */
+  private generateId(): string {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2, 9);
+    return `${timestamp}-${random}`;
+  }
+}
+</file>
+
+<file path="packages/runtime/src/verifier.ts">
+/**
+ * VerifierRunner: Automatic verification of workspace changes
+ * Runs tests, linting, and builds to ensure changes are valid
+ */
+
+import { spawn } from 'child_process';
+import { readFile } from 'fs/promises';
+import { resolve } from 'path';
+
+export interface VerifyStep {
+  name: string;
+  ok: boolean;
+  output?: string;
+  duration?: number;
+}
+
+export interface VerifyResult {
+  steps: VerifyStep[];
+  passed: boolean;
+  totalDuration: number;
+}
+
+export class VerifierRunner {
+  constructor(private workingDir: string) {}
+
+  /**
+   * Run verification checks based on project type
+   */
+  async run(): Promise<VerifyResult> {
+    const startTime = Date.now();
+    const pkgPath = resolve(this.workingDir, 'package.json');
+
+    let pkg: any = null;
+    try {
+      const content = await readFile(pkgPath, 'utf-8');
+      pkg = JSON.parse(content);
+    } catch {
+      // No package.json - likely a static project
+    }
+
+    const steps: VerifyStep[] = [];
+
+    if (pkg) {
+      // Node.js project - run available scripts in order
+      const scriptChecks = [
+        { script: 'typecheck', name: 'Type Check' },
+        { script: 'lint', name: 'Lint' },
+        { script: 'test', name: 'Test' },
+        { script: 'build', name: 'Build' }
+      ];
+
+      for (const check of scriptChecks) {
+        if (pkg.scripts?.[check.script]) {
+          const stepStartTime = Date.now();
+          const result = await this.runCommand(['npm', 'run', check.script]);
+          const duration = Date.now() - stepStartTime;
+
+          steps.push({
+            name: check.name,
+            ok: result.ok,
+            output: result.output,
+            duration
+          });
+
+          // If a critical step fails, stop verification
+          if (!result.ok && (check.script === 'typecheck' || check.script === 'test')) {
+            break;
+          }
+        }
+      }
+    } else {
+      // Static project - basic sanity checks
+      steps.push(await this.runStaticChecks());
+    }
+
+    const totalDuration = Date.now() - startTime;
+    const passed = steps.length > 0 ? steps.every(s => s.ok) : true;
+
+    return {
+      steps,
+      passed,
+      totalDuration
+    };
+  }
+
+  /**
+   * Run basic sanity checks for static projects
+   */
+  private async runStaticChecks(): Promise<VerifyStep> {
+    const indexPath = resolve(this.workingDir, 'index.html');
+
+    try {
+      const content = await readFile(indexPath, 'utf-8');
+
+      // Basic HTML validation
+      const hasDoctype = content.trim().toLowerCase().startsWith('<!doctype html');
+      const hasClosingHtml = content.includes('</html>');
+
+      if (hasDoctype && hasClosingHtml) {
+        return {
+          name: 'Static Validation',
+          ok: true,
+          output: 'index.html appears well-formed',
+          duration: 0
+        };
+      } else {
+        return {
+          name: 'Static Validation',
+          ok: false,
+          output: 'index.html may be malformed (missing doctype or closing tag)',
+          duration: 0
+        };
+      }
+    } catch {
+      return {
+        name: 'Static Validation',
+        ok: true,
+        output: 'No index.html found - skipping validation',
+        duration: 0
+      };
+    }
+  }
+
+  /**
+   * Execute a shell command and return result
+   */
+  private runCommand(cmd: string[]): Promise<{ ok: boolean; output: string }> {
+    return new Promise((resolve) => {
+      const proc = spawn(cmd[0], cmd.slice(1), {
+        cwd: this.workingDir,
+        shell: process.platform === 'win32',
+        env: { ...process.env, CI: 'true', NODE_ENV: 'test' }
+      });
+
+      let output = '';
+      const outputLimit = 5000; // Limit output to 5000 chars
+
+      proc.stdout.on('data', (data) => {
+        if (output.length < outputLimit) {
+          output += data.toString();
+        }
+      });
+
+      proc.stderr.on('data', (data) => {
+        if (output.length < outputLimit) {
+          output += data.toString();
+        }
+      });
+
+      proc.on('close', (code) => {
+        if (output.length >= outputLimit) {
+          output = output.slice(0, outputLimit) + '\n... (output truncated)';
+        }
+
+        resolve({
+          ok: code === 0,
+          output: output.trim()
+        });
+      });
+
+      proc.on('error', (error) => {
+        resolve({
+          ok: false,
+          output: `Failed to execute command: ${error.message}`
+        });
+      });
+
+      // Timeout after 60 seconds
+      setTimeout(() => {
+        proc.kill();
+        resolve({
+          ok: false,
+          output: 'Command timed out after 60 seconds'
+        });
+      }, 60000);
+    });
+  }
+
+  /**
+   * Format verification result as a concise summary
+   */
+  static formatSummary(result: VerifyResult): string {
+    if (result.steps.length === 0) {
+      return '✓ No verification steps configured';
+    }
+
+    const lines: string[] = ['\n**Verification Results:**'];
+
+    for (const step of result.steps) {
+      const icon = step.ok ? '✓' : '✗';
+      const time = step.duration ? ` (${step.duration}ms)` : '';
+      lines.push(`  ${icon} ${step.name}${time}`);
+
+      // Include brief error output for failed steps
+      if (!step.ok && step.output) {
+        const errorLines = step.output.split('\n').slice(0, 5); // First 5 lines
+        for (const line of errorLines) {
+          if (line.trim()) {
+            lines.push(`    ${line.trim()}`);
+          }
+        }
+      }
+    }
+
+    const summary = result.passed ? 'All checks passed ✓' : 'Some checks failed ✗';
+    lines.push(`\n${summary} (${result.totalDuration}ms total)`);
+
+    return lines.join('\n');
+  }
+}
+</file>
+
+<file path="packages/runtime/package.json">
+{
+  "name": "@eitherway/runtime",
+  "version": "0.1.0",
+  "description": "LLM client, tool runner, orchestration",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@eitherway/tools-core": "*",
+    "@eitherway/tools-impl": "*",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.16",
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.0"
+  }
+}
+</file>
+
+<file path="packages/runtime/tsconfig.json">
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*"],
+  "references": [
+    { "path": "../tools-core" },
+    { "path": "../tools-impl" }
+  ]
+}
+</file>
+
+<file path="packages/tools-core/src/index.ts">
+/**
+ * @eitherway/tools-core - Tool type definitions, JSON schemas, and validation
+ */
+
+export * from './types.js';
+export * from './schemas.js';
+export * from './validator.js';
+</file>
+
+<file path="packages/tools-core/src/schemas.ts">
+/**
+ * JSON Schema definitions for all tools
+ * These match Anthropic's Messages API tool schema format
+ */
+
+import { ToolDefinition } from './types.js';
+
+export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
+  'either-view': {
+    name: 'either-view',
+    description: 'Read a file (or small list) to understand current code before changing it.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Relative path to a file.'
+        },
+        max_bytes: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 1048576,
+          description: 'Maximum bytes to read (default: 1MB)'
+        },
+        encoding: {
+          type: 'string',
+          description: 'File encoding (default: utf-8)',
+          default: 'utf-8'
+        }
+      },
+      required: ['path'],
+      additionalProperties: false
+    }
+  },
+
+  'either-search-files': {
+    name: 'either-search-files',
+    description: 'Search code for patterns to understand usage and dependencies.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Search pattern or text to find'
+        },
+        glob: {
+          type: 'string',
+          description: 'File pattern to search in',
+          default: 'src/**/*'
+        },
+        max_results: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 1000,
+          description: 'Maximum number of results to return',
+          default: 100
+        },
+        regex: {
+          type: 'boolean',
+          description: 'Treat query as a regex pattern (default: false)',
+          default: false
+        },
+        context_lines: {
+          type: 'integer',
+          minimum: 0,
+          description: 'Number of context lines to show before/after matches',
+          default: 0
+        }
+      },
+      required: ['query'],
+      additionalProperties: false
+    }
+  },
+
+  'either-write': {
+    name: 'either-write',
+    description: 'Create a NEW file with provided content. Fails if file exists unless overwrite=true.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Relative path for the new file'
+        },
+        content: {
+          type: 'string',
+          description: 'Content to write to the file'
+        },
+        overwrite: {
+          type: 'boolean',
+          description: 'Allow overwriting existing file',
+          default: false
+        },
+        create_dirs: {
+          type: 'boolean',
+          description: 'Create parent directories if needed',
+          default: true
+        }
+      },
+      required: ['path', 'content'],
+      additionalProperties: false
+    }
+  },
+
+  'either-line-replace': {
+    name: 'either-line-replace',
+    description: 'Targeted edits in EXISTING files. Prefer this over rewriting entire files.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Path to the file to edit'
+        },
+        locator: {
+          type: 'object',
+          description: 'Location specification for the edit',
+          properties: {
+            start_line: {
+              type: 'integer',
+              minimum: 1,
+              description: 'Starting line number (1-indexed)'
+            },
+            end_line: {
+              type: 'integer',
+              minimum: 1,
+              description: 'Ending line number (inclusive)'
+            },
+            needle: {
+              type: 'string',
+              description: 'Optional exact text to verify you are editing the intended block'
+            }
+          },
+          required: ['start_line', 'end_line'],
+          additionalProperties: false
+        },
+        replacement: {
+          type: 'string',
+          description: 'New content to replace the specified lines'
+        },
+        verify_after: {
+          type: 'boolean',
+          description: 'Verify the edit was applied correctly',
+          default: true
+        }
+      },
+      required: ['path', 'locator', 'replacement'],
+      additionalProperties: false
+    }
+  },
+
+  'websearch--web_search': {
+    name: 'websearch--web_search',
+    description: 'Search the web for docs, best practices, and real-time info.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Search query'
+        },
+        top_k: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 10,
+          description: 'Number of top results to return',
+          default: 5
+        },
+        recency_days: {
+          type: 'integer',
+          minimum: 0,
+          description: 'Only return results from the last N days (0 = no limit)'
+        },
+        site: {
+          type: 'string',
+          description: 'Optional domain filter (e.g., "stackoverflow.com")'
+        }
+      },
+      required: ['query'],
+      additionalProperties: false
+    }
+  },
+
+  'eithergen--generate_image': {
+    name: 'eithergen--generate_image',
+    description: 'Generate hero images, icons, or illustrations and save to disk.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description: 'Image generation prompt'
+        },
+        path: {
+          type: 'string',
+          description: 'Path where the image should be saved'
+        },
+        size: {
+          type: 'string',
+          pattern: '^[0-9]+x[0-9]+$',
+          description: 'Image size (e.g., "512x512", "1024x1024")',
+          default: '512x512'
+        },
+        provider: {
+          type: 'string',
+          enum: ['openai', 'stability', 'fal', 'replicate', 'custom'],
+          description: 'Image generation provider',
+          default: 'custom'
+        },
+        seed: {
+          type: 'integer',
+          description: 'Random seed for reproducible generation'
+        }
+      },
+      required: ['prompt', 'path'],
+      additionalProperties: false
+    }
+  }
+};
+
+// Export individual schemas for direct access
+export const EITHER_VIEW_SCHEMA = TOOL_SCHEMAS['either-view'];
+export const EITHER_SEARCH_FILES_SCHEMA = TOOL_SCHEMAS['either-search-files'];
+export const EITHER_WRITE_SCHEMA = TOOL_SCHEMAS['either-write'];
+export const EITHER_LINE_REPLACE_SCHEMA = TOOL_SCHEMAS['either-line-replace'];
+export const WEBSEARCH_SCHEMA = TOOL_SCHEMAS['websearch--web_search'];
+export const IMAGEGEN_SCHEMA = TOOL_SCHEMAS['eithergen--generate_image'];
+
+// Get all tool definitions as array for Claude API
+export function getAllToolDefinitions(): ToolDefinition[] {
+  return Object.values(TOOL_SCHEMAS);
+}
+</file>
+
+<file path="packages/tools-core/src/types.ts">
+/**
+ * Core type definitions for tools, messages, and configuration
+ */
+
+// Tool definition matching Anthropic's Messages API schema
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  input_schema: {
+    type: "object";
+    properties: Record<string, any>;
+    required?: string[];
+    additionalProperties?: boolean;
+  };
+}
+
+// Tool input/output structures
+export interface ToolUse {
+  type: "tool_use";
+  id: string;
+  name: string;
+  input: Record<string, any>;
+}
+
+export interface ToolResult {
+  type: "tool_result";
+  tool_use_id: string;
+  content: string | Array<{ type: string; [key: string]: any }>;
+  is_error?: boolean;
+}
+
+// Message types
+export type MessageRole = "user" | "assistant";
+
+export interface MessageContent {
+  type: "text" | "tool_use" | "tool_result";
+  [key: string]: any;
+}
+
+export interface Message {
+  role: MessageRole;
+  content: string | MessageContent[];
+}
+
+// Claude API types
+export interface ClaudeConfig {
+  apiKey: string;
+  model: string;
+  maxTokens: number;
+  temperature: number;
+  topP?: number; // Optional - Claude 4.5 doesn't allow both temperature and topP
+  streaming: boolean;
+  provider: "anthropic" | "vertex" | "bedrock";
+  providerConfig?: {
+    anthropic?: { baseURL: string };
+    vertex?: { projectId: string; location: string; model: string };
+    bedrock?: { region: string; modelId: string };
+  };
+  thinking?: {
+    enabled: boolean;
+    budget?: "low" | "medium" | "high";
+  };
+  promptCaching?: {
+    enabled: boolean;
+  };
+}
+
+// Agent configuration
+export interface AgentConfig {
+  policy: {
+    deterministic: boolean;
+    singleAgent: boolean;
+    parallelTools: boolean;
+  };
+  security: {
+    allowedWorkspaces: string[];
+    deniedPaths: string[];
+    maxFileSize: number;
+    secretPatterns: string[];
+    redactSecrets: boolean;
+  };
+  limits: {
+    maxToolPayloadSize: number;
+    maxConcurrentTools: number;
+    maxSearchResults: number;
+    chunkSize: number;
+  };
+  logging: {
+    level: "debug" | "info" | "warn" | "error";
+    captureTranscripts: boolean;
+    transcriptDir: string;
+    logFile: string;
+  };
+  tools: {
+    websearch: {
+      provider: string;
+      defaultTopK: number;
+      maxRecencyDays: number;
+    };
+    imagegen: {
+      provider: string;
+      defaultSize: string;
+      supportedProviders: string[];
+    };
+  };
+}
+
+// Tool executor interface
+export interface ToolExecutor {
+  name: string;
+  execute(input: Record<string, any>, context: ExecutionContext): Promise<ToolExecutorResult>;
+}
+
+export interface ExecutionContext {
+  workingDir: string;
+  allowedPaths: string[];
+  deniedPaths: string[];
+  config: AgentConfig;
+}
+
+export interface ToolExecutorResult {
+  content: string;
+  isError: boolean;
+  metadata?: Record<string, any>;
+}
+
+// Transcript capture
+export interface TranscriptEntry {
+  timestamp: string;
+  role: MessageRole;
+  content: string | MessageContent[];
+  metadata?: {
+    model?: string;
+    tokenUsage?: {
+      input: number;
+      output: number;
+    };
+    stopReason?: string;
+  };
+}
+
+export interface Transcript {
+  id: string;
+  startTime: string;
+  endTime?: string;
+  entries: TranscriptEntry[];
+  request: string;
+  result?: string;
+}
+</file>
+
+<file path="packages/tools-core/src/validator.ts">
+/**
+ * Tool input validation using Ajv (JSON Schema validator)
+ */
+
+import Ajv, { ValidateFunction } from 'ajv';
+import addFormats from 'ajv-formats';
+import { TOOL_SCHEMAS } from './schemas.js';
+import { ToolDefinition } from './types.js';
+
+export class ToolValidator {
+  private ajv: Ajv;
+  private validators: Map<string, ValidateFunction>;
+
+  constructor() {
+    this.ajv = new Ajv({
+      allErrors: true,
+      useDefaults: true,
+      coerceTypes: false,
+      strict: true
+    });
+
+    addFormats(this.ajv);
+    this.validators = new Map();
+
+    // Compile all tool schemas
+    this.compileSchemas();
+  }
+
+  private compileSchemas(): void {
+    for (const [name, schema] of Object.entries(TOOL_SCHEMAS)) {
+      const validator = this.ajv.compile(schema.input_schema);
+      this.validators.set(name, validator);
+    }
+  }
+
+  /**
+   * Validate tool input against its schema
+   */
+  validate(toolName: string, input: Record<string, any>): ValidationResult {
+    const validator = this.validators.get(toolName);
+
+    if (!validator) {
+      return {
+        valid: false,
+        errors: [`Unknown tool: ${toolName}`]
+      };
+    }
+
+    const valid = validator(input);
+
+    if (!valid && validator.errors) {
+      return {
+        valid: false,
+        errors: validator.errors.map(err => {
+          const path = err.instancePath || 'input';
+          return `${path}: ${err.message}`;
+        })
+      };
+    }
+
+    return { valid: true, errors: [] };
+  }
+
+  /**
+   * Get schema for a specific tool
+   */
+  getSchema(toolName: string): ToolDefinition | undefined {
+    return TOOL_SCHEMAS[toolName];
+  }
+
+  /**
+   * Check if a tool exists
+   */
+  hasToolSchema(toolName: string): boolean {
+    return this.validators.has(toolName);
+  }
+
+  /**
+   * Get all available tool names
+   */
+  getAvailableTools(): string[] {
+    return Array.from(this.validators.keys());
+  }
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  errors: string[];
+}
+
+// Singleton instance
+let validatorInstance: ToolValidator | null = null;
+
+export function getValidator(): ToolValidator {
+  if (!validatorInstance) {
+    validatorInstance = new ToolValidator();
+  }
+  return validatorInstance;
+}
+</file>
+
+<file path="packages/tools-core/package.json">
+{
+  "name": "@eitherway/tools-core",
+  "version": "0.1.0",
+  "description": "Tool type definitions, JSON schemas, and validation",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "ajv": "^8.12.0",
+    "ajv-formats": "^2.1.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
+</file>
+
+<file path="packages/tools-core/tsconfig.json">
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*"]
+}
+</file>
+
+<file path="packages/tools-impl/src/either-line-replace.ts">
+/**
+ * either-line-replace: Targeted line edits with unified diff and sha256 verification
+ */
+
+import { readFile, writeFile } from 'fs/promises';
+import { resolve } from 'path';
+import { createHash } from 'crypto';
+import type { ToolExecutor, ExecutionContext, ToolExecutorResult } from '@eitherway/tools-core';
+import { SecurityGuard } from './security.js';
+
+export class EitherLineReplaceExecutor implements ToolExecutor {
+  name = 'either-line-replace';
+
+  async execute(input: Record<string, any>, context: ExecutionContext): Promise<ToolExecutorResult> {
+    const { path, locator, replacement, verify_after = true } = input;
+    const { start_line, end_line, needle } = locator;
+    const fullPath = resolve(context.workingDir, path);
+
+    // Security check
+    const guard = new SecurityGuard(context.config.security);
+    if (!guard.isPathAllowed(path)) {
+      return {
+        content: `Error: Access denied to path '${path}'. Path is not in allowed workspaces.`,
+        isError: true
+      };
+    }
+
+    try {
+      // Read file and calculate original sha256
+      const content = await readFile(fullPath, 'utf-8');
+      const originalSha256 = createHash('sha256').update(content).digest('hex');
+      const lines = content.split('\n');
+
+      // Validate line numbers
+      if (start_line < 1 || start_line > lines.length) {
+        return {
+          content: `Error: start_line ${start_line} out of range (file has ${lines.length} lines)`,
+          isError: true
+        };
+      }
+
+      if (end_line < start_line || end_line > lines.length) {
+        return {
+          content: `Error: end_line ${end_line} invalid (must be >= start_line and <= ${lines.length})`,
+          isError: true
+        };
+      }
+
+      // Extract target lines
+      const targetLines = lines.slice(start_line - 1, end_line);
+      const targetText = targetLines.join('\n');
+
+      // Verify needle if provided (safer edits)
+      if (needle) {
+        if (!targetText.includes(needle)) {
+          return {
+            content: `Error: Needle text not found in lines ${start_line}-${end_line}.\n\nExpected to find:\n"${needle}"\n\nBut found:\n"${targetText}"\n\nThis is a non-fatal error. You may re-locate the correct lines and retry.`,
+            isError: true,
+            metadata: {
+              path,
+              needle_mismatch: true,
+              expected: needle,
+              found: targetText,
+              suggestion: 'Use either-view or either-search-files to locate the correct lines'
+            }
+          };
+        }
+      }
+
+      // Perform replacement
+      const before = lines.slice(0, start_line - 1);
+      const after = lines.slice(end_line);
+      const replacementLines = replacement.split('\n');
+
+      const newLines = [...before, ...replacementLines, ...after];
+      const newContent = newLines.join('\n');
+
+      // Calculate new sha256
+      const newSha256 = createHash('sha256').update(newContent).digest('hex');
+
+      // Write back
+      await writeFile(fullPath, newContent, 'utf-8');
+
+      // Verify if requested
+      let verificationMsg = '';
+      if (verify_after) {
+        const verified = await readFile(fullPath, 'utf-8');
+        const verifiedSha256 = createHash('sha256').update(verified).digest('hex');
+        if (verifiedSha256 !== newSha256) {
+          verificationMsg = '\n⚠ Warning: Verification failed - file content differs from expected';
+        }
+      }
+
+      const linesReplaced = end_line - start_line + 1;
+      const newLineCount = replacementLines.length;
+
+      // Generate unified diff
+      const diff = this.generateUnifiedDiff(path, targetLines, replacementLines, start_line);
+
+      return {
+        content: `Successfully replaced lines ${start_line}-${end_line} in '${path}'\n\n${diff}${verificationMsg}`,
+        isError: false,
+        metadata: {
+          path,
+          startLine: start_line,
+          endLine: end_line,
+          linesReplaced,
+          newLineCount,
+          original_sha256: originalSha256,
+          new_sha256: newSha256,
+          verified: verify_after
+        }
+      };
+    } catch (error: any) {
+      return {
+        content: `Error replacing lines in '${path}': ${error.message}`,
+        isError: true
+      };
+    }
+  }
+
+  /**
+   * Generate unified diff format
+   */
+  private generateUnifiedDiff(
+    path: string,
+    oldLines: string[],
+    newLines: string[],
+    startLine: number
+  ): string {
+    const diff: string[] = [];
+
+    diff.push(`--- ${path}`);
+    diff.push(`+++ ${path}`);
+    diff.push(`@@ -${startLine},${oldLines.length} +${startLine},${newLines.length} @@`);
+
+    // Show removed lines
+    oldLines.forEach(line => {
+      diff.push(`-${line}`);
+    });
+
+    // Show added lines
+    newLines.forEach(line => {
+      diff.push(`+${line}`);
+    });
+
+    return diff.join('\n');
+  }
+}
+</file>
+
+<file path="packages/tools-impl/src/either-search-files.ts">
+/**
+ * either-search-files: Search code for patterns with regex support
+ */
+
+import { readFile } from 'fs/promises';
+import { resolve } from 'path';
+import fg from 'fast-glob';
+import type { ToolExecutor, ExecutionContext, ToolExecutorResult } from '@eitherway/tools-core';
+import { SecurityGuard } from './security.js';
+
+interface SearchMatch {
+  path: string;
+  line: number;
+  snippet: string;
+  contextBefore?: string[];
+  contextAfter?: string[];
+}
+
+export class EitherSearchFilesExecutor implements ToolExecutor {
+  name = 'either-search-files';
+
+  async execute(input: Record<string, any>, context: ExecutionContext): Promise<ToolExecutorResult> {
+    const {
+      query,
+      glob = 'src/**/*',
+      max_results = 100,
+      regex = false,
+      context_lines = 0
+    } = input;
+
+    try {
+      // Find files matching glob pattern
+      const files = await fg(glob, {
+        cwd: context.workingDir,
+        absolute: false,
+        onlyFiles: true,
+        ignore: ['node_modules/**', '.git/**', 'dist/**', 'build/**', '*.min.js', '*.map']
+      });
+
+      const guard = new SecurityGuard(context.config.security);
+      const matches: SearchMatch[] = [];
+
+      // Prepare search pattern
+      let searchPattern: RegExp;
+      if (regex) {
+        try {
+          searchPattern = new RegExp(query, 'g');
+        } catch (error: any) {
+          return {
+            content: `Invalid regex pattern: ${error.message}`,
+            isError: true
+          };
+        }
+      } else {
+        // Escape special regex characters for literal search
+        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        searchPattern = new RegExp(escapedQuery, 'g');
+      }
+
+      // Search in each file
+      for (const file of files) {
+        if (!guard.isPathAllowed(file)) {
+          continue; // Skip disallowed files
+        }
+
+        try {
+          const fullPath = resolve(context.workingDir, file);
+          const content = await readFile(fullPath, 'utf-8');
+          const lines = content.split('\n');
+
+          // Search for pattern
+          for (let i = 0; i < lines.length; i++) {
+            if (searchPattern.test(lines[i])) {
+              // Reset regex lastIndex for next test
+              searchPattern.lastIndex = 0;
+
+              const match: SearchMatch = {
+                path: file,
+                line: i + 1,
+                snippet: lines[i]
+              };
+
+              // Add context lines if requested
+              if (context_lines > 0) {
+                const startIdx = Math.max(0, i - context_lines);
+                const endIdx = Math.min(lines.length - 1, i + context_lines);
+
+                if (startIdx < i) {
+                  match.contextBefore = lines.slice(startIdx, i);
+                }
+                if (endIdx > i) {
+                  match.contextAfter = lines.slice(i + 1, endIdx + 1);
+                }
+              }
+
+              matches.push(match);
+
+              if (matches.length >= max_results) {
+                break;
+              }
+            }
+          }
+
+          if (matches.length >= max_results) {
+            break;
+          }
+        } catch (error) {
+          // Skip files that can't be read (binary, etc.)
+          continue;
+        }
+      }
+
+      if (matches.length === 0) {
+        return {
+          content: `No matches found for "${query}" in ${glob}`,
+          isError: false,
+          metadata: {
+            query,
+            glob,
+            regex,
+            filesSearched: files.length,
+            matchCount: 0
+          }
+        };
+      }
+
+      // Format results with context
+      const resultText = matches.map(m => {
+        let output = `${m.path}:${m.line}: ${m.snippet}`;
+
+        if (m.contextBefore && m.contextBefore.length > 0) {
+          const before = m.contextBefore.map((line, idx) =>
+            `  ${m.line - m.contextBefore!.length + idx} | ${line}`
+          ).join('\n');
+          output = `${before}\n${output}`;
+        }
+
+        if (m.contextAfter && m.contextAfter.length > 0) {
+          const after = m.contextAfter.map((line, idx) =>
+            `  ${m.line + idx + 1} | ${line}`
+          ).join('\n');
+          output = `${output}\n${after}`;
+        }
+
+        return output;
+      }).join('\n---\n');
+
+      return {
+        content: `Found ${matches.length} match(es) in ${glob}:\n\n${resultText}`,
+        isError: false,
+        metadata: {
+          query,
+          glob,
+          regex,
+          filesSearched: files.length,
+          matchCount: matches.length,
+          matches: matches.map(m => ({ path: m.path, line: m.line }))
+        }
+      };
+    } catch (error: any) {
+      return {
+        content: `Error searching files: ${error.message}`,
+        isError: true
+      };
+    }
+  }
+}
+</file>
+
+<file path="packages/tools-impl/src/either-view.ts">
+/**
+ * either-view: Read files with hash and metadata
+ */
+
+import { readFile } from 'fs/promises';
+import { resolve } from 'path';
+import { createHash } from 'crypto';
+import type { ToolExecutor, ExecutionContext, ToolExecutorResult } from '@eitherway/tools-core';
+import { SecurityGuard } from './security.js';
+
+export class EitherViewExecutor implements ToolExecutor {
+  name = 'either-view';
+
+  async execute(input: Record<string, any>, context: ExecutionContext): Promise<ToolExecutorResult> {
+    const { path, max_bytes = 1048576, encoding = 'utf-8' } = input;
+    const fullPath = resolve(context.workingDir, path);
+
+    // Security check
+    const guard = new SecurityGuard(context.config.security);
+    if (!guard.isPathAllowed(path)) {
+      return {
+        content: `Error: Access denied to path '${path}'. Path is not in allowed workspaces.`,
+        isError: true
+      };
+    }
+
+    try {
+      // Read file with size limit
+      const content = await readFile(fullPath, encoding as BufferEncoding);
+
+      // Calculate SHA-256 hash
+      const sha256 = createHash('sha256').update(content).digest('hex');
+
+      // Count lines
+      const lineCount = content.split('\n').length;
+
+      // Check if truncation needed
+      const isTruncated = content.length > max_bytes;
+
+      if (isTruncated) {
+        const truncated = content.slice(0, max_bytes);
+        const truncatedLines = truncated.split('\n').length;
+
+        return {
+          content: `${truncated}\n\n[File truncated: ${content.length} bytes, showing first ${max_bytes} bytes]`,
+          isError: false,
+          metadata: {
+            path,
+            encoding,
+            size: content.length,
+            sha256,
+            line_count: lineCount,
+            truncated: true,
+            shown_lines: truncatedLines
+          }
+        };
+      }
+
+      // Return full content with metadata
+      return {
+        content,
+        isError: false,
+        metadata: {
+          path,
+          encoding,
+          size: content.length,
+          sha256,
+          line_count: lineCount,
+          truncated: false
+        }
+      };
+    } catch (error: any) {
+      return {
+        content: `Error reading file '${path}': ${error.message}`,
+        isError: true
+      };
+    }
+  }
+}
+</file>
+
+<file path="packages/tools-impl/src/either-write.ts">
+/**
+ * either-write: Create new files with diff summary
+ */
+
+import { writeFile, mkdir, access, readFile } from 'fs/promises';
+import { resolve, dirname } from 'path';
+import { createHash } from 'crypto';
+import type { ToolExecutor, ExecutionContext, ToolExecutorResult } from '@eitherway/tools-core';
+import { SecurityGuard } from './security.js';
+
+export class EitherWriteExecutor implements ToolExecutor {
+  name = 'either-write';
+
+  async execute(input: Record<string, any>, context: ExecutionContext): Promise<ToolExecutorResult> {
+    const { path, content, overwrite = false, create_dirs = true } = input;
+    const fullPath = resolve(context.workingDir, path);
+
+    // Security check
+    const guard = new SecurityGuard(context.config.security);
+    if (!guard.isPathAllowed(path)) {
+      return {
+        content: `Error: Access denied to path '${path}'. Path is not in allowed workspaces.`,
+        isError: true
+      };
+    }
+
+    try {
+      let isExisting = false;
+      let oldContent = '';
+      let oldSha256 = '';
+
+      // Check if file exists
+      try {
+        await access(fullPath);
+        isExisting = true;
+
+        if (!overwrite) {
+          return {
+            content: `Error: File '${path}' already exists. Set overwrite=true to replace it.`,
+            isError: true
+          };
+        }
+
+        // Read existing content for diff
+        oldContent = await readFile(fullPath, 'utf-8');
+        oldSha256 = createHash('sha256').update(oldContent).digest('hex');
+      } catch {
+        // File doesn't exist, which is fine
+      }
+
+      // Create parent directories if needed
+      if (create_dirs) {
+        const dir = dirname(fullPath);
+        await mkdir(dir, { recursive: true });
+      }
+
+      // Size limit check
+      const maxSize = context.config.limits.maxToolPayloadSize;
+      if (content.length > maxSize) {
+        return {
+          content: `Error: Content size (${content.length} bytes) exceeds limit (${maxSize} bytes)`,
+          isError: true
+        };
+      }
+
+      // Write file
+      await writeFile(fullPath, content, 'utf-8');
+
+      // Calculate new hash
+      const newSha256 = createHash('sha256').update(content).digest('hex');
+      const lineCount = content.split('\n').length;
+
+      // Generate diff summary
+      let diffSummary: string;
+      if (isExisting) {
+        const oldLines = oldContent.split('\n');
+        const newLines = content.split('\n');
+        diffSummary = this.generateDiffSummary(path, oldLines, newLines);
+      } else {
+        // New file - show first few lines
+        const lines = content.split('\n');
+        const preview = lines.slice(0, 10).map((line: string, idx: number) => `${idx + 1}+ ${line}`).join('\n');
+        const more = lines.length > 10 ? `\n... ${lines.length - 10} more lines` : '';
+        diffSummary = `+++ ${path} (new file)\n${preview}${more}`;
+      }
+
+      return {
+        content: `Successfully wrote '${path}'\n\n${diffSummary}`,
+        isError: false,
+        metadata: {
+          path,
+          size: content.length,
+          sha256: newSha256,
+          line_count: lineCount,
+          overwritten: isExisting,
+          old_sha256: oldSha256 || undefined
+        }
+      };
+    } catch (error: any) {
+      return {
+        content: `Error writing file '${path}': ${error.message}`,
+        isError: true
+      };
+    }
+  }
+
+  /**
+   * Generate a simple diff summary
+   */
+  private generateDiffSummary(path: string, oldLines: string[], newLines: string[]): string {
+    const maxPreview = 20;
+    const diff: string[] = [`--- ${path} (before)`, `+++ ${path} (after)`];
+
+    // Simple line-by-line diff for preview
+    const minLen = Math.min(oldLines.length, newLines.length, maxPreview);
+
+    for (let i = 0; i < minLen; i++) {
+      if (oldLines[i] !== newLines[i]) {
+        diff.push(`${i + 1}- ${oldLines[i]}`);
+        diff.push(`${i + 1}+ ${newLines[i]}`);
+      }
+    }
+
+    // Handle length differences
+    if (newLines.length > oldLines.length) {
+      const added = newLines.length - oldLines.length;
+      diff.push(`... +${added} lines added`);
+    } else if (oldLines.length > newLines.length) {
+      const removed = oldLines.length - newLines.length;
+      diff.push(`... -${removed} lines removed`);
+    }
+
+    return diff.join('\n');
+  }
+}
+</file>
+
+<file path="packages/tools-impl/src/imagegen.ts">
+/**
+ * eithergen--generate_image: Image generation with provider adapters
+ */
+
+import { writeFile, mkdir } from 'fs/promises';
+import { resolve, dirname } from 'path';
+import type { ToolExecutor, ExecutionContext, ToolExecutorResult } from '@eitherway/tools-core';
+import { SecurityGuard } from './security.js';
+
+/**
+ * Image generation provider interface
+ */
+interface ImageProvider {
+  generate(prompt: string, options: ImageGenOptions): Promise<Uint8Array>;
+}
+
+interface ImageGenOptions {
+  size: string;
+  seed?: number;
+}
+
+/**
+ * OpenAI DALL-E provider
+ */
+class OpenAIProvider implements ImageProvider {
+  private apiKey: string;
+
+  constructor(apiKey: string) {
+    this.apiKey = apiKey;
+  }
+
+  async generate(prompt: string, options: ImageGenOptions): Promise<Uint8Array> {
+    const response = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'dall-e-3',
+        prompt,
+        size: this.mapSize(options.size),
+        quality: 'standard',
+        n: 1
+      })
+    });
+
+    if (!response.ok) {
+      const error: any = await response.json();
+      throw new Error(`OpenAI API error: ${error.error?.message || response.statusText}`);
+    }
+
+    const data: any = await response.json();
+    const imageUrl = data.data[0].url;
+
+    // Download the image
+    const imageResponse = await fetch(imageUrl);
+    if (!imageResponse.ok) {
+      throw new Error('Failed to download generated image');
+    }
+
+    return new Uint8Array(await imageResponse.arrayBuffer());
+  }
+
+  private mapSize(size: string): string {
+    // DALL-E 3 supports: 1024x1024, 1024x1792, 1792x1024
+    const [w, h] = size.split('x').map(Number);
+    if (w >= 1024 && h >= 1024) {
+      if (w > h) return '1792x1024';
+      if (h > w) return '1024x1792';
+      return '1024x1024';
+    }
+    return '1024x1024'; // Default
+  }
+}
+
+/**
+ * Custom/mock provider (creates a placeholder)
+ */
+class CustomProvider implements ImageProvider {
+  async generate(prompt: string, options: ImageGenOptions): Promise<Uint8Array> {
+    // Generate a simple SVG placeholder
+    const [width, height] = options.size.split('x').map(Number);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+  <rect width="100%" height="100%" fill="#e0e0e0"/>
+  <text x="50%" y="50%" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#666">
+    <tspan x="50%" dy="0">Image: ${prompt.slice(0, 30)}${prompt.length > 30 ? '...' : ''}</tspan>
+    <tspan x="50%" dy="20">Size: ${options.size}</tspan>
+    <tspan x="50%" dy="20">Provider: custom (placeholder)</tspan>
+    ${options.seed ? `<tspan x="50%" dy="20">Seed: ${options.seed}</tspan>` : ''}
+  </text>
+</svg>`;
+    return new TextEncoder().encode(svg);
+  }
+}
+
+export class ImageGenExecutor implements ToolExecutor {
+  name = 'eithergen--generate_image';
+
+  async execute(input: Record<string, any>, context: ExecutionContext): Promise<ToolExecutorResult> {
+    const { prompt, path, size = '512x512', provider = 'custom', seed } = input;
+
+    // Security check
+    const guard = new SecurityGuard(context.config.security);
+    if (!guard.isPathAllowed(path)) {
+      return {
+        content: `Error: Access denied to path '${path}'. Path is not in allowed workspaces.`,
+        isError: true
+      };
+    }
+
+    try {
+      const fullPath = resolve(context.workingDir, path);
+
+      // Initialize provider
+      let imageProvider: ImageProvider;
+      let actualProvider = provider;
+
+      if (provider === 'openai') {
+        const apiKey = process.env.OPENAI_API_KEY;
+        if (!apiKey) {
+          return {
+            content: `Error: OpenAI provider requires OPENAI_API_KEY environment variable.\n\nTo enable:\n1. Get API key from https://platform.openai.com/api-keys\n2. Set environment variable: export OPENAI_API_KEY=your_key`,
+            isError: true
+          };
+        }
+        imageProvider = new OpenAIProvider(apiKey);
+      } else {
+        // Use custom/placeholder provider
+        imageProvider = new CustomProvider();
+        actualProvider = 'custom';
+      }
+
+      // Generate image
+      const imageData = await imageProvider.generate(prompt, { size, seed });
+
+      // Create parent directories if needed
+      const dir = dirname(fullPath);
+      await mkdir(dir, { recursive: true });
+
+      // Save image
+      await writeFile(fullPath, imageData);
+
+      // Determine file extension
+      const extension = path.endsWith('.svg') ? 'svg' : 'png';
+
+      return {
+        content: `Successfully generated image and saved to '${path}'\n\nPrompt: "${prompt}"\nSize: ${size}\nProvider: ${actualProvider}\n${seed ? `Seed: ${seed}\n` : ''}Format: ${extension}`,
+        isError: false,
+        metadata: {
+          path,
+          prompt,
+          size,
+          provider: actualProvider,
+          seed,
+          fileSize: imageData.length,
+          extension
+        }
+      };
+    } catch (error: any) {
+      return {
+        content: `Image generation error: ${error.message}`,
+        isError: true
+      };
+    }
+  }
+}
+</file>
+
+<file path="packages/tools-impl/src/index.ts">
+/**
+ * @eitherway/tools-impl - Tool executor implementations
+ */
+
+export { EitherViewExecutor } from './either-view.js';
+export { EitherSearchFilesExecutor } from './either-search-files.js';
+export { EitherWriteExecutor } from './either-write.js';
+export { EitherLineReplaceExecutor } from './either-line-replace.js';
+export { WebSearchExecutor } from './websearch.js';
+export { ImageGenExecutor } from './imagegen.js';
+export { SecurityGuard } from './security.js';
+
+import { EitherViewExecutor } from './either-view.js';
+import { EitherSearchFilesExecutor } from './either-search-files.js';
+import { EitherWriteExecutor } from './either-write.js';
+import { EitherLineReplaceExecutor } from './either-line-replace.js';
+import { WebSearchExecutor } from './websearch.js';
+import { ImageGenExecutor } from './imagegen.js';
+import type { ToolExecutor } from '@eitherway/tools-core';
+
+/**
+ * Get all tool executors
+ */
+export function getAllExecutors(): ToolExecutor[] {
+  return [
+    new EitherViewExecutor(),
+    new EitherSearchFilesExecutor(),
+    new EitherWriteExecutor(),
+    new EitherLineReplaceExecutor(),
+    new WebSearchExecutor(),
+    new ImageGenExecutor()
+  ];
+}
+</file>
+
+<file path="packages/tools-impl/src/security.ts">
+/**
+ * Security utilities for path validation
+ * Duplicated from runtime for tools-impl independence
+ */
+
+import type { AgentConfig } from '@eitherway/tools-core';
+
+export class SecurityGuard {
+  private allowedPaths: string[];
+  private deniedPaths: string[];
+  private secretPatterns: RegExp[];
+
+  constructor(config: AgentConfig['security']) {
+    this.allowedPaths = config.allowedWorkspaces;
+    this.deniedPaths = config.deniedPaths;
+    this.secretPatterns = config.secretPatterns.map(p => new RegExp(p, 'g'));
+  }
+
+  /**
+   * Check if a path is allowed
+   */
+  isPathAllowed(path: string): boolean {
+    // Check denied paths first
+    for (const denied of this.deniedPaths) {
+      if (this.matchGlob(path, denied)) {
+        return false;
+      }
+    }
+
+    // Check allowed paths
+    for (const allowed of this.allowedPaths) {
+      if (this.matchGlob(path, allowed)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Redact secrets from content
+   */
+  redactSecrets(content: string): string {
+    let redacted = content;
+    for (const pattern of this.secretPatterns) {
+      redacted = redacted.replace(pattern, '[REDACTED]');
+    }
+    return redacted;
+  }
+
+  /**
+   * Simple glob matching (supports ** and *)
+   */
+  private matchGlob(path: string, pattern: string): boolean {
+    const regex = this.globToRegExp(pattern);
+    return regex.test(path);
+  }
+
+  // Convert a glob to a RegExp with proper ** semantics:
+  //  - "**/"   => "(?:.*/)?", i.e., zero or more directories (including none)
+  //  - "**"    => ".*"
+  //  - "*"     => "[^/]*"
+  //  - "?"     => "[^/]"
+  private globToRegExp(pattern: string): RegExp {
+    const specials = /[.+^${}()|[\]\\]/;
+    let i = 0;
+    let out = '^';
+    while (i < pattern.length) {
+      const ch = pattern[i];
+      if (ch === '*') {
+        const next = pattern[i + 1];
+        if (next === '*') {
+          const hasSlash = pattern[i + 2] === '/';
+          if (hasSlash) {
+            out += '(?:.*/)?'; // zero or more directories, including none
+            i += 3;
+          } else {
+            out += '.*';       // any characters, including '/'
+            i += 2;
+          }
+        } else {
+          out += '[^/]*';      // any chars except '/'
+          i += 1;
+        }
+      } else if (ch === '?') {
+        out += '[^/]';
+        i += 1;
+      } else {
+        out += specials.test(ch) ? '\\' + ch : ch;
+        i += 1;
+      }
+    }
+    out += '$';
+    return new RegExp(out);
+  }
+}
+</file>
+
+<file path="packages/tools-impl/src/websearch.ts">
+/**
+ * websearch--web_search: Web search with provider adapters
+ */
+
+import type { ToolExecutor, ExecutionContext, ToolExecutorResult } from '@eitherway/tools-core';
+
+interface SearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+  published_at?: string;
+}
+
+/**
+ * Abstract search provider interface
+ */
+interface SearchProvider {
+  search(query: string, options: SearchOptions): Promise<SearchResult[]>;
+}
+
+interface SearchOptions {
+  maxResults: number;
+  recencyDays?: number;
+  site?: string;
+}
+
+/**
+ * Tavily search provider
+ */
+class TavilyProvider implements SearchProvider {
+  private apiKey: string;
+
+  constructor(apiKey: string) {
+    this.apiKey = apiKey;
+  }
+
+  async search(query: string, options: SearchOptions): Promise<SearchResult[]> {
+    // Build search request
+    const searchParams: any = {
+      query,
+      max_results: options.maxResults,
+      search_depth: 'basic',
+      include_answer: false,
+      include_raw_content: false
+    };
+
+    if (options.site) {
+      searchParams.query = `site:${options.site} ${query}`;
+    }
+
+    if (options.recencyDays) {
+      // Tavily supports time-based filtering
+      const date = new Date();
+      date.setDate(date.getDate() - options.recencyDays);
+      searchParams.days = options.recencyDays;
+    }
+
+    try {
+      const response = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          api_key: this.apiKey,
+          ...searchParams
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Tavily API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data: any = await response.json();
+
+      return (data.results || []).map((result: any) => ({
+        title: result.title || 'No title',
+        url: result.url,
+        snippet: result.content || result.snippet || '',
+        published_at: result.published_date || undefined
+      }));
+    } catch (error: any) {
+      throw new Error(`Tavily search failed: ${error.message}`);
+    }
+  }
+}
+
+/**
+ * Fallback/mock provider for testing
+ */
+class MockProvider implements SearchProvider {
+  async search(query: string, _options: SearchOptions): Promise<SearchResult[]> {
+    return [
+      {
+        title: `Mock result for: ${query}`,
+        url: 'https://example.com',
+        snippet: 'This is a mock search result. Configure a real provider (Tavily) by adding API key to config.'
+      }
+    ];
+  }
+}
+
+export class WebSearchExecutor implements ToolExecutor {
+  name = 'websearch--web_search';
+
+  async execute(input: Record<string, any>, context: ExecutionContext): Promise<ToolExecutorResult> {
+    const { query, top_k = 5, recency_days, site } = input;
+
+    try {
+      // Get provider from config
+      const providerName = context.config.tools.websearch.provider || 'mock';
+
+      // Initialize provider
+      let provider: SearchProvider;
+      const apiKey = process.env.TAVILY_API_KEY || '';
+
+      if (providerName === 'tavily' && apiKey) {
+        provider = new TavilyProvider(apiKey);
+      } else {
+        // Fallback to mock if no API key or unsupported provider
+        provider = new MockProvider();
+      }
+
+      // Execute search
+      const results = await provider.search(query, {
+        maxResults: top_k,
+        recencyDays: recency_days,
+        site
+      });
+
+      if (results.length === 0) {
+        return {
+          content: `No results found for query: "${query}"`,
+          isError: false,
+          metadata: {
+            query,
+            provider: providerName,
+            resultCount: 0
+          }
+        };
+      }
+
+      // Format results
+      const formattedResults = results.map((r, idx) => {
+        let result = `${idx + 1}. **${r.title}**\n   URL: ${r.url}\n   ${r.snippet}`;
+        if (r.published_at) {
+          result += `\n   Published: ${r.published_at}`;
+        }
+        return result;
+      }).join('\n\n');
+
+      return {
+        content: `Found ${results.length} result(s) for "${query}":\n\n${formattedResults}`,
+        isError: false,
+        metadata: {
+          query,
+          provider: providerName,
+          resultCount: results.length,
+          results: results.map(r => ({ title: r.title, url: r.url }))
+        }
+      };
+    } catch (error: any) {
+      return {
+        content: `Web search error: ${error.message}\n\nTo enable web search:\n1. Sign up at https://tavily.com\n2. Get API key\n3. Set environment variable: export TAVILY_API_KEY=your_key`,
+        isError: true
+      };
+    }
+  }
+}
+</file>
+
+<file path="packages/tools-impl/package.json">
+{
+  "name": "@eitherway/tools-impl",
+  "version": "0.1.0",
+  "description": "Tool implementations (either-*, websearch, eithergen)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@eitherway/tools-core": "*",
+    "fast-glob": "^3.3.2",
+    "ripgrep-js": "^1.0.2",
+    "crypto": "npm:node-stdlib-browser@^1.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.16",
+    "typescript": "^5.3.3"
+  }
+}
+</file>
+
+<file path="packages/tools-impl/tsconfig.json">
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*"],
+  "references": [
+    { "path": "../tools-core" }
+  ]
+}
+</file>
+
+<file path="packages/ui/package.json">
+{
+  "name": "@eitherway/ui",
+  "version": "0.1.0",
+  "description": "Minimal CLI and dev panel",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@eitherway/runtime": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
+</file>
+
+<file path="packages/ui/tsconfig.json">
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*"],
+  "references": [
+    { "path": "../runtime" }
+  ]
+}
+</file>
+
+<file path="packages/ui-frontend/src/components/ChatPanel.tsx">
+import { useState, useRef, useEffect } from 'react';
+
+interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  error?: boolean;
+}
+
+interface ChatPanelProps {
+  messages: ChatMessage[];
+  onSendMessage: (message: string) => void;
+  disabled?: boolean;
+}
+
+export default function ChatPanel({ messages, onSendMessage, disabled }: ChatPanelProps) {
+  const [input, setInput] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (input.trim() && !disabled) {
+      onSendMessage(input.trim());
+      setInput('');
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
+    }
+  };
+
+  return (
+    <div className="chat-panel">
+      <div className="chat-header">
+        <span>💬</span>
+        <span>Chat with Agent</span>
+      </div>
+
+      <div className="chat-messages">
+        {messages.length === 0 && (
+          <div className="chat-message system">
+            Start by describing the app you want to build...
+          </div>
+        )}
+
+        {messages.map((msg, idx) => (
+          <div
+            key={idx}
+            className={`chat-message ${msg.role} ${msg.error ? 'error' : ''}`}
+          >
+            <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0 }}>
+              {msg.content}
+            </pre>
+          </div>
+        ))}
+        <div ref={messagesEndRef} />
+      </div>
+
+      <form onSubmit={handleSubmit} className="chat-input-container">
+        <textarea
+          className="chat-input"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Describe the app you want to build..."
+          rows={3}
+          disabled={disabled}
+        />
+        <button
+          type="submit"
+          className="chat-send-btn"
+          disabled={disabled || !input.trim()}
+        >
+          Send
+        </button>
+      </form>
+    </div>
+  );
+}
+</file>
+
+<file path="packages/ui-frontend/src/components/CodeViewer.tsx">
+import { useEffect, useState } from 'react';
+import Editor from '@monaco-editor/react';
+
+interface CodeViewerProps {
+  filePath: string | null;
+}
+
+export default function CodeViewer({ filePath }: CodeViewerProps) {
+  const [content, setContent] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!filePath) {
+      setContent('');
+      return;
+    }
+
+    const loadFile = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch(`/api/files/${filePath}`);
+        if (!response.ok) {
+          throw new Error(`Failed to load file: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        setContent(data.content || '');
+      } catch (err: any) {
+        setError(err.message);
+        setContent('');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadFile();
+  }, [filePath]);
+
+  const getLanguage = (path: string | null) => {
+    if (!path) return 'plaintext';
+
+    const ext = path.split('.').pop()?.toLowerCase();
+    const langMap: Record<string, string> = {
+      'ts': 'typescript',
+      'tsx': 'typescript',
+      'js': 'javascript',
+      'jsx': 'javascript',
+      'json': 'json',
+      'html': 'html',
+      'css': 'css',
+      'scss': 'scss',
+      'md': 'markdown',
+      'py': 'python',
+      'java': 'java',
+      'go': 'go',
+      'rs': 'rust',
+      'cpp': 'cpp',
+      'c': 'c',
+      'sh': 'shell',
+      'yml': 'yaml',
+      'yaml': 'yaml'
+    };
+
+    return langMap[ext || ''] || 'plaintext';
+  };
+
+  if (!filePath) {
+    return (
+      <div className="code-viewer">
+        <div className="loading">
+          <span>Select a file to view</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="code-viewer">
+        <div className="loading">
+          <div className="spinner"></div>
+          <span>Loading file...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="code-viewer">
+        <div className="loading" style={{ color: 'var(--error)' }}>
+          <span>Error: {error}</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="code-viewer">
+      <Editor
+        height="100%"
+        language={getLanguage(filePath)}
+        value={content}
+        theme="vs-dark"
+        options={{
+          readOnly: true,
+          minimap: { enabled: false },
+          fontSize: 13,
+          lineNumbers: 'on',
+          scrollBeyondLastLine: false,
+          automaticLayout: true
+        }}
+      />
+    </div>
+  );
+}
+</file>
+
+<file path="packages/ui-frontend/src/components/FileTree.tsx">
+import { useState } from 'react';
+
+interface FileNode {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  size?: number;
+  children?: FileNode[];
+}
+
+interface FileTreeProps {
+  files: FileNode[];
+  onSelectFile: (path: string) => void;
+  selectedFile?: string;
+}
+
+export default function FileTree({ files, onSelectFile, selectedFile }: FileTreeProps) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = (path: string) => {
+    const newExpanded = new Set(expanded);
+    if (newExpanded.has(path)) {
+      newExpanded.delete(path);
+    } else {
+      newExpanded.add(path);
+    }
+    setExpanded(newExpanded);
+  };
+
+  const renderNode = (node: FileNode, depth: number = 0) => {
+    const isExpanded = expanded.has(node.path);
+    const isSelected = selectedFile === node.path;
+
+    if (node.type === 'directory') {
+      return (
+        <div key={node.path}>
+          <div
+            className={`file-item directory ${isSelected ? 'selected' : ''}`}
+            style={{ paddingLeft: `${depth * 12 + 16}px` }}
+            onClick={() => toggleExpanded(node.path)}
+          >
+            <span className="file-icon">{isExpanded ? '📂' : '📁'}</span>
+            <span>{node.name}</span>
+          </div>
+          {isExpanded && node.children && (
+            <div>
+              {node.children.map(child => renderNode(child, depth + 1))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div
+        key={node.path}
+        className={`file-item ${isSelected ? 'selected' : ''}`}
+        style={{ paddingLeft: `${depth * 12 + 16}px` }}
+        onClick={() => onSelectFile(node.path)}
+      >
+        <span className="file-icon">📄</span>
+        <span>{node.name}</span>
+      </div>
+    );
+  };
+
+  return (
+    <div className="file-tree">
+      {files.length === 0 ? (
+        <div className="loading">
+          <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
+            No files yet. Use the chat to create an app! 💬
+          </span>
+        </div>
+      ) : (
+        files.map(node => renderNode(node))
+      )}
+    </div>
+  );
+}
+</file>
+
+<file path="packages/ui-frontend/src/components/PreviewPane.tsx">
+import { useEffect, useState, useRef } from 'react';
+import { WebContainer } from '@webcontainer/api';
+
+interface PreviewPaneProps {
+  files: any[];
+}
+
+// Global singleton to prevent multiple WebContainer instances
+let webContainerInstance: WebContainer | null = null;
+let bootPromise: Promise<WebContainer> | null = null;
+
+async function getWebContainer(): Promise<WebContainer> {
+  if (webContainerInstance) {
+    return webContainerInstance;
+  }
+
+  if (bootPromise) {
+    return bootPromise;
+  }
+
+  bootPromise = WebContainer.boot();
+  webContainerInstance = await bootPromise;
+  bootPromise = null;
+
+  return webContainerInstance;
+}
+
+export default function PreviewPane({ files }: PreviewPaneProps) {
+  const [previewUrl, setPreviewUrl] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [containerReady, setContainerReady] = useState(false);
+  const [serverStatus, setServerStatus] = useState<string>('Not started');
+  const containerRef = useRef<WebContainer | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const serverStartedRef = useRef(false);
+
+  // Refresh iframe when files change
+  useEffect(() => {
+    if (previewUrl && files.length > 0) {
+      // Small delay to ensure files are synced
+      const timer = setTimeout(() => {
+        setRefreshKey(prev => prev + 1);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [files, previewUrl]);
+
+  const handleRefresh = () => {
+    setRefreshKey(prev => prev + 1);
+  };
+
+  // Boot WebContainer once on mount
+  useEffect(() => {
+    let mounted = true;
+
+    const bootContainer = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const container = await getWebContainer();
+
+        if (!mounted) {
+          return;
+        }
+
+        containerRef.current = container;
+
+        // Listen for server ready
+        container.on('server-ready', (port, url) => {
+          console.log('[WebContainer] Server ready on port', port, 'URL:', url);
+          if (mounted) {
+            setPreviewUrl(url);
+            setLoading(false);
+          }
+        });
+
+        // Also listen for errors
+        container.on('error', (error) => {
+          console.error('[WebContainer] Error:', error);
+          if (mounted) {
+            setError(error.message || 'WebContainer error');
+          }
+        });
+
+        console.log('[WebContainer] Booted successfully, marking container as ready...');
+        setLoading(false);
+        setContainerReady(true); // This will trigger the file sync useEffect
+      } catch (err: any) {
+        console.error('WebContainer boot error:', err);
+        if (mounted) {
+          setError(err.message);
+          setLoading(false);
+        }
+      }
+    };
+
+    bootContainer();
+
+    return () => {
+      mounted = false;
+    };
+  }, []); // Only run once
+
+  // Sync files and run dev server when files change
+  useEffect(() => {
+    console.log('[PreviewPane] Sync triggered - containerReady:', containerReady, 'files:', files.length);
+
+    if (!containerRef.current) {
+      console.log('[PreviewPane] Container not ready (containerRef is null)');
+      return;
+    }
+
+    if (files.length === 0) {
+      console.log('[PreviewPane] No files to sync');
+      return;
+    }
+
+    console.log('[PreviewPane] ✅ Starting file sync...');
+
+    const syncFilesToContainer = async (fileNodes: any[]): Promise<Record<string, any>> => {
+      const fileTree: any = {};
+      const filePromises: Promise<void>[] = [];
+
+      const processNode = (node: any, currentPath: string[] = []) => {
+        if (node.type === 'directory') {
+          const dirPath = [...currentPath, node.name];
+          if (node.children) {
+            node.children.forEach((child: any) => processNode(child, dirPath));
+          }
+        } else if (node.type === 'file') {
+          // Fetch file content
+          const promise = fetch(`/api/files/${node.path}`)
+            .then(res => res.json())
+            .then(data => {
+              const pathParts = node.path.split('/');
+              let current = fileTree;
+
+              for (let i = 0; i < pathParts.length - 1; i++) {
+                const part = pathParts[i];
+                if (!current[part]) {
+                  current[part] = { directory: {} };
+                }
+                current = current[part].directory;
+              }
+
+              const fileName = pathParts[pathParts.length - 1];
+              current[fileName] = {
+                file: {
+                  contents: data.content || ''
+                }
+              };
+            })
+            .catch(err => console.error('Failed to fetch file:', node.path, err));
+
+          filePromises.push(promise);
+        }
+      };
+
+      fileNodes.forEach(node => processNode(node));
+
+      // Wait for all files to be fetched
+      await Promise.all(filePromises);
+      return fileTree;
+    };
+
+    const findFile = (nodes: any[], name: string): any | null => {
+      for (const node of nodes) {
+        if (node.type === 'file' && node.name === name) return node;
+        if (node.type === 'directory' && node.children) {
+          const found = findFile(node.children, name);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    const syncAndRun = async () => {
+      try {
+        setLoading(true);
+
+        // Sync files to WebContainer
+        const fileTree = await syncFilesToContainer(files);
+
+        if (containerRef.current) {
+          await containerRef.current.mount(fileTree);
+        }
+
+        // Check if there's a package.json
+        const hasPackageJson = findFile(files, 'package.json');
+        const hasIndexHtml = findFile(files, 'index.html');
+
+        console.log('[PreviewPane] File detection:', {
+          hasPackageJson: !!hasPackageJson,
+          hasIndexHtml: !!hasIndexHtml,
+          indexPath: hasIndexHtml?.path
+        });
+
+        if (hasPackageJson && containerRef.current) {
+          setServerStatus('Installing dependencies...');
+          // Install dependencies
+          const installProcess = await containerRef.current.spawn('npm', ['install']);
+          await installProcess.exit;
+
+          setServerStatus('Starting dev server...');
+          // Start dev server
+          const devProcess = await containerRef.current.spawn('npm', ['run', 'dev']);
+
+          // Don't await - let it run in background
+          devProcess.output.pipeTo(new WritableStream({
+            write(data) {
+              console.log('[npm run dev]', data);
+            }
+          }));
+
+          serverStartedRef.current = true;
+        } else if (hasIndexHtml && containerRef.current) {
+          setServerStatus('Starting static server...');
+          // For simple HTML apps, start a static server using Node.js http-server
+          // Find the directory containing index.html
+          const indexPath = hasIndexHtml.path; // e.g., "src/index.html"
+          const baseDir = indexPath.includes('/') ? indexPath.substring(0, indexPath.lastIndexOf('/')) : '.';
+
+          console.log('[PreviewPane] Starting static server for:', indexPath, 'baseDir:', baseDir);
+
+          const serverScript = `
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+
+const BASE_DIR = '${baseDir}';
+const PORT = 3000;
+const mimeTypes = {
+  '.html': 'text/html',
+  '.css': 'text/css',
+  '.js': 'application/javascript',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+};
+
+const server = http.createServer((req, res) => {
+  let reqPath = req.url === '/' ? '/index.html' : req.url;
+  let filePath = path.join(BASE_DIR, reqPath);
+  const extname = path.extname(filePath);
+  const contentType = mimeTypes[extname] || 'application/octet-stream';
+
+  console.log('[Server] Request:', req.url, '-> File:', filePath);
+
+  fs.readFile(filePath, (error, content) => {
+    if (error) {
+      console.error('[Server] Error:', error.message);
+      res.writeHead(404);
+      res.end('File not found: ' + filePath);
+    } else {
+      res.writeHead(200, { 'Content-Type': contentType });
+      res.end(content, 'utf-8');
+    }
+  });
+});
+
+server.listen(PORT, () => {
+  console.log('[Server] Static server running on port ' + PORT + ', serving from ' + BASE_DIR);
+});
+`;
+
+          await containerRef.current.fs.writeFile('/server.js', serverScript);
+
+          // Start the static server
+          const serverProcess = await containerRef.current.spawn('node', ['server.js']);
+
+          // Log output and errors
+          serverProcess.output.pipeTo(new WritableStream({
+            write(data) {
+              console.log('[static server]', data);
+              // Check if server started message appears
+              if (data.includes('Server running on port') || data.includes('3000')) {
+                setServerStatus('Server started on port 3000');
+                serverStartedRef.current = true;
+              }
+            }
+          }));
+
+          // Wait for server to start, then get the URL from WebContainer
+          // The server-ready event should fire automatically when port 3000 is bound
+          console.log('[PreviewPane] Waiting for server to start on port 3000...');
+
+          // Set a timeout to check server URL after giving it time to start
+          setTimeout(async () => {
+            if (containerRef.current && serverStartedRef.current) {
+              try {
+                const container = containerRef.current as any;
+
+                // Try different methods to get the server URL
+                if (typeof container.getServerUrl === 'function') {
+                  const url = await container.getServerUrl(3000);
+                  if (url) {
+                    console.log('[PreviewPane] Got server URL via getServerUrl:', url);
+                    setPreviewUrl(url);
+                    setServerStatus('Preview ready');
+                    setLoading(false);
+                  }
+                } else if (typeof container.origin === 'string') {
+                  // Some WebContainer versions expose origin
+                  const url = `${container.origin}:3000`;
+                  console.log('[PreviewPane] Using container origin:', url);
+                  setPreviewUrl(url);
+                  setServerStatus('Preview ready');
+                  setLoading(false);
+                } else {
+                  console.warn('[PreviewPane] No method available to get server URL, waiting for server-ready event');
+                  setServerStatus('Waiting for server URL...');
+                }
+              } catch (err) {
+                console.error('[PreviewPane] Error getting server URL:', err);
+                setServerStatus('Error getting preview URL');
+              }
+            }
+          }, 3000);
+        } else {
+          console.log('[PreviewPane] No package.json or index.html found');
+          setServerStatus('No app to preview');
+        }
+
+        setLoading(false);
+      } catch (err: any) {
+        console.error('WebContainer sync error:', err);
+        setError(err.message);
+        setLoading(false);
+      }
+    };
+
+    syncAndRun();
+  }, [files, containerReady]); // Run when files change OR when container becomes ready
+
+  if (files.length === 0) {
+    return (
+      <div className="preview-pane">
+        <div className="preview-header">
+          <span>🔍</span>
+          <span>Preview</span>
+        </div>
+        <div className="loading">
+          <span>No files to preview</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="preview-pane">
+        <div className="preview-header">
+          <span>🔍</span>
+          <span>Preview</span>
+          <span className="status-badge">Loading...</span>
+        </div>
+        <div className="loading">
+          <div className="spinner"></div>
+          <span>Booting WebContainer...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="preview-pane">
+        <div className="preview-header">
+          <span>🔍</span>
+          <span>Preview</span>
+          <span className="status-badge error">Error</span>
+        </div>
+        <div className="loading" style={{ color: 'var(--error)' }}>
+          <span>Error: {error}</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="preview-pane">
+      <div className="preview-header">
+        <span>🔍</span>
+        <span>Preview</span>
+        {previewUrl ? (
+          <span className="status-badge connected">Live</span>
+        ) : (
+          <span className="status-badge" style={{ background: '#666' }}>{serverStatus}</span>
+        )}
+        {previewUrl && (
+          <button
+            onClick={handleRefresh}
+            className="refresh-button"
+            title="Refresh preview"
+          >
+            🔄
+          </button>
+        )}
+        {previewUrl && <div className="preview-url">{previewUrl}</div>}
+      </div>
+      {previewUrl ? (
+        <iframe
+          key={refreshKey}
+          ref={iframeRef}
+          className="preview-frame"
+          src={previewUrl}
+          title="Preview"
+        />
+      ) : (
+        !loading && files.length > 0 && (
+          <div className="loading">
+            <span>{serverStatus}</span>
+            {serverStatus.includes('Error') && (
+              <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                Check browser console for details
+              </div>
+            )}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+</file>
+
+<file path="packages/ui-frontend/src/App.tsx">
+import { useState } from 'react';
+import ChatPanel from './components/ChatPanel';
+import FileTree from './components/FileTree';
+import CodeViewer from './components/CodeViewer';
+import PreviewPane from './components/PreviewPane';
+import { useWebSocket } from './useWebSocket';
+
+// Use backend server port (3001), not frontend dev server port
+const WS_URL = `ws://${window.location.hostname}:3001/api/agent`;
+
+export default function App() {
+  const { connected, messages, files, sendMessage } = useWebSocket(WS_URL);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+
+
+  return (
+    <div className="app">
+      {/* Sidebar with File Tree */}
+      <div className="sidebar">
+        <div className="sidebar-header">
+          <span>📁 Files</span>
+          <span className={`status-badge ${connected ? 'connected' : 'disconnected'}`}>
+            {connected ? 'Connected' : 'Disconnected'}
+          </span>
+        </div>
+        <FileTree
+          files={files}
+          onSelectFile={setSelectedFile}
+          selectedFile={selectedFile || undefined}
+        />
+      </div>
+
+      {/* Main Content Area */}
+      <div className="main-content">
+        <div className="editor-container">
+          {/* Code Viewer */}
+          <div className="code-panel">
+            <div className="code-header">
+              <span>📝</span>
+              <span>{selectedFile || 'No file selected'}</span>
+            </div>
+            <CodeViewer filePath={selectedFile} />
+          </div>
+
+          {/* Preview Pane */}
+          <PreviewPane files={files} />
+        </div>
+
+        {/* Chat Panel */}
+        <ChatPanel
+          messages={messages}
+          onSendMessage={sendMessage}
+          disabled={!connected}
+        />
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="packages/ui-frontend/src/main.tsx">
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import './styles.css';
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+</file>
+
+<file path="packages/ui-frontend/src/styles.css">
+:root {
+  --bg-primary: #1e1e1e;
+  --bg-secondary: #252526;
+  --bg-tertiary: #2d2d30;
+  --border-color: #3e3e42;
+  --text-primary: #cccccc;
+  --text-secondary: #858585;
+  --accent: #007acc;
+  --accent-hover: #0098ff;
+  --success: #4ec9b0;
+  --error: #f48771;
+  --warning: #dcdcaa;
+}
+
+.app {
+  display: flex;
+  height: 100vh;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Sidebar */
+.sidebar {
+  width: 300px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+
+.file-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+/* Main Content */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.editor-container {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.code-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-color);
+}
+
+.code-header {
+  padding: 8px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.code-viewer {
+  flex: 1;
+  overflow: auto;
+}
+
+/* Preview Pane */
+.preview-pane {
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  background: white;
+}
+
+.preview-header {
+  padding: 8px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+}
+
+.preview-url {
+  flex: 1;
+  padding: 4px 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: 'Monaco', monospace;
+  color: var(--text-secondary);
+}
+
+.refresh-button {
+  padding: 4px 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.refresh-button:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  transform: rotate(180deg);
+}
+
+.refresh-button:active {
+  transform: rotate(180deg) scale(0.95);
+}
+
+.preview-frame {
+  flex: 1;
+  border: none;
+  background: white;
+}
+
+/* Chat Panel */
+.chat-panel {
+  height: 40%;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+}
+
+.chat-header {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 600;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chat-message {
+  padding: 12px;
+  border-radius: 6px;
+  max-width: 80%;
+  line-height: 1.5;
+}
+
+.chat-message.user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: white;
+}
+
+.chat-message.assistant {
+  align-self: flex-start;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+}
+
+.chat-message.system {
+  align-self: center;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-style: italic;
+}
+
+.chat-input-container {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  gap: 8px;
+}
+
+.chat-input {
+  flex: 1;
+  padding: 10px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  resize: none;
+  outline: none;
+}
+
+.chat-input:focus {
+  border-color: var(--accent);
+}
+
+.chat-send-btn {
+  padding: 10px 20px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.chat-send-btn:hover {
+  background: var(--accent-hover);
+}
+
+.chat-send-btn:disabled {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+}
+
+/* File Tree */
+.file-item {
+  padding: 6px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  user-select: none;
+}
+
+.file-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.file-item.selected {
+  background: var(--accent);
+  color: white;
+}
+
+.file-item.directory {
+  font-weight: 500;
+}
+
+.file-icon {
+  width: 16px;
+  text-align: center;
+}
+
+/* Loading */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: var(--text-secondary);
+}
+
+.spinner {
+  border: 2px solid var(--border-color);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  animation: spin 0.8s linear infinite;
+  margin-right: 12px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Status Badge */
+.status-badge {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge.connected {
+  background: var(--success);
+  color: var(--bg-primary);
+}
+
+.status-badge.disconnected {
+  background: var(--error);
+  color: white;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+</file>
+
+<file path="packages/ui-frontend/src/useWebSocket.ts">
+import { useState, useEffect, useCallback, useRef } from 'react';
+
+interface Message {
+  type: 'status' | 'response' | 'error' | 'files_updated';
+  message?: string;
+  content?: string;
+  files?: any[];
+}
+
+export function useWebSocket(url: string) {
+  const [connected, setConnected] = useState(false);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [files, setFiles] = useState<any[]>([]);
+  const ws = useRef<WebSocket | null>(null);
+
+  // Fetch initial files
+  useEffect(() => {
+    const fetchFiles = async () => {
+      try {
+        const response = await fetch('/api/files');
+        const data = await response.json();
+        if (data.files) {
+          setFiles(data.files);
+        }
+      } catch (error) {
+        console.error('Failed to fetch initial files:', error);
+      }
+    };
+
+    fetchFiles();
+  }, []);
+
+  useEffect(() => {
+    let isCleanup = false;
+    const websocket = new WebSocket(url);
+
+    websocket.onopen = () => {
+      console.log('✅ WebSocket connected successfully');
+      setConnected(true);
+    };
+
+    websocket.onmessage = (event) => {
+      const data: Message = JSON.parse(event.data);
+
+      switch (data.type) {
+        case 'status':
+          setMessages(prev => [...prev, {
+            role: 'system',
+            content: data.message
+          }]);
+          break;
+
+        case 'response':
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: data.content
+          }]);
+          break;
+
+        case 'error':
+          setMessages(prev => [...prev, {
+            role: 'system',
+            content: `Error: ${data.message}`,
+            error: true
+          }]);
+          break;
+
+        case 'files_updated':
+          if (data.files) {
+            setFiles(data.files);
+          }
+          break;
+      }
+    };
+
+    websocket.onclose = () => {
+      if (!isCleanup) {
+        console.log('⚠️ WebSocket disconnected unexpectedly');
+        setConnected(false);
+      } else {
+        console.log('🔄 WebSocket closed for cleanup (React StrictMode)');
+      }
+    };
+
+    websocket.onerror = (error) => {
+      if (!isCleanup) {
+        console.error('❌ WebSocket error:', error);
+      }
+    };
+
+    ws.current = websocket;
+
+    return () => {
+      isCleanup = true;
+      websocket.close();
+    };
+  }, [url]);
+
+  const sendMessage = useCallback((prompt: string) => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      // Add user message to chat
+      setMessages(prev => [...prev, {
+        role: 'user',
+        content: prompt
+      }]);
+
+      // Send to backend
+      ws.current.send(JSON.stringify({
+        type: 'prompt',
+        prompt
+      }));
+    }
+  }, []);
+
+  return {
+    connected,
+    messages,
+    files,
+    sendMessage
+  };
+}
+</file>
+
+<file path="packages/ui-frontend/index.html">
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EitherWay Agent - App Builder</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+          'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        overflow: hidden;
+      }
+
+      code {
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+</file>
+
+<file path="packages/ui-frontend/package.json">
+{
+  "name": "@eitherway/ui-frontend",
+  "version": "0.1.0",
+  "description": "Frontend UI for EitherWay Agent",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@monaco-editor/react": "^4.6.0",
+    "@webcontainer/api": "^1.1.9",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "@vitejs/plugin-react": "^4.2.1",
+    "typescript": "^5.3.3",
+    "vite": "^7.1.9"
+  }
+}
+</file>
+
+<file path="packages/ui-frontend/tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}
+</file>
+
+<file path="packages/ui-frontend/tsconfig.node.json">
+{
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true
+  },
+  "include": ["vite.config.ts"]
+}
+</file>
+
+<file path="packages/ui-frontend/vite.config.ts">
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [
+    react(),
+    {
+      name: 'configure-response-headers',
+      configureServer: (server) => {
+        server.middlewares.use((_req, res, next) => {
+          // Enable Cross-Origin Isolation for WebContainer
+          res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+          res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+          next();
+        });
+      }
+    }
+  ],
+  server: {
+    port: 3000,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        ws: true
+      }
+    }
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: true
+  }
+});
+</file>
+
+<file path="packages/ui-server/src/server.ts">
+#!/usr/bin/env node
+/**
+ * Backend server for EitherWay UI
+ * Provides HTTP API and WebSocket for real-time agent interaction
+ */
+
+import Fastify from 'fastify';
+import cors from '@fastify/cors';
+import websocket from '@fastify/websocket';
+import { Agent, ConfigLoader } from '@eitherway/runtime';
+import { getAllExecutors } from '@eitherway/tools-impl';
+import { readdir, readFile, stat } from 'fs/promises';
+import { join, dirname, resolve, relative } from 'path';
+import { fileURLToPath } from 'url';
+
+const fastify = Fastify({ logger: true });
+
+// Enable CORS
+await fastify.register(cors, {
+  origin: true
+});
+
+// Enable WebSocket
+await fastify.register(websocket);
+
+// Resolve project root (go up from packages/ui-server/src to project root)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const PROJECT_ROOT = join(__dirname, '../../..');
+
+// Working directory for agent
+const WORKSPACE_DIR = process.env.WORKSPACE_DIR || join(PROJECT_ROOT, 'workspace');
+
+// Load configuration from project root
+const loader = new ConfigLoader(join(PROJECT_ROOT, 'configs'));
+const { claudeConfig, agentConfig } = await loader.loadAll();
+
+/**
+ * GET /api/health
+ */
+fastify.get('/api/health', async () => {
+  return { status: 'ok', workspace: WORKSPACE_DIR };
+});
+
+/**
+ * GET /api/files
+ * List all files in workspace
+ */
+fastify.get('/api/files', async () => {
+  const files = await getFileTree(WORKSPACE_DIR);
+  return { files };
+});
+
+/**
+ * GET /api/files/:path
+ * Read a specific file
+ */
+fastify.get<{ Params: { '*': string } }>('/api/files/*', async (request, reply) => {
+  const filePath = request.params['*'];
+  const fullPath = resolve(WORKSPACE_DIR, filePath);
+
+  // Security: Ensure the resolved path is within WORKSPACE_DIR
+  const normalizedWorkspace = resolve(WORKSPACE_DIR);
+  const normalizedPath = resolve(fullPath);
+  const relativePath = relative(normalizedWorkspace, normalizedPath);
+
+  if (relativePath.startsWith('..') || resolve(normalizedWorkspace, relativePath) !== normalizedPath) {
+    return reply.code(403).send({ error: 'Access denied: path traversal detected' });
+  }
+
+  try {
+    const content = await readFile(fullPath, 'utf-8');
+    return { path: filePath, content };
+  } catch (error: any) {
+    reply.code(404).send({ error: error.message });
+  }
+});
+
+/**
+ * WebSocket /api/agent
+ * Real-time agent interaction
+ */
+fastify.register(async (fastify) => {
+  fastify.get('/api/agent', { websocket: true }, (connection) => {
+    connection.socket.on('message', async (message: Buffer) => {
+      const data = JSON.parse(message.toString());
+
+      if (data.type === 'prompt') {
+        try {
+          // Create agent instance
+          const agent = new Agent({
+            workingDir: WORKSPACE_DIR,
+            claudeConfig,
+            agentConfig,
+            executors: getAllExecutors(),
+            dryRun: false
+          });
+
+          // Send status update
+          connection.socket.send(JSON.stringify({
+            type: 'status',
+            message: 'Processing request...'
+          }));
+
+          // Stream agent response
+          let fullResponse = '';
+
+          const response = await agent.processRequest(data.prompt);
+          fullResponse = response;
+
+          // Send final response
+          connection.socket.send(JSON.stringify({
+            type: 'response',
+            content: fullResponse
+          }));
+
+          // Send updated file list
+          const files = await getFileTree(WORKSPACE_DIR);
+          connection.socket.send(JSON.stringify({
+            type: 'files_updated',
+            files
+          }));
+
+        } catch (error: any) {
+          connection.socket.send(JSON.stringify({
+            type: 'error',
+            message: error.message
+          }));
+        }
+      }
+    });
+
+    connection.socket.on('close', () => {
+      console.log('Client disconnected');
+    });
+  });
+});
+
+/**
+ * Helper: Get file tree
+ */
+async function getFileTree(dir: string, basePath: string = ''): Promise<FileNode[]> {
+  const entries = await readdir(dir, { withFileTypes: true });
+  const nodes: FileNode[] = [];
+
+  for (const entry of entries) {
+    // Skip node_modules, .git, etc.
+    if (entry.name.startsWith('.') || entry.name === 'node_modules') {
+      continue;
+    }
+
+    const fullPath = join(dir, entry.name);
+    const relativePath = basePath ? join(basePath, entry.name) : entry.name;
+
+    if (entry.isDirectory()) {
+      const children = await getFileTree(fullPath, relativePath);
+      nodes.push({
+        name: entry.name,
+        path: relativePath,
+        type: 'directory',
+        children
+      });
+    } else {
+      const stats = await stat(fullPath);
+      nodes.push({
+        name: entry.name,
+        path: relativePath,
+        type: 'file',
+        size: stats.size
+      });
+    }
+  }
+
+  return nodes.sort((a, b) => {
+    if (a.type === b.type) return a.name.localeCompare(b.name);
+    return a.type === 'directory' ? -1 : 1;
+  });
+}
+
+interface FileNode {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  size?: number;
+  children?: FileNode[];
+}
+
+// Start server
+const PORT = process.env.PORT || 3001;
+
+try {
+  await fastify.listen({ port: Number(PORT), host: '0.0.0.0' });
+  console.log(`\n🚀 EitherWay UI Server running on http://localhost:${PORT}`);
+  console.log(`📁 Workspace: ${WORKSPACE_DIR}\n`);
+} catch (err) {
+  fastify.log.error(err);
+  process.exit(1);
+}
+</file>
+
+<file path="packages/ui-server/package.json">
+{
+  "name": "@eitherway/ui-server",
+  "version": "0.1.0",
+  "description": "Backend server for EitherWay UI",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "node --env-file=../../.env --import tsx/esm src/server.ts",
+    "start": "node --env-file=../../.env dist/server.js"
+  },
+  "dependencies": {
+    "@eitherway/runtime": "*",
+    "@eitherway/tools-impl": "*",
+    "fastify": "^4.25.2",
+    "@fastify/cors": "^8.5.0",
+    "@fastify/websocket": "^8.3.1",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.16",
+    "@types/ws": "^8.5.10",
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.0"
+  }
+}
+</file>
+
+<file path="packages/ui-server/tsconfig.json">
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*"],
+  "references": [
+    { "path": "../runtime" },
+    { "path": "../tools-impl" }
+  ]
+}
+</file>
+
+<file path="workspace/index.html">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal Growth - Improvement Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="background-gradient"></div>
+    
+    <div class="container">
+        <!-- Header -->
+        <header class="glass-card header">
+            <h1>🌱 Personal Growth</h1>
+            <p class="tagline">Your journey to a better you</p>
+        </header>
+
+        <!-- Quote Section -->
+        <section class="glass-card quote-section">
+            <div class="quote-icon">💡</div>
+            <blockquote id="quote-text">
+                "The only way to do great work is to love what you do."
+            </blockquote>
+            <cite id="quote-author">- Steve Jobs</cite>
+            <button class="btn-refresh" onclick="refreshQuote()">
+                <span class="refresh-icon">🔄</span> New Quote
+            </button>
+        </section>
+
+        <!-- Main Content Grid -->
+        <div class="main-grid">
+            <!-- Calendar Section -->
+            <section class="glass-card calendar-section">
+                <h2>📅 My Calendar</h2>
+                
+                <div class="calendar-header">
+                    <button class="nav-btn" onclick="previousMonth()">‹</button>
+                    <h3 id="current-month">January 2024</h3>
+                    <button class="nav-btn" onclick="nextMonth()">›</button>
+                </div>
+
+                <div class="calendar-grid" id="calendar-grid">
+                    <!-- Calendar will be generated by JavaScript -->
+                </div>
+
+                <div class="add-event-form">
+                    <h3>Add Event</h3>
+                    <input type="text" id="event-title" placeholder="Event title" class="input-field">
+                    <input type="date" id="event-date" class="input-field">
+                    <input type="time" id="event-time" class="input-field">
+                    <textarea id="event-description" placeholder="Description (optional)" class="input-field" rows="2"></textarea>
+                    <button class="btn-primary" onclick="addEvent()">Add Event</button>
+                </div>
+            </section>
+
+            <!-- Events List Section -->
+            <section class="glass-card events-section">
+                <h2>📋 Upcoming Events</h2>
+                <div id="events-list" class="events-list">
+                    <p class="empty-state">No events yet. Add your first event!</p>
+                </div>
+            </section>
+        </div>
+
+        <!-- Stats Section -->
+        <section class="glass-card stats-section">
+            <h2>📊 Your Progress</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="total-events">0</div>
+                    <div class="stat-label">Total Events</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="completed-events">0</div>
+                    <div class="stat-label">Completed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="upcoming-events">0</div>
+                    <div class="stat-label">Upcoming</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="days-active">1</div>
+                    <div class="stat-label">Days Active</div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+</file>
+
+<file path="workspace/README.md">
+# 🌱 Personal Growth - Improvement Tracker
+
+A modern, glassmorphic personal improvement app with calendar functionality and inspirational quotes. Built with vanilla JavaScript, HTML, and CSS featuring beautiful green shades and a contemporary design.
+
+## ✨ Features
+
+### 📅 Interactive Calendar
+- Full calendar view with month navigation
+- Click on any day to select it for event creation
+- Visual indicators for:
+  - Today's date (highlighted in green)
+  - Days with events (dot indicator)
+  - Selected date (border highlight)
+
+### 📝 Event Management
+- **Add Events**: Create events with:
+  - Title (required)
+  - Date (required)
+  - Time (optional)
+  - Description (optional)
+- **View Events**: See all upcoming events in a scrollable list
+- **Complete Events**: Mark events as done with a single click
+- **Delete Events**: Remove events you no longer need
+- **Persistent Storage**: All events are saved to browser localStorage
+
+### 💡 Inspirational Quotes
+- Curated collection of 24+ motivational quotes
+- Random quote display on page load
+- Refresh button to get new inspiration
+- Smooth animations and transitions
+
+### 📊 Progress Statistics
+- **Total Events**: Track all events you've created
+- **Completed**: See how many goals you've achieved
+- **Upcoming**: Know what's ahead
+- **Days Active**: Track your consistency
+
+### 🎨 Design Features
+- **Glassmorphism**: Modern frosted glass effect on all cards
+- **Green Color Scheme**: Calming emerald and green shades
+- **Responsive Design**: Works on desktop, tablet, and mobile
+- **Smooth Animations**: Hover effects, transitions, and micro-interactions
+- **Gradient Background**: Dynamic animated background
+
+## 🚀 Getting Started
+
+### Installation
+1. Download all files (index.html, styles.css, script.js)
+2. Place them in the same directory
+3. Open `index.html` in your web browser
+
+No build process or dependencies required!
+
+### Usage
+
+#### Adding an Event
+1. Fill in the event title (required)
+2. Select a date (defaults to today)
+3. Optionally add a time
+4. Optionally add a description
+5. Click "Add Event"
+
+#### Managing Events
+- **Complete**: Click the "✓ Complete" button to mark as done
+- **Undo**: Click "↩️ Undo" to reopen a completed event
+- **Delete**: Click "🗑️ Delete" to remove an event
+
+#### Calendar Navigation
+- Click "‹" to go to previous month
+- Click "›" to go to next month
+- Click any day to select it for event creation
+
+#### Getting New Quotes
+- Click the "🔄 New Quote" button to see a different inspirational quote
+
+## 🎨 Color Palette
+
+- **Primary Green**: `#10b981`
+- **Secondary Green**: `#059669`
+- **Light Green**: `#34d399`
+- **Dark Green**: `#047857`
+- **Emerald**: `#6ee7b7`
+
+## 💾 Data Storage
+
+All events are stored in your browser's localStorage, which means:
+- ✅ Data persists between sessions
+- ✅ No server or database needed
+- ✅ Complete privacy (data never leaves your device)
+- ⚠️ Clearing browser data will delete events
+- ⚠️ Data is device-specific (not synced across devices)
+
+## 🌐 Browser Compatibility
+
+Works on all modern browsers:
+- Chrome/Edge (recommended)
+- Firefox
+- Safari
+- Opera
+
+Requires JavaScript enabled and localStorage support.
+
+## 📱 Responsive Breakpoints
+
+- **Desktop**: Full layout with side-by-side calendar and events
+- **Tablet** (< 1024px): Stacked layout
+- **Mobile** (< 768px): Optimized for small screens
+
+## 🎯 Tips for Best Experience
+
+1. **Set Realistic Goals**: Add events you can actually complete
+2. **Use Descriptions**: Add context to help you remember details
+3. **Check Daily**: Make it a habit to review your upcoming events
+4. **Complete Tasks**: Mark events as complete to track progress
+5. **Get Inspired**: Refresh quotes when you need motivation
+
+## 🔮 Future Enhancement Ideas
+
+- Export/import events
+- Recurring events
+- Event categories/tags
+- Dark mode toggle
+- Custom color themes
+- Reminder notifications
+- Event search/filter
+- Weekly/monthly view options
+
+## 📄 License
+
+Free to use and modify for personal or commercial projects.
+
+## 🤝 Contributing
+
+Feel free to customize the code to fit your needs:
+- Add more quotes to the `quotes` array in `script.js`
+- Modify colors in the `:root` section of `styles.css`
+- Extend functionality in `script.js`
+
+---
+
+**Made with 💚 for personal growth and self-improvement**
+</file>
+
+<file path="workspace/script.js">
+// Inspirational Quotes Database
+const quotes = [
+    { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
+    { text: "Believe you can and you're halfway there.", author: "Theodore Roosevelt" },
+    { text: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" },
+    { text: "The future belongs to those who believe in the beauty of their dreams.", author: "Eleanor Roosevelt" },
+    { text: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius" },
+    { text: "Everything you've ever wanted is on the other side of fear.", author: "George Addair" },
+    { text: "Believe in yourself. You are braver than you think, more talented than you know, and capable of more than you imagine.", author: "Roy T. Bennett" },
+    { text: "I learned that courage was not the absence of fear, but the triumph over it.", author: "Nelson Mandela" },
+    { text: "The only impossible journey is the one you never begin.", author: "Tony Robbins" },
+    { text: "Your limitation—it's only your imagination.", author: "Unknown" },
+    { text: "Great things never come from comfort zones.", author: "Unknown" },
+    { text: "Dream it. Wish it. Do it.", author: "Unknown" },
+    { text: "Success doesn't just find you. You have to go out and get it.", author: "Unknown" },
+    { text: "The harder you work for something, the greater you'll feel when you achieve it.", author: "Unknown" },
+    { text: "Dream bigger. Do bigger.", author: "Unknown" },
+    { text: "Don't stop when you're tired. Stop when you're done.", author: "Unknown" },
+    { text: "Wake up with determination. Go to bed with satisfaction.", author: "Unknown" },
+    { text: "Do something today that your future self will thank you for.", author: "Sean Patrick Flanery" },
+    { text: "Little things make big days.", author: "Unknown" },
+    { text: "It's going to be hard, but hard does not mean impossible.", author: "Unknown" },
+    { text: "Don't wait for opportunity. Create it.", author: "Unknown" },
+    { text: "Sometimes we're tested not to show our weaknesses, but to discover our strengths.", author: "Unknown" },
+    { text: "The key to success is to focus on goals, not obstacles.", author: "Unknown" },
+    { text: "Dream it. Believe it. Build it.", author: "Unknown" }
+];
+
+// State Management
+let currentDate = new Date();
+let events = JSON.parse(localStorage.getItem('events')) || [];
+let selectedDate = null;
+
+// Initialize App
+document.addEventListener('DOMContentLoaded', function() {
+    refreshQuote();
+    renderCalendar();
+    renderEvents();
+    updateStats();
+    
+    // Set today's date as default in date input
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('event-date').value = today;
+});
+
+// Quote Functions
+function refreshQuote() {
+    const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+    document.getElementById('quote-text').textContent = `"${randomQuote.text}"`;
+    document.getElementById('quote-author').textContent = `- ${randomQuote.author}`;
+    
+    // Add animation
+    const quoteSection = document.querySelector('.quote-section');
+    quoteSection.style.animation = 'none';
+    setTimeout(() => {
+        quoteSection.style.animation = 'fadeIn 0.5s ease-in';
+    }, 10);
+}
+
+// Calendar Functions
+function renderCalendar() {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    
+    // Update month display
+    const monthNames = ["January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"];
+    document.getElementById('current-month').textContent = `${monthNames[month]} ${year}`;
+    
+    // Get first day of month and number of days
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrevMonth = new Date(year, month, 0).getDate();
+    
+    // Clear calendar
+    const calendarGrid = document.getElementById('calendar-grid');
+    calendarGrid.innerHTML = '';
+    
+    // Add day headers
+    const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    dayHeaders.forEach(day => {
+        const header = document.createElement('div');
+        header.className = 'calendar-day-header';
+        header.textContent = day;
+        calendarGrid.appendChild(header);
+    });
+    
+    // Add previous month's days
+    for (let i = firstDay - 1; i >= 0; i--) {
+        const day = daysInPrevMonth - i;
+        const dayElement = createDayElement(day, true, year, month - 1);
+        calendarGrid.appendChild(dayElement);
+    }
+    
+    // Add current month's days
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dayElement = createDayElement(day, false, year, month);
+        calendarGrid.appendChild(dayElement);
+    }
+    
+    // Add next month's days to fill grid
+    const totalCells = calendarGrid.children.length - 7; // Subtract headers
+    const remainingCells = 42 - totalCells; // 6 rows * 7 days
+    for (let day = 1; day <= remainingCells; day++) {
+        const dayElement = createDayElement(day, true, year, month + 1);
+        calendarGrid.appendChild(dayElement);
+    }
+}
+
+function createDayElement(day, isOtherMonth, year, month) {
+    const dayElement = document.createElement('div');
+    dayElement.className = 'calendar-day';
+    dayElement.textContent = day;
+    
+    if (isOtherMonth) {
+        dayElement.classList.add('other-month');
+    }
+    
+    // Check if today
+    const today = new Date();
+    if (!isOtherMonth && 
+        day === today.getDate() && 
+        month === today.getMonth() && 
+        year === today.getFullYear()) {
+        dayElement.classList.add('today');
+    }
+    
+    // Check if has events
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (events.some(event => event.date === dateStr)) {
+        dayElement.classList.add('has-event');
+    }
+    
+    // Add click handler
+    dayElement.addEventListener('click', () => {
+        document.querySelectorAll('.calendar-day').forEach(d => d.classList.remove('selected'));
+        dayElement.classList.add('selected');
+        selectedDate = dateStr;
+        document.getElementById('event-date').value = dateStr;
+    });
+    
+    return dayElement;
+}
+
+function previousMonth() {
+    currentDate.setMonth(currentDate.getMonth() - 1);
+    renderCalendar();
+}
+
+function nextMonth() {
+    currentDate.setMonth(currentDate.getMonth() + 1);
+    renderCalendar();
+}
+
+// Event Functions
+function addEvent() {
+    const title = document.getElementById('event-title').value.trim();
+    const date = document.getElementById('event-date').value;
+    const time = document.getElementById('event-time').value;
+    const description = document.getElementById('event-description').value.trim();
+    
+    if (!title || !date) {
+        alert('Please enter a title and date for your event.');
+        return;
+    }
+    
+    const event = {
+        id: Date.now(),
+        title,
+        date,
+        time,
+        description,
+        completed: false,
+        createdAt: new Date().toISOString()
+    };
+    
+    events.push(event);
+    events.sort((a, b) => new Date(a.date + ' ' + (a.time || '00:00')) - new Date(b.date + ' ' + (b.time || '00:00')));
+    
+    saveEvents();
+    renderCalendar();
+    renderEvents();
+    updateStats();
+    
+    // Clear form
+    document.getElementById('event-title').value = '';
+    document.getElementById('event-time').value = '';
+    document.getElementById('event-description').value = '';
+    
+    // Show success animation
+    showNotification('Event added successfully! 🎉');
+}
+
+function renderEvents() {
+    const eventsList = document.getElementById('events-list');
+    
+    if (events.length === 0) {
+        eventsList.innerHTML = '<p class="empty-state">No events yet. Add your first event!</p>';
+        return;
+    }
+    
+    const now = new Date();
+    const upcomingEvents = events.filter(event => {
+        const eventDate = new Date(event.date + ' ' + (event.time || '00:00'));
+        return eventDate >= now || !event.completed;
+    });
+    
+    if (upcomingEvents.length === 0) {
+        eventsList.innerHTML = '<p class="empty-state">No upcoming events. All caught up! ✨</p>';
+        return;
+    }
+    
+    eventsList.innerHTML = upcomingEvents.map(event => {
+        const eventDate = new Date(event.date);
+        const dateStr = eventDate.toLocaleDateString('en-US', { 
+            weekday: 'short', 
+            month: 'short', 
+            day: 'numeric' 
+        });
+        
+        return `
+            <div class="event-item ${event.completed ? 'completed' : ''}">
+                <div class="event-date-badge">${dateStr}</div>
+                <div class="event-title">${event.title}</div>
+                ${event.time ? `<div class="event-time">⏰ ${formatTime(event.time)}</div>` : ''}
+                ${event.description ? `<div class="event-description">${event.description}</div>` : ''}
+                <div class="event-actions">
+                    <button class="btn-small btn-complete" onclick="toggleComplete(${event.id})">
+                        ${event.completed ? '↩️ Undo' : '✓ Complete'}
+                    </button>
+                    <button class="btn-small btn-delete" onclick="deleteEvent(${event.id})">
+                        🗑️ Delete
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function toggleComplete(eventId) {
+    const event = events.find(e => e.id === eventId);
+    if (event) {
+        event.completed = !event.completed;
+        saveEvents();
+        renderEvents();
+        updateStats();
+        showNotification(event.completed ? 'Event completed! 🎉' : 'Event reopened');
+    }
+}
+
+function deleteEvent(eventId) {
+    if (confirm('Are you sure you want to delete this event?')) {
+        events = events.filter(e => e.id !== eventId);
+        saveEvents();
+        renderCalendar();
+        renderEvents();
+        updateStats();
+        showNotification('Event deleted');
+    }
+}
+
+function saveEvents() {
+    localStorage.setItem('events', JSON.stringify(events));
+}
+
+// Stats Functions
+function updateStats() {
+    const totalEvents = events.length;
+    const completedEvents = events.filter(e => e.completed).length;
+    const now = new Date();
+    const upcomingEvents = events.filter(event => {
+        const eventDate = new Date(event.date + ' ' + (event.time || '00:00'));
+        return eventDate >= now && !event.completed;
+    }).length;
+    
+    // Calculate days active (days since first event)
+    let daysActive = 1;
+    if (events.length > 0) {
+        const oldestEvent = events.reduce((oldest, event) => {
+            const eventDate = new Date(event.createdAt || event.date);
+            return eventDate < oldest ? eventDate : oldest;
+        }, new Date());
+        
+        const diffTime = Math.abs(now - oldestEvent);
+        daysActive = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
+    }
+    
+    document.getElementById('total-events').textContent = totalEvents;
+    document.getElementById('completed-events').textContent = completedEvents;
+    document.getElementById('upcoming-events').textContent = upcomingEvents;
+    document.getElementById('days-active').textContent = daysActive;
+}
+
+// Utility Functions
+function formatTime(time) {
+    const [hours, minutes] = time.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${minutes} ${ampm}`;
+}
+
+function showNotification(message) {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.textContent = message;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #10b981, #059669);
+        color: white;
+        padding: 1rem 2rem;
+        border-radius: 10px;
+        box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
+        z-index: 1000;
+        animation: slideIn 0.3s ease-out;
+        font-weight: 600;
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease-out';
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
+// Add CSS animations
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes slideIn {
+        from { transform: translateX(400px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    
+    @keyframes slideOut {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(400px); opacity: 0; }
+    }
+`;
+document.head.appendChild(style);
+</file>
+
+<file path="workspace/styles.css">
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --primary-green: #10b981;
+    --secondary-green: #059669;
+    --light-green: #34d399;
+    --dark-green: #047857;
+    --emerald: #6ee7b7;
+    --glass-bg: rgba(255, 255, 255, 0.1);
+    --glass-border: rgba(255, 255, 255, 0.2);
+    --text-primary: #ffffff;
+    --text-secondary: #d1fae5;
+    --shadow: rgba(0, 0, 0, 0.1);
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+}
+
+.background-gradient {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, 
+        #064e3b 0%, 
+        #047857 25%, 
+        #059669 50%, 
+        #10b981 75%, 
+        #34d399 100%);
+    z-index: -2;
+}
+
+.background-gradient::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: 
+        radial-gradient(circle at 20% 50%, rgba(16, 185, 129, 0.3) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(52, 211, 153, 0.3) 0%, transparent 50%),
+        radial-gradient(circle at 40% 20%, rgba(5, 150, 105, 0.2) 0%, transparent 50%);
+    animation: pulse 15s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+}
+
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+    position: relative;
+    z-index: 1;
+}
+
+/* Glassmorphism Card */
+.glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 20px;
+    border: 1px solid var(--glass-border);
+    padding: 2rem;
+    box-shadow: 0 8px 32px var(--shadow);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.glass-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+}
+
+/* Header */
+.header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.header h1 {
+    font-size: 3rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.tagline {
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    font-weight: 300;
+}
+
+/* Quote Section */
+.quote-section {
+    text-align: center;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.quote-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+blockquote {
+    font-size: 1.5rem;
+    font-style: italic;
+    margin-bottom: 1rem;
+    line-height: 1.6;
+    font-weight: 300;
+}
+
+cite {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    font-style: normal;
+    display: block;
+    margin-bottom: 1.5rem;
+}
+
+.btn-refresh {
+    background: linear-gradient(135deg, var(--primary-green), var(--secondary-green));
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 50px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+}
+
+.btn-refresh:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+}
+
+.refresh-icon {
+    display: inline-block;
+    transition: transform 0.5s ease;
+}
+
+.btn-refresh:hover .refresh-icon {
+    transform: rotate(180deg);
+}
+
+/* Main Grid */
+.main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+
+/* Calendar Section */
+.calendar-section h2,
+.events-section h2,
+.stats-section h2 {
+    font-size: 1.8rem;
+    margin-bottom: 1.5rem;
+    font-weight: 600;
+}
+
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.calendar-header h3 {
+    font-size: 1.3rem;
+    font-weight: 600;
+}
+
+.nav-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--glass-border);
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.5rem;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nav-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.1);
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+}
+
+.calendar-day-header {
+    text-align: center;
+    font-weight: 600;
+    padding: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--emerald);
+}
+
+.calendar-day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    font-weight: 500;
+}
+
+.calendar-day:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.05);
+}
+
+.calendar-day.other-month {
+    opacity: 0.3;
+}
+
+.calendar-day.today {
+    background: linear-gradient(135deg, var(--primary-green), var(--secondary-green));
+    font-weight: 700;
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+}
+
+.calendar-day.has-event::after {
+    content: '';
+    position: absolute;
+    bottom: 5px;
+    width: 6px;
+    height: 6px;
+    background: var(--emerald);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--emerald);
+}
+
+.calendar-day.selected {
+    background: rgba(16, 185, 129, 0.3);
+    border: 2px solid var(--light-green);
+}
+
+/* Add Event Form */
+.add-event-form {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--glass-border);
+}
+
+.add-event-form h3 {
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.input-field {
+    width: 100%;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    color: white;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.input-field:focus {
+    outline: none;
+    background: rgba(255, 255, 255, 0.15);
+    border-color: var(--light-green);
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
+}
+
+.input-field::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+textarea.input-field {
+    resize: vertical;
+    font-family: inherit;
+}
+
+.btn-primary {
+    width: 100%;
+    padding: 1rem;
+    background: linear-gradient(135deg, var(--primary-green), var(--secondary-green));
+    color: white;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+}
+
+/* Events List */
+.events-list {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.events-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.events-list::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+.events-list::-webkit-scrollbar-thumb {
+    background: var(--primary-green);
+    border-radius: 10px;
+}
+
+.empty-state {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 2rem;
+    font-style: italic;
+}
+
+.event-item {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 1.5rem;
+    border-radius: 15px;
+    margin-bottom: 1rem;
+    border-left: 4px solid var(--light-green);
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.event-item:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateX(5px);
+}
+
+.event-item.completed {
+    opacity: 0.6;
+    border-left-color: var(--emerald);
+}
+
+.event-item.completed .event-title {
+    text-decoration: line-through;
+}
+
+.event-date-badge {
+    display: inline-block;
+    background: var(--primary-green);
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.event-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.event-time {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.event-description {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    margin-bottom: 1rem;
+}
+
+.event-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-small {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-complete {
+    background: rgba(16, 185, 129, 0.3);
+    color: white;
+    border: 1px solid var(--light-green);
+}
+
+.btn-complete:hover {
+    background: rgba(16, 185, 129, 0.5);
+}
+
+.btn-delete {
+    background: rgba(239, 68, 68, 0.3);
+    color: white;
+    border: 1px solid rgba(239, 68, 68, 0.5);
+}
+
+.btn-delete:hover {
+    background: rgba(239, 68, 68, 0.5);
+}
+
+/* Stats Section */
+.stats-section {
+    margin-bottom: 2rem;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+}
+
+.stat-card {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 1.5rem;
+    border-radius: 15px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: scale(1.05);
+}
+
+.stat-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--emerald);
+    margin-bottom: 0.5rem;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .main-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .container {
+        padding: 1rem;
+    }
+    
+    .header h1 {
+        font-size: 2rem;
+    }
+    
+    blockquote {
+        font-size: 1.2rem;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .calendar-grid {
+        gap: 0.25rem;
+    }
+    
+    .calendar-day {
+        font-size: 0.9rem;
+    }
+}
+</file>
+
+<file path=".gitignore">
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Environment and secrets
+.env
+.env.local
+configs/anthropic.json
+*.key
+*.pem
+
+# Logs
+*.log
+logs/
+transcripts/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary
+tmp/
+temp/
+*.tmp
+</file>
+
+<file path="package.json">
+{
+  "name": "eitherway-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Single-agent AI for app creation using Claude Sonnet 4.5",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "setup": "bash scripts/setup.sh",
+    "init-workspace": "bash scripts/init-workspace.sh",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "dev": "npm run dev -w @eitherway/runtime",
+    "eval": "npm run eval -w @eitherway/evaluations",
+    "server": "npm run dev -w @eitherway/ui-server",
+    "ui": "npm run dev -w @eitherway/ui-frontend",
+    "ui:build": "npm run build -w @eitherway/ui-frontend",
+    "clean": "rm -rf node_modules packages/*/node_modules packages/*/dist workspace"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.16",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "vite": "7.1.9"
+  },
+  "packageManager": "pnpm@9.12.3+sha512.cce0f9de9c5a7c95bef944169cc5dfe8741abfb145078c0d508b868056848a87c81e626246cb60967cbd7fd29a6c062ef73ff840d96b3c86c40ac92cf4a813ee"
+}
+</file>
+
+<file path="README.md">
+# EitherWay Agent - Portion 1
+
+Single-agent AI for app creation using **Claude Sonnet 4.5** (`claude-sonnet-4-5-20250929`).
+
+## Overview
+
+Portion 1 implements the core agent kernel with:
+- ✅ Model Client with streaming (Claude Sonnet 4.5)
+- ✅ Tool Runner with validation, allowlist, and idempotency
+- ✅ 6 Tools: `either-view`, `either-search-files`, `either-line-replace`, `either-write`, `websearch--web_search`, `eithergen--generate_image`
+- ✅ Stages 1-2 Workflow: Analyze → Plan
+- ✅ Configuration system with security guardrails
+- ✅ Logging and transcript capture
+- ✅ Acceptance tests
+
+Portion 2 adds production-grade tools and observability:
+- ✅ Enhanced tools with SHA-256, unified diffs, regex search
+- ✅ Web search integration (Tavily API)
+- ✅ Image generation (OpenAI DALL-E)
+- ✅ Structured logging and metrics
+- ✅ Rate limiting for external APIs
+- ✅ Read-before-write discipline
+
+## 🎨 NEW: Interactive UI
+
+**Build apps visually with chat, live preview, and file browser!**
+
+See [UI_README.md](./UI_README.md) for full documentation.
+
+### Features
+- 💬 **Chat interface** - Natural language prompts with streaming responses
+- 📁 **File browser** - Tree view with syntax-highlighted code viewer
+- 🔍 **Live preview** - WebContainer integration runs your app in the browser
+- ⚡ **Real-time sync** - Files update instantly via WebSocket
+
+### Quick Start
+```bash
+# Initialize workspace
+npm run init-workspace
+
+# Terminal 1: Start backend
+npm run server
+
+# Terminal 2: Start frontend
+npm run ui
+
+# Open http://localhost:3000
+```
+
+## Architecture
+
+```
+/packages
+  /runtime           # LLM client, tool runner, orchestration
+  /tools-core        # Tool type defs, JSON Schemas, validation
+  /tools-impl        # Tool executor implementations
+  /evaluations       # Acceptance tests
+  /ui                # CLI (minimal)
+/configs
+  anthropic.json     # API keys & model config
+  agent.json         # Policy, limits, security, paths allowlist
+```
+
+## Quick Start
+
+### 1. Install Dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure API Key
+
+```bash
+# Copy example config
+cp configs/anthropic.example.json configs/anthropic.json
+
+# Edit configs/anthropic.json and add your Anthropic API key
+```
+
+### 3. Run Agent
+
+```bash
+# Dry run (no file changes)
+npm run dev --dry-run "Build me a calculator"
+
+# Live run (will create/modify files)
+npm run dev "Build me a calculator"
+```
+
+### 4. Run Acceptance Tests
+
+```bash
+npm run eval
+```
+
+## Configuration
+
+### configs/anthropic.json
+
+```json
+{
+  "apiKey": "sk-ant-...",
+  "model": "claude-sonnet-4-5-20250929",
+  "maxTokens": 8192,
+  "temperature": 0.2,
+  "topP": 0.9,
+  "streaming": true,
+  "provider": "anthropic"
+}
+```
+
+### configs/agent.json
+
+Security and limits configuration:
+
+- **Allowed workspaces**: Paths the agent can access
+- **Denied paths**: Paths explicitly blocked
+- **Secret patterns**: Regex patterns to redact from logs
+- **Size limits**: Max file/payload sizes
+
+## Workflow Stages
+
+### Stage 1: Analyze Request
+Parse user intent, identify scope, understand constraints.
+
+Example: "Build me a calculator" → needs: UI, state management, operations, keyboard support.
+
+### Stage 2: Plan Architecture
+Decide on design system, component structure, file organization.
+
+Example: Design system in index.css → Calculator component → clean separation of concerns.
+
+### Stage 3: Select Tools _(Future)_
+Choose the most efficient tools for the task.
+
+### Stage 4: Execute _(Future, Parallel)_
+Execute tools in parallel (currently sequential in Portion 1).
+
+### Stage 5: Verify & Respond _(Future)_
+Self-check diffs and tests; provide concise summary.
+
+## Tools
+
+### File Operations
+- **either-view**: Read files with size limits
+- **either-search-files**: Search code for patterns
+- **either-write**: Create new files
+- **either-line-replace**: Targeted line edits (preferred)
+
+### External Services (Stubs in Portion 1)
+- **websearch--web_search**: Web search (Tavily/Bing/etc)
+- **eithergen--generate_image**: Image generation (OpenAI/Stability/etc)
+
+## Security Guardrails
+
+✅ **Path Validation**
+- Only allowed workspace paths accessible
+- Denied paths explicitly blocked
+
+✅ **Secret Redaction**
+- API keys and secrets redacted from logs
+- Configurable regex patterns
+
+✅ **Size Limits**
+- Max file size: 1MB
+- Max tool payload: 512KB
+- Chunking for large reads
+
+✅ **Idempotency**
+- Duplicate tool calls detected via hash
+- Cache prevents redundant execution
+
+## Development
+
+### Build All Packages
+
+```bash
+npm run build
+```
+
+### Run in Development Mode
+
+```bash
+npm run dev
+```
+
+### Clean Build Artifacts
+
+```bash
+npm run clean
+```
+
+## Acceptance Criteria (Portion 1)
+
+✅ Agent can Analyze and Plan for "Build me a calculator" without executing tools
+
+✅ Emits a Stage 2 architecture plan (files/components) and a Stage 3 tool plan outline
+
+✅ Basic dry run: no file writes; logs contain well-formed tool_use intents
+
+## Next Steps (Future Portions)
+
+- **Portion 2**: Implement Stages 3-4 with parallel tool execution
+- **Portion 3**: Add Stage 5 verification, self-correction, and testing
+- **Portion 4**: Production hardening, provider adapters (Vertex/Bedrock), extended thinking
+
+## Model Information
+
+**Model**: Claude Sonnet 4.5
+**ID**: `claude-sonnet-4-5-20250929`
+**Provider**: Anthropic Messages API
+**Temperature**: 0.2 (deterministic)
+**Context Window**: 200K tokens
+
+## License
+
+MIT
+</file>
+
+<file path="tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "lib": ["ES2022"],
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowSyntheticDefaultImports": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "exclude": ["node_modules", "dist"]
+}
+</file>
+
+</files>

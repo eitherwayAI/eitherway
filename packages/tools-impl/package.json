@@ -1,0 +1,23 @@
+{
+  "name": "@eitherway/tools-impl",
+  "version": "0.1.0",
+  "description": "Tool implementations (either-*, websearch, eithergen)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@eitherway/tools-core": "*",
+    "fast-glob": "^3.3.2",
+    "ripgrep-js": "^1.0.2",
+    "crypto": "npm:node-stdlib-browser@^1.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.16",
+    "typescript": "^5.3.3"
+  }
+}

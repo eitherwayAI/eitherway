@@ -1,0 +1,26 @@
+{
+  "name": "@eitherway/ui-server",
+  "version": "0.1.0",
+  "description": "Backend server for EitherWay UI",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "node --env-file=../../.env --import tsx/esm src/server.ts",
+    "start": "node --env-file=../../.env dist/server.js"
+  },
+  "dependencies": {
+    "@eitherway/runtime": "*",
+    "@eitherway/tools-impl": "*",
+    "fastify": "^4.25.2",
+    "@fastify/cors": "^8.5.0",
+    "@fastify/websocket": "^8.3.1",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.16",
+    "@types/ws": "^8.5.10",
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.0"
+  }
+}

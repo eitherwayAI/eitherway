@@ -1,0 +1,52 @@
+{
+  "policy": {
+    "deterministic": true,
+    "singleAgent": true,
+    "parallelTools": true
+  },
+  "security": {
+    "allowedWorkspaces": [
+      "**",
+      "workspace/**"
+    ],
+    "deniedPaths": [
+      ".env",
+      "*.key",
+      "*.pem",
+      "configs/anthropic.json",
+      "node_modules/**"
+    ],
+    "maxFileSize": 1048576,
+    "secretPatterns": [
+      "sk-ant-[a-zA-Z0-9-_]+",
+      "AIza[0-9A-Za-z-_]{35}",
+      "sk-[a-zA-Z0-9]{32,}",
+      "-----BEGIN.*PRIVATE KEY-----"
+    ],
+    "redactSecrets": true
+  },
+  "limits": {
+    "maxToolPayloadSize": 524288,
+    "maxConcurrentTools": 10,
+    "maxSearchResults": 1000,
+    "chunkSize": 4096
+  },
+  "logging": {
+    "level": "info",
+    "captureTranscripts": true,
+    "transcriptDir": "./transcripts",
+    "logFile": "./logs/agent.log"
+  },
+  "tools": {
+    "websearch": {
+      "provider": "tavily",
+      "defaultTopK": 5,
+      "maxRecencyDays": 365
+    },
+    "imagegen": {
+      "provider": "openai",
+      "defaultSize": "1024x1024",
+      "supportedProviders": ["openai", "stability", "fal", "replicate", "custom"]
+    }
+  }
+}
