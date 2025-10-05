@@ -108,44 +108,25 @@ export default function App() {
 
   return (
     <div className="app">
-      {/* Left Column: File Tree + Chat */}
-      <div className="left-column">
-        {/* File Panel */}
-        <div className="file-panel">
-          <div className="sidebar-header">
-            <span>📁 Files</span>
-            <span className={`status-badge ${connected ? 'connected' : 'disconnected'}`}>
-              {connected ? 'Connected' : 'Disconnected'}
-            </span>
-          </div>
-          <FileTree
-            files={files}
-            onSelectFile={setSelectedFile}
-            selectedFile={selectedFile || undefined}
+      {/* Left Column: Chat (always visible, full height) */}
+      <div className="chat-column">
+        <div className="chat-header">
+          <ChatSwitcher
+            currentSessionId={currentSessionId}
+            onSessionChange={handleSessionChange}
+            onNewChat={handleNewChat}
+            onSaveCurrentWorkspace={handleSaveCurrentWorkspace}
           />
         </div>
-
-        {/* Chat Panel */}
-        <div className="chat-panel">
-          <div className="chat-header">
-            <ChatSwitcher
-              currentSessionId={currentSessionId}
-              onSessionChange={handleSessionChange}
-              onNewChat={handleNewChat}
-              onSaveCurrentWorkspace={handleSaveCurrentWorkspace}
-            />
-          </div>
-
-          <ChatPanel
-            messages={messages}
-            onSendMessage={sendMessage}
-            disabled={!connected}
-          />
-        </div>
+        <ChatPanel
+          messages={messages}
+          onSendMessage={sendMessage}
+          disabled={!connected}
+        />
       </div>
 
-      {/* Right Column: Toolbar + View Container */}
-      <div className="right-column">
+      {/* Center Column: Toolbar + Code/Preview */}
+      <div className="center-column">
         <ViewToolbar
           currentView={currentView}
           onViewChange={setCurrentView}
@@ -158,12 +139,29 @@ export default function App() {
 
         <div className="view-container">
           {currentView === 'code' ? (
-            <div className="code-panel">
-              <div className="code-header">
-                <span>📝</span>
-                <span>{selectedFile || 'No file selected'}</span>
+            <div className="code-view-layout">
+              {/* Files Sidebar - Only visible in Code Editor mode */}
+              <div className="files-sidebar">
+                <div className="sidebar-header">
+                  <span>📁 Files</span>
+                  <span className={`status-badge ${connected ? 'connected' : 'disconnected'}`}>
+                    {connected ? 'Connected' : 'Disconnected'}
+                  </span>
+                </div>
+                <FileTree
+                  files={files}
+                  onSelectFile={setSelectedFile}
+                  selectedFile={selectedFile || undefined}
+                />
               </div>
-              <CodeViewer filePath={selectedFile} sessionId={currentSessionId} />
+
+              <div className="code-panel">
+                <div className="code-header">
+                  <span>📝</span>
+                  <span>{selectedFile || 'No file selected'}</span>
+                </div>
+                <CodeViewer filePath={selectedFile} sessionId={currentSessionId} />
+              </div>
             </div>
           ) : (
             <PreviewPane

@@ -41,7 +41,7 @@ export default function ViewToolbar({
   const getStatusText = () => {
     switch (previewStatus) {
       case 'ready':
-        return 'Ready';
+        return 'Live';
       case 'building':
         return 'Building';
       case 'stopped':

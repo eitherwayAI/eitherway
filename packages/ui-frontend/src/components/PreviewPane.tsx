@@ -91,29 +91,44 @@ export default function PreviewPane({ files, sessionId, onUrlChange }: PreviewPa
 
     const setupContainer = async () => {
       try {
-        // If session changed, teardown old container first
+        // If session changed, teardown old container quickly, then boot new one
         if (isSessionChange) {
           console.log('[PreviewPane] Session changed from', currentSessionRef.current, 'to', sessionId);
 
-          // Reset state
+          // Reset state immediately for UI responsiveness
           setPreviewUrl('');
           setLoading(true);
           setError(null);
           setContainerReady(false);
-          setServerStatus('Not started');
+          setServerStatus('Switching...');
           serverStartedRef.current = false;
 
           if (onUrlChange) {
             onUrlChange('');
           }
 
-          // Teardown and wait for completion
+          // Teardown old container as fast as possible (no delay)
           isTearingDownRef.current = true;
           containerRef.current = null; // Clear ref immediately
-          await tearDownWebContainer();
+
+          // Teardown without logging/delay to minimize switch time
+          if (webContainerInstance) {
+            try {
+              // Fire and forget - teardown happens quickly in background
+              webContainerInstance.teardown().catch(() => {});
+            } catch (err) {
+              // Ignore errors, just continue
+            }
+          }
+
+          // Reset globals immediately
+          webContainerInstance = null;
+          bootPromise = null;
+          currentRunningSessionId = null;
+          currentServerUrl = null;
           isTearingDownRef.current = false;
 
-          console.log('[PreviewPane] Teardown complete, starting new container...');
+          console.log('[PreviewPane] Old container torn down, booting new container...');
         }
 
         // Update current session
@@ -499,92 +514,64 @@ server.listen(PORT, () => {
     syncAndRun();
   }, [files, containerReady, sessionId]);
 
-  if (files.length === 0) {
-    return (
-      <div className="preview-pane">
-        <div className="preview-header">
-          <span>🔍</span>
-          <span>Preview</span>
-        </div>
-        <div className="loading">
-          <span>No files to preview</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="preview-pane">
-        <div className="preview-header">
-          <span>🔍</span>
-          <span>Preview</span>
-          <span className="status-badge">Loading...</span>
-        </div>
-        <div className="loading">
-          <div className="spinner"></div>
-          <span>Booting WebContainer...</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="preview-pane">
-        <div className="preview-header">
-          <span>🔍</span>
-          <span>Preview</span>
-          <span className="status-badge error">Error</span>
-        </div>
-        <div className="loading" style={{ color: 'var(--error)' }}>
-          <span>Error: {error}</span>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="preview-pane">
-      <div className="preview-header">
-        <span>🔍</span>
-        <span>Preview</span>
-        {previewUrl ? (
-          <span className="status-badge connected">Live</span>
-        ) : (
-          <span className="status-badge" style={{ background: '#666' }}>{serverStatus}</span>
-        )}
+      {/* Preview Content Container */}
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+        {/* WebContainer iframe - always rendered when there's a URL */}
         {previewUrl && (
-          <button
-            onClick={handleRefresh}
-            className="refresh-button"
-            title="Refresh preview"
-          >
-            🔄
-          </button>
+          <iframe
+            key={refreshKey}
+            ref={iframeRef}
+            className="preview-frame"
+            src={previewUrl}
+            title="Preview"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              opacity: loading ? 0 : 1,
+              transition: 'opacity 0.3s ease'
+            }}
+          />
         )}
-        {previewUrl && <div className="preview-url">{previewUrl}</div>}
-      </div>
-      {previewUrl ? (
-        <iframe
-          key={refreshKey}
-          ref={iframeRef}
-          className="preview-frame"
-          src={previewUrl}
-          title="Preview"
-        />
-      ) : (
-        !loading && files.length > 0 && (
-          <div className="loading">
-            <span>{serverStatus}</span>
-            {serverStatus.includes('Error') && (
-              <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                Check browser console for details
+
+        {/* Loading/Error/Empty State Overlay */}
+        {(loading || error || files.length === 0 || !previewUrl) && (
+          <div className="preview-overlay">
+            {files.length === 0 ? (
+              <div className="overlay-content">
+                <span>No files to preview</span>
               </div>
-            )}
+            ) : error ? (
+              <div className="overlay-content" style={{ color: 'var(--error)' }}>
+                <span>Error: {error}</span>
+              </div>
+            ) : loading ? (
+              <div className="overlay-content">
+                <div className="spinner"></div>
+                <span>{serverStatus === 'Switching...' ? 'Switching WebContainer...' : 'Booting WebContainer...'}</span>
+                {serverStatus === 'Switching...' && (
+                  <div style={{ marginTop: '10px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                    Preparing new environment...
+                  </div>
+                )}
+              </div>
+            ) : !previewUrl && files.length > 0 ? (
+              <div className="overlay-content">
+                <span>{serverStatus}</span>
+                {serverStatus.includes('Error') && (
+                  <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    Check browser console for details
+                  </div>
+                )}
+              </div>
+            ) : null}
           </div>
-        )
-      )}
+        )}
+      </div>
     </div>
   );
 }
