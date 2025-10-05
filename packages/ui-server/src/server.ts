@@ -121,6 +121,9 @@ fastify.register(async (fastify) => {
             files
           }));
 
+          // Save transcript
+          await agent.saveTranscript();
+
         } catch (error: any) {
           connection.socket.send(JSON.stringify({
             type: 'error',

@@ -70,10 +70,9 @@ export class EitherSearchFilesExecutor implements ToolExecutor {
 
           // Search for pattern
           for (let i = 0; i < lines.length; i++) {
+            // Reset regex lastIndex before each test to avoid missed matches
+            searchPattern.lastIndex = 0;
             if (searchPattern.test(lines[i])) {
-              // Reset regex lastIndex for next test
-              searchPattern.lastIndex = 0;
-
               const match: SearchMatch = {
                 path: file,
                 line: i + 1,

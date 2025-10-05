@@ -25,8 +25,6 @@ Portion 2 adds production-grade tools and observability:
 
 **Build apps visually with chat, live preview, and file browser!**
 
-See [UI_README.md](./UI_README.md) for full documentation.
-
 ### Features
 - 💬 **Chat interface** - Natural language prompts with streaming responses
 - 📁 **File browser** - Tree view with syntax-highlighted code viewer

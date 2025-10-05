@@ -151,7 +151,7 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
 
   'websearch--web_search': {
     name: 'websearch--web_search',
-    description: 'Search the web for docs, best practices, and real-time info.',
+    description: 'Search the web for docs, best practices, and real-time info. Supports domain filtering and localization.',
     input_schema: {
       type: 'object',
       properties: {
@@ -174,6 +174,28 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
         site: {
           type: 'string',
           description: 'Optional domain filter (e.g., "stackoverflow.com")'
+        },
+        allowed_domains: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Only include results from these domains (cannot be used with blocked_domains)'
+        },
+        blocked_domains: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Never include results from these domains (cannot be used with allowed_domains)'
+        },
+        user_location: {
+          type: 'object',
+          description: 'Localize search results based on user location',
+          properties: {
+            type: { type: 'string', enum: ['approximate'], description: 'Location type' },
+            city: { type: 'string', description: 'City name' },
+            region: { type: 'string', description: 'Region or state' },
+            country: { type: 'string', description: 'Country' },
+            timezone: { type: 'string', description: 'IANA timezone ID' }
+          },
+          required: ['type']
         }
       },
       required: ['query'],
