@@ -13,7 +13,6 @@ export class EitherWriteExecutor implements ToolExecutor {
 
   async execute(input: Record<string, any>, context: ExecutionContext): Promise<ToolExecutorResult> {
     const { path, content, overwrite = false, create_dirs = true } = input;
-    const fullPath = resolve(context.workingDir, path);
 
     // Security check
     const guard = new SecurityGuard(context.config.security);
@@ -23,6 +22,14 @@ export class EitherWriteExecutor implements ToolExecutor {
         isError: true
       };
     }
+
+    // Use database if fileStore is available
+    if (context.fileStore && context.appId) {
+      return this.executeWithDatabase(path, content, context);
+    }
+
+    // Otherwise use filesystem
+    const fullPath = resolve(context.workingDir, path);
 
     try {
       let isExisting = false;
@@ -99,6 +106,74 @@ export class EitherWriteExecutor implements ToolExecutor {
     } catch (error: any) {
       return {
         content: `Error writing file '${path}': ${error.message}`,
+        isError: true
+      };
+    }
+  }
+
+  /**
+   * Execute using database FileStore
+   */
+  private async executeWithDatabase(path: string, content: string, context: ExecutionContext): Promise<ToolExecutorResult> {
+    const { fileStore, appId } = context;
+
+    try {
+      // Check if file exists in database
+      let isExisting = false;
+      let oldContent = '';
+
+      try {
+        const existingFile = await fileStore.read(appId, path);
+        isExisting = true;
+
+        // Convert content to string if it's a buffer
+        if (typeof existingFile.content === 'string') {
+          oldContent = existingFile.content;
+        } else if (Buffer.isBuffer(existingFile.content)) {
+          oldContent = existingFile.content.toString('utf-8');
+        } else {
+          oldContent = Buffer.from(existingFile.content).toString('utf-8');
+        }
+      } catch {
+        // File doesn't exist, which is fine for new files
+      }
+
+      // Write to database
+      await fileStore.write(appId, path, content);
+
+      // Calculate hash and line count
+      const newSha256 = createHash('sha256').update(content).digest('hex');
+      const lineCount = content.split('\n').length;
+
+      // Generate diff summary
+      let diffSummary: string;
+      if (isExisting) {
+        const oldLines = oldContent.split('\n');
+        const newLines = content.split('\n');
+        diffSummary = this.generateDiffSummary(path, oldLines, newLines);
+      } else {
+        // New file - show first few lines
+        const lines = content.split('\n');
+        const preview = lines.slice(0, 10).map((line: string, idx: number) => `${idx + 1}+ ${line}`).join('\n');
+        const more = lines.length > 10 ? `\n... ${lines.length - 10} more lines` : '';
+        diffSummary = `+++ ${path} (new file)\n${preview}${more}`;
+      }
+
+      return {
+        content: `Successfully wrote '${path}' to database\n\n${diffSummary}`,
+        isError: false,
+        metadata: {
+          path,
+          size: content.length,
+          sha256: newSha256,
+          line_count: lineCount,
+          overwritten: isExisting,
+          storage: 'database'
+        }
+      };
+    } catch (error: any) {
+      return {
+        content: `Error writing file '${path}' to database: ${error.message}`,
         isError: true
       };
     }

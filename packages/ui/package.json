@@ -10,7 +10,7 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "@eitherway/runtime": "*"
+    "@eitherway/runtime": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.3.3"

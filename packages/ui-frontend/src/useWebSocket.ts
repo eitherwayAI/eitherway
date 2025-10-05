@@ -17,11 +17,15 @@ export function useWebSocket(url: string, sessionId: string | null) {
     setMessages(newMessages);
   }, []);
 
-  // Fetch initial files
   useEffect(() => {
     const fetchFiles = async () => {
+      if (!sessionId) {
+        setFiles([]);
+        return;
+      }
+
       try {
-        const response = await fetch('/api/files');
+        const response = await fetch(`/api/sessions/${sessionId}/files/tree`);
         const data = await response.json();
         if (data.files) {
           setFiles(data.files);
@@ -32,14 +36,20 @@ export function useWebSocket(url: string, sessionId: string | null) {
     };
 
     fetchFiles();
-  }, []);
+  }, [sessionId]);
 
   useEffect(() => {
+    if (!sessionId) {
+      setConnected(false);
+      return;
+    }
+
     let isCleanup = false;
-    const websocket = new WebSocket(url);
+    const wsUrl = sessionId ? `${url}?sessionId=${sessionId}` : url;
+    const websocket = new WebSocket(wsUrl);
 
     websocket.onopen = () => {
-      console.log('✅ WebSocket connected successfully');
+      console.log('✅ WebSocket connected successfully for session:', sessionId);
       setConnected(true);
     };
 
@@ -98,7 +108,7 @@ export function useWebSocket(url: string, sessionId: string | null) {
       isCleanup = true;
       websocket.close();
     };
-  }, [url]);
+  }, [url, sessionId]);
 
   const sendMessage = useCallback((prompt: string) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {

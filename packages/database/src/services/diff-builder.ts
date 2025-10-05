@@ -32,7 +32,7 @@ export class DiffBuilder {
   }
 
   async buildDiff(
-    appId: string,
+    _appId: string,
     fileId: string,
     newContent: string
   ): Promise<FileDiff> {

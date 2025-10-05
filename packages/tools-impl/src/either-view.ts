@@ -13,7 +13,6 @@ export class EitherViewExecutor implements ToolExecutor {
 
   async execute(input: Record<string, any>, context: ExecutionContext): Promise<ToolExecutorResult> {
     const { path, max_bytes = 1048576, encoding = 'utf-8' } = input;
-    const fullPath = resolve(context.workingDir, path);
 
     // Security check
     const guard = new SecurityGuard(context.config.security);
@@ -23,6 +22,14 @@ export class EitherViewExecutor implements ToolExecutor {
         isError: true
       };
     }
+
+    // Use database if fileStore is available
+    if (context.fileStore && context.appId) {
+      return this.executeWithDatabase(path, max_bytes, encoding, context);
+    }
+
+    // Otherwise use filesystem
+    const fullPath = resolve(context.workingDir, path);
 
     try {
       // Read file with size limit
@@ -72,6 +79,82 @@ export class EitherViewExecutor implements ToolExecutor {
     } catch (error: any) {
       return {
         content: `Error reading file '${path}': ${error.message}`,
+        isError: true
+      };
+    }
+  }
+
+  /**
+   * Execute using database FileStore
+   */
+  private async executeWithDatabase(
+    path: string,
+    max_bytes: number,
+    encoding: string,
+    context: ExecutionContext
+  ): Promise<ToolExecutorResult> {
+    const { fileStore, appId } = context;
+
+    try {
+      // Read file from database
+      const fileData = await fileStore.read(appId, path);
+
+      // Convert content to string
+      let content: string;
+      if (typeof fileData.content === 'string') {
+        content = fileData.content;
+      } else if (Buffer.isBuffer(fileData.content)) {
+        content = fileData.content.toString(encoding as BufferEncoding);
+      } else {
+        content = Buffer.from(fileData.content).toString(encoding as BufferEncoding);
+      }
+
+      // Calculate SHA-256 hash
+      const sha256 = createHash('sha256').update(content).digest('hex');
+
+      // Count lines
+      const lineCount = content.split('\n').length;
+
+      // Check if truncation needed
+      const isTruncated = content.length > max_bytes;
+
+      if (isTruncated) {
+        const truncated = content.slice(0, max_bytes);
+        const truncatedLines = truncated.split('\n').length;
+
+        return {
+          content: `${truncated}\n\n[File truncated: ${content.length} bytes, showing first ${max_bytes} bytes]`,
+          isError: false,
+          metadata: {
+            path,
+            encoding,
+            size: content.length,
+            sha256,
+            line_count: lineCount,
+            truncated: true,
+            shown_lines: truncatedLines,
+            storage: 'database'
+          }
+        };
+      }
+
+      // Return full content with metadata
+      return {
+        content,
+        isError: false,
+        metadata: {
+          path,
+          encoding,
+          size: content.length,
+          sha256,
+          line_count: lineCount,
+          truncated: false,
+          storage: 'database'
+        }
+      };
+    } catch (error: any) {
+      return {
+        content: `Error reading file '${path}' from database: ${error.message}`,
         isError: true
       };
     }

@@ -3,9 +3,10 @@ import Editor from '@monaco-editor/react';
 
 interface CodeViewerProps {
   filePath: string | null;
+  sessionId: string | null;
 }
 
-export default function CodeViewer({ filePath }: CodeViewerProps) {
+export default function CodeViewer({ filePath, sessionId }: CodeViewerProps) {
   const [content, setContent] = useState('');
   const [originalContent, setOriginalContent] = useState('');
   const [loading, setLoading] = useState(false);
@@ -14,7 +15,7 @@ export default function CodeViewer({ filePath }: CodeViewerProps) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!filePath) {
+    if (!filePath || !sessionId) {
       setContent('');
       setOriginalContent('');
       setHasChanges(false);
@@ -27,7 +28,8 @@ export default function CodeViewer({ filePath }: CodeViewerProps) {
       setHasChanges(false);
 
       try {
-        const response = await fetch(`/api/files/${filePath}`);
+        const encodedPath = encodeURIComponent(filePath);
+        const response = await fetch(`/api/sessions/${sessionId}/files/read?path=${encodedPath}`);
         if (!response.ok) {
           throw new Error(`Failed to load file: ${response.statusText}`);
         }
@@ -46,7 +48,7 @@ export default function CodeViewer({ filePath }: CodeViewerProps) {
     };
 
     loadFile();
-  }, [filePath]);
+  }, [filePath, sessionId]);
 
   const handleEditorChange = (value: string | undefined) => {
     const newContent = value || '';
@@ -55,18 +57,18 @@ export default function CodeViewer({ filePath }: CodeViewerProps) {
   };
 
   const handleSave = async () => {
-    if (!filePath || !hasChanges) return;
+    if (!filePath || !sessionId || !hasChanges) return;
 
     setSaving(true);
     setError(null);
 
     try {
-      const response = await fetch(`/api/files/${filePath}`, {
+      const response = await fetch(`/api/sessions/${sessionId}/files/write`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ path: filePath, content }),
       });
 
       if (!response.ok) {

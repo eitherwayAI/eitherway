@@ -3,6 +3,7 @@ import { WebContainer } from '@webcontainer/api';
 
 interface PreviewPaneProps {
   files: any[];
+  sessionId: string | null;
 }
 
 // Global singleton to prevent multiple WebContainer instances
@@ -25,7 +26,7 @@ async function getWebContainer(): Promise<WebContainer> {
   return webContainerInstance;
 }
 
-export default function PreviewPane({ files }: PreviewPaneProps) {
+export default function PreviewPane({ files, sessionId }: PreviewPaneProps) {
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -121,6 +122,11 @@ export default function PreviewPane({ files }: PreviewPaneProps) {
     console.log('[PreviewPane] ✅ Starting file sync...');
 
     const syncFilesToContainer = async (fileNodes: any[]): Promise<Record<string, any>> => {
+      if (!sessionId) {
+        console.warn('[PreviewPane] No sessionId available for file sync');
+        return {};
+      }
+
       const fileTree: any = {};
       const filePromises: Promise<void>[] = [];
 
@@ -131,8 +137,8 @@ export default function PreviewPane({ files }: PreviewPaneProps) {
             node.children.forEach((child: any) => processNode(child, dirPath));
           }
         } else if (node.type === 'file') {
-          // Fetch file content
-          const promise = fetch(`/api/files/${node.path}`)
+          const encodedPath = encodeURIComponent(node.path);
+          const promise = fetch(`/api/sessions/${sessionId}/files/read?path=${encodedPath}`)
             .then(res => res.json())
             .then(data => {
               const pathParts = node.path.split('/');
@@ -161,7 +167,6 @@ export default function PreviewPane({ files }: PreviewPaneProps) {
 
       fileNodes.forEach(node => processNode(node));
 
-      // Wait for all files to be fetched
       await Promise.all(filePromises);
       return fileTree;
     };
@@ -192,10 +197,14 @@ export default function PreviewPane({ files }: PreviewPaneProps) {
         const hasPackageJson = findFile(files, 'package.json');
         const hasIndexHtml = findFile(files, 'index.html');
 
+        // If no index.html, find any HTML file
+        const anyHtmlFile = !hasIndexHtml ? files.find(f => f.path.toLowerCase().endsWith('.html')) : null;
+
         console.log('[PreviewPane] File detection:', {
           hasPackageJson: !!hasPackageJson,
           hasIndexHtml: !!hasIndexHtml,
-          indexPath: hasIndexHtml?.path
+          anyHtmlFile: anyHtmlFile?.path,
+          indexPath: hasIndexHtml?.path || anyHtmlFile?.path
         });
 
         if (hasPackageJson && containerRef.current) {
@@ -216,14 +225,18 @@ export default function PreviewPane({ files }: PreviewPaneProps) {
           }));
 
           serverStartedRef.current = true;
-        } else if (hasIndexHtml && containerRef.current) {
+        } else if ((hasIndexHtml || anyHtmlFile) && containerRef.current) {
           setServerStatus('Starting static server...');
           // For simple HTML apps, start a static server using Node.js http-server
-          // Find the directory containing index.html
-          const indexPath = hasIndexHtml.path; // e.g., "src/index.html"
+          // Find the directory containing the HTML file
+          const htmlFile = hasIndexHtml || anyHtmlFile;
+          const indexPath = htmlFile!.path; // e.g., "src/index.html" or "calculator.html"
           const baseDir = indexPath.includes('/') ? indexPath.substring(0, indexPath.lastIndexOf('/')) : '.';
 
           console.log('[PreviewPane] Starting static server for:', indexPath, 'baseDir:', baseDir);
+
+          // Extract the HTML filename for the default route
+          const htmlFileName = indexPath.includes('/') ? indexPath.substring(indexPath.lastIndexOf('/') + 1) : indexPath;
 
           const serverScript = `
 const http = require('http');
@@ -232,6 +245,7 @@ const path = require('path');
 
 const BASE_DIR = '${baseDir}';
 const PORT = 3000;
+const DEFAULT_FILE = '${htmlFileName}';
 const mimeTypes = {
   '.html': 'text/html',
   '.css': 'text/css',
@@ -244,7 +258,7 @@ const mimeTypes = {
 };
 
 const server = http.createServer((req, res) => {
-  let reqPath = req.url === '/' ? '/index.html' : req.url;
+  let reqPath = req.url === '/' ? '/' + DEFAULT_FILE : req.url;
   let filePath = path.join(BASE_DIR, reqPath);
   const extname = path.extname(filePath);
   const contentType = mimeTypes[extname] || 'application/octet-stream';
@@ -322,8 +336,8 @@ server.listen(PORT, () => {
             }
           }, 3000);
         } else {
-          console.log('[PreviewPane] No package.json or index.html found');
-          setServerStatus('No app to preview');
+          console.log('[PreviewPane] No package.json or HTML file found');
+          setServerStatus('No app to preview (no package.json or .html file)');
         }
 
         setLoading(false);
@@ -335,7 +349,7 @@ server.listen(PORT, () => {
     };
 
     syncAndRun();
-  }, [files, containerReady]); // Run when files change OR when container becomes ready
+  }, [files, containerReady, sessionId]);
 
   if (files.length === 0) {
     return (

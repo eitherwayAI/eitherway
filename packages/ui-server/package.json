@@ -10,9 +10,9 @@
     "start": "node --env-file=../../.env dist/server.js"
   },
   "dependencies": {
-    "@eitherway/database": "*",
-    "@eitherway/runtime": "*",
-    "@eitherway/tools-impl": "*",
+    "@eitherway/database": "workspace:*",
+    "@eitherway/runtime": "workspace:*",
+    "@eitherway/tools-impl": "workspace:*",
     "fastify": "^4.25.2",
     "@fastify/cors": "^8.5.0",
     "@fastify/websocket": "^8.3.1",

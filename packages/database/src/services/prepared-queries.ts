@@ -96,7 +96,7 @@ export class PreparedQueries {
   ): Promise<Message[]> {
     if (messages.length === 0) return [];
 
-    const values = messages.map((m, i) => {
+    const values = messages.map((_m, i) => {
       const base = i * 5;
       return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5})`;
     }).join(', ');

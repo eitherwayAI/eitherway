@@ -335,6 +335,24 @@ export class ToolRunner {
   getRateLimiter(): RateLimiter {
     return this.rateLimiter;
   }
+
+  /**
+   * Set database context for file operations
+   */
+  setDatabaseContext(fileStore: any, appId: string, sessionId?: string): void {
+    this.context.fileStore = fileStore;
+    this.context.appId = appId;
+    this.context.sessionId = sessionId;
+  }
+
+  /**
+   * Clear database context
+   */
+  clearDatabaseContext(): void {
+    delete this.context.fileStore;
+    delete this.context.appId;
+    delete this.context.sessionId;
+  }
 }
 
 /**

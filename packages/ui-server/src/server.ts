@@ -7,14 +7,15 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
-import { Agent, ConfigLoader } from '@eitherway/runtime';
+import { Agent, DatabaseAgent, ConfigLoader } from '@eitherway/runtime';
 import { getAllExecutors } from '@eitherway/tools-impl';
-import { createDatabaseClient, FilesRepository, SessionsRepository } from '@eitherway/database';
+import { createDatabaseClient, FilesRepository, SessionsRepository, PostgresFileStore } from '@eitherway/database';
 import { readdir, readFile, stat, writeFile, rm, mkdir } from 'fs/promises';
 import { join, dirname, resolve, relative } from 'path';
 import { fileURLToPath } from 'url';
 import { maybeRewriteFile } from './cdn-rewriter.js';
 import { registerSessionRoutes } from './routes/sessions.js';
+import { registerSessionFileRoutes } from './routes/session-files.js';
 
 const fastify = Fastify({ logger: true });
 
@@ -31,8 +32,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const PROJECT_ROOT = join(__dirname, '../../..');
 
-// Working directory for agent
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || join(PROJECT_ROOT, 'workspace');
+const USE_LOCAL_FS = process.env.USE_LOCAL_FS === 'true';
 
 // Load configuration from project root
 const loader = new ConfigLoader(join(PROJECT_ROOT, 'configs'));
@@ -45,9 +46,9 @@ try {
   db = createDatabaseClient();
   dbConnected = await db.healthCheck();
   if (dbConnected) {
-    console.log('✓ Database connected - files will be saved to both filesystem and database');
-    // Register database-dependent routes
+    console.log('✓ Database connected - using DB-backed VFS');
     await registerSessionRoutes(fastify, db);
+    await registerSessionFileRoutes(fastify, db);
   } else {
     console.log('⚠ Database not available - files will only be saved to filesystem');
   }
@@ -132,20 +133,18 @@ fastify.get<{ Querystring: { url: string } }>('/api/proxy-cdn', async (request, 
   }
 });
 
-/**
- * GET /api/files
- * List all files in workspace
- */
 fastify.get('/api/files', async () => {
+  if (!USE_LOCAL_FS) {
+    return { files: [], deprecated: true, message: 'Use /api/sessions/:id/files/tree instead' };
+  }
   const files = await getFileTree(WORKSPACE_DIR);
   return { files };
 });
 
-/**
- * GET /api/files/:path
- * Read a specific file
- */
 fastify.get<{ Params: { '*': string } }>('/api/files/*', async (request, reply) => {
+  if (!USE_LOCAL_FS) {
+    return reply.code(410).send({ error: 'Deprecated. Use /api/sessions/:id/files/read?path=... instead' });
+  }
   const filePath = request.params['*'];
   const fullPath = resolve(WORKSPACE_DIR, filePath);
 
@@ -173,14 +172,13 @@ fastify.get<{ Params: { '*': string } }>('/api/files/*', async (request, reply) 
   }
 });
 
-/**
- * POST /api/files/:path
- * Save a file to both filesystem and database
- */
 fastify.post<{
   Params: { '*': string };
   Body: { content: string };
 }>('/api/files/*', async (request, reply) => {
+  if (!USE_LOCAL_FS) {
+    return reply.code(410).send({ error: 'Deprecated. Use /api/sessions/:id/files/write instead' });
+  }
   const filePath = request.params['*'];
   const { content } = request.body;
 
@@ -277,14 +275,13 @@ async function loadWorkspaceFromDatabase(sessionAppId: string): Promise<void> {
   }
 }
 
-/**
- * POST /api/sessions/:id/switch-workspace
- * Switch to a session's workspace
- */
 fastify.post<{
   Params: { id: string };
   Body: { currentSessionId?: string };
 }>('/api/sessions/:id/switch-workspace', async (request, reply) => {
+  if (!USE_LOCAL_FS) {
+    return reply.code(410).send({ error: 'Deprecated. Session switching now happens client-side without reload' });
+  }
   const { id: newSessionId } = request.params;
   const { currentSessionId } = request.body;
 
@@ -328,54 +325,111 @@ fastify.post<{
   }
 });
 
-/**
- * WebSocket /api/agent
- * Real-time agent interaction
- */
 fastify.register(async (fastify) => {
-  fastify.get('/api/agent', { websocket: true }, (connection) => {
+  fastify.get<{
+    Querystring: { sessionId?: string };
+  }>('/api/agent', { websocket: true }, async (connection, request) => {
+    const { sessionId } = request.query;
+
+    if (!sessionId && !USE_LOCAL_FS) {
+      connection.socket.send(JSON.stringify({
+        type: 'error',
+        message: 'sessionId query parameter is required'
+      }));
+      connection.socket.close();
+      return;
+    }
+
     connection.socket.on('message', async (message: Buffer) => {
       const data = JSON.parse(message.toString());
 
       if (data.type === 'prompt') {
         try {
-          // Create agent instance
-          const agent = new Agent({
-            workingDir: WORKSPACE_DIR,
-            claudeConfig,
-            agentConfig,
-            executors: getAllExecutors(),
-            dryRun: false,
-            webSearch: agentConfig.tools.webSearch
-          });
+          let response: string;
 
-          // Send status update
-          connection.socket.send(JSON.stringify({
-            type: 'status',
-            message: 'Processing request...'
-          }));
+          // Use DatabaseAgent when in database mode
+          if (!USE_LOCAL_FS && dbConnected && db && sessionId) {
+            const sessionsRepo = new SessionsRepository(db);
+            const fileStore = new PostgresFileStore(db);
+            const session = await sessionsRepo.findById(sessionId);
 
-          // Stream agent response
-          let fullResponse = '';
+            if (!session) {
+              connection.socket.send(JSON.stringify({
+                type: 'error',
+                message: 'Session not found'
+              }));
+              return;
+            }
 
-          const response = await agent.processRequest(data.prompt);
-          fullResponse = response;
+            const dbAgent = new DatabaseAgent({
+              db,
+              sessionId,
+              appId: session.app_id || undefined,
+              workingDir: WORKSPACE_DIR,
+              claudeConfig,
+              agentConfig,
+              executors: getAllExecutors(),
+              dryRun: false,
+              webSearch: agentConfig.tools.webSearch
+            });
 
-          // Send final response
+            // Set database context for file operations
+            if (session.app_id) {
+              dbAgent.setDatabaseContext(fileStore, session.app_id, sessionId);
+            }
+
+            connection.socket.send(JSON.stringify({
+              type: 'status',
+              message: 'Processing request...'
+            }));
+
+            response = await dbAgent.processRequest(data.prompt);
+          } else {
+            // Use regular Agent for local filesystem mode
+            const agent = new Agent({
+              workingDir: WORKSPACE_DIR,
+              claudeConfig,
+              agentConfig,
+              executors: getAllExecutors(),
+              dryRun: false,
+              webSearch: agentConfig.tools.webSearch
+            });
+
+            connection.socket.send(JSON.stringify({
+              type: 'status',
+              message: 'Processing request...'
+            }));
+
+            response = await agent.processRequest(data.prompt);
+          }
+
           connection.socket.send(JSON.stringify({
             type: 'response',
-            content: fullResponse
+            content: response
           }));
 
-          // Send updated file list
-          const files = await getFileTree(WORKSPACE_DIR);
-          connection.socket.send(JSON.stringify({
-            type: 'files_updated',
-            files
-          }));
+          if (!USE_LOCAL_FS && dbConnected && db && sessionId) {
+            const sessionsRepo = new SessionsRepository(db);
+            const fileStore = new PostgresFileStore(db);
 
-          // Save transcript
-          await agent.saveTranscript();
+            const session = await sessionsRepo.findById(sessionId);
+
+            if (session?.app_id) {
+              const files = await fileStore.list(session.app_id);
+
+              connection.socket.send(JSON.stringify({
+                type: 'files_updated',
+                files,
+                sessionId
+              }));
+            }
+          } else {
+            const files = await getFileTree(WORKSPACE_DIR);
+            connection.socket.send(JSON.stringify({
+              type: 'files_updated',
+              files
+            }));
+          }
 
         } catch (error: any) {
           connection.socket.send(JSON.stringify({

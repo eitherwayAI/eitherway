@@ -47,9 +47,17 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
       return reply.code(404).send({ error: 'Session not found' });
     }
 
-    const messages = await messagesRepo.findRecentBySession(session.id, 50);
+    const rawMessages = await messagesRepo.findRecentBySession(session.id, 50);
     const memory = await memoryRepo.findBySession(session.id);
     const workingSet = await workingSetRepo.findBySessionWithFiles(session.id);
+
+    // Transform messages: if content is object with text, extract it
+    const messages = rawMessages.map(msg => ({
+      ...msg,
+      content: typeof msg.content === 'object' && msg.content !== null && 'text' in msg.content
+        ? msg.content.text
+        : msg.content
+    }));
 
     return {
       session,

@@ -28,15 +28,14 @@ export interface MemoryPrelude {
 
 export class MemoryPreludeService {
   private sessionsRepo: SessionsRepository;
-  private messagesRepo: MessagesRepository;
   private memoryRepo: SessionMemoryRepository;
   private workingSetRepo: WorkingSetRepository;
   private eventsRepo: EventsRepository;
   private appsRepo: AppsRepository;
 
-  constructor(private db: DatabaseClient) {
+  constructor(db: DatabaseClient) {
     this.sessionsRepo = new SessionsRepository(db);
-    this.messagesRepo = new MessagesRepository(db);
+    new MessagesRepository(db);
     this.memoryRepo = new SessionMemoryRepository(db);
     this.workingSetRepo = new WorkingSetRepository(db);
     this.eventsRepo = new EventsRepository(db);
@@ -147,7 +146,7 @@ export class MemoryPreludeService {
     }
   }
 
-  private deriveConstraints(appName: string | null | undefined, facts: Record<string, any>): string[] {
+  private deriveConstraints(_appName: string | null | undefined, facts: Record<string, any>): string[] {
     const constraints: string[] = [
       'Tests must pass before completion',
       'Follow existing code style and patterns',

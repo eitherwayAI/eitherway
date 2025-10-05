@@ -4,6 +4,13 @@ import type {
   Session,
   Message
 } from '@eitherway/database';
+import {
+  SessionsRepository,
+  MessagesRepository,
+  SessionMemoryRepository,
+  WorkingSetRepository,
+  EventsRepository
+} from '@eitherway/database';
 
 export interface DatabaseAgentOptions extends Omit<AgentOptions, 'workingDir'> {
   db: DatabaseClient;
@@ -16,11 +23,11 @@ export interface DatabaseAgentOptions extends Omit<AgentOptions, 'workingDir'> {
 export class DatabaseAgent {
   private agent: Agent;
   private db: DatabaseClient;
-  private sessionsRepo: any;
-  private messagesRepo: any;
-  private memoryRepo: any;
-  private workingSetRepo: any;
-  private eventsRepo: any;
+  private sessionsRepo: SessionsRepository;
+  private messagesRepo: MessagesRepository;
+  private memoryRepo: SessionMemoryRepository;
+  private workingSetRepo: WorkingSetRepository;
+  private eventsRepo: EventsRepository;
   private sessionId: string;
   private appId?: string;
 
@@ -28,10 +35,6 @@ export class DatabaseAgent {
     this.db = options.db;
     this.sessionId = options.sessionId;
     this.appId = options.appId;
-
-    const { SessionsRepository, MessagesRepository, SessionMemoryRepository,
-            WorkingSetRepository, EventsRepository } =
-            require('@eitherway/database');
 
     this.sessionsRepo = new SessionsRepository(this.db);
     this.messagesRepo = new MessagesRepository(this.db);
@@ -159,7 +162,7 @@ export class DatabaseAgent {
   }
 
   async getSessionContext(): Promise<{
-    session: Session;
+    session: Session | null;
     recentMessages: Message[];
     memory: any;
     workingSet: any[];
@@ -170,5 +173,12 @@ export class DatabaseAgent {
     const workingSet = await this.workingSetRepo.findBySessionWithFiles(this.sessionId);
 
     return { session, recentMessages, memory, workingSet };
+  }
+
+  /**
+   * Set database context for file operations
+   */
+  setDatabaseContext(fileStore: any, appId: string, sessionId?: string): void {
+    this.agent.setDatabaseContext(fileStore, appId, sessionId);
   }
 }

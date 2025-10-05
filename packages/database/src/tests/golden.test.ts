@@ -26,7 +26,7 @@ describe('Phase 3 Golden Tests', () => {
   });
 
   it('should resume a 2-week-old session seamlessly', async () => {
-    const { user, session, files } = await fixtures.createRealisticSession();
+    const { user, session } = await fixtures.createRealisticSession();
 
     const preludeService = new MemoryPreludeService(db);
     const prelude = await preludeService.buildPrelude(session.id);

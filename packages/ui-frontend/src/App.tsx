@@ -15,36 +15,18 @@ export default function App() {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
   const handleSessionChange = useCallback(async (sessionId: string) => {
-    // Switch workspace and load session data
     try {
-      // Call workspace switch endpoint
-      const switchResponse = await fetch(`/api/sessions/${sessionId}/switch-workspace`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentSessionId })
-      });
-
-      if (!switchResponse.ok) {
-        throw new Error('Failed to switch workspace');
-      }
-
-      const switchData = await switchResponse.json();
-
-      // Update session ID
       setCurrentSessionId(sessionId);
 
-      // Load session messages
       const sessionResponse = await fetch(`/api/sessions/${sessionId}`);
       const sessionData = await sessionResponse.json();
-      clearMessages(sessionData.messages || []);
 
-      // Refresh file list by forcing a reload
-      window.location.reload();
+      clearMessages(sessionData.messages || []);
     } catch (error) {
       console.error('Failed to switch session:', error);
       alert('Failed to switch session. Please try again.');
     }
-  }, [currentSessionId, clearMessages]);
+  }, [clearMessages]);
 
   const handleNewChat = useCallback(() => {
     setCurrentSessionId(null);
@@ -52,20 +34,8 @@ export default function App() {
   }, [clearMessages]);
 
   const handleSaveCurrentWorkspace = useCallback(async () => {
-    if (!currentSessionId) return;
-
-    try {
-      // Just trigger a save - the switch endpoint will handle it
-      // This is for explicit saves before creating new sessions
-      await fetch(`/api/sessions/${currentSessionId}/switch-workspace`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentSessionId })
-      });
-    } catch (error) {
-      console.error('Failed to save workspace:', error);
-    }
-  }, [currentSessionId]);
+    return Promise.resolve();
+  }, []);
 
 
   return (
@@ -94,11 +64,10 @@ export default function App() {
               <span>📝</span>
               <span>{selectedFile || 'No file selected'}</span>
             </div>
-            <CodeViewer filePath={selectedFile} />
+            <CodeViewer filePath={selectedFile} sessionId={currentSessionId} />
           </div>
 
-          {/* Preview Pane */}
-          <PreviewPane files={files} />
+          <PreviewPane files={files} sessionId={currentSessionId} />
         </div>
 
         {/* Chat Panel */}

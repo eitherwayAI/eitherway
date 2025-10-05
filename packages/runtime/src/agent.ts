@@ -254,6 +254,13 @@ export class Agent {
   }
 
   /**
+   * Set database context for file operations
+   */
+  setDatabaseContext(fileStore: any, appId: string, sessionId?: string): void {
+    this.toolRunner.setDatabaseContext(fileStore, appId, sessionId);
+  }
+
+  /**
    * Run verification and create summary
    */
   private async runVerification(changedFiles: Set<string>): Promise<string> {
