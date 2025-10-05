@@ -64,12 +64,26 @@ export class DatabaseAgent {
     // Convert database messages to Agent message format (filter out system/tool messages)
     const conversationHistory = previousMessages
       .filter(msg => msg.role === 'user' || msg.role === 'assistant')
-      .map(msg => ({
-        role: msg.role as 'user' | 'assistant',
-        content: typeof msg.content === 'object' && msg.content.text
-          ? msg.content.text
-          : msg.content
-      }));
+      .map(msg => {
+        let content = msg.content;
+
+        // Handle different content formats
+        if (typeof content === 'object' && content !== null) {
+          // If it's an array (tool use/results), keep it as-is
+          if (Array.isArray(content)) {
+            content = content;
+          }
+          // If it's an object with .text property, extract the text
+          else if ('text' in content && content.text) {
+            content = content.text;
+          }
+        }
+
+        return {
+          role: msg.role as 'user' | 'assistant',
+          content
+        };
+      });
 
     // Load conversation history into agent
     this.agent.loadConversationHistory(conversationHistory);
@@ -93,10 +107,19 @@ export class DatabaseAgent {
       const estimatedTokens = Math.ceil(response.length / 4);
       tokenCount = estimatedTokens;
 
+      // Get the full conversation history to save the last assistant message properly
+      const history = this.agent.getHistory();
+      const lastAssistantMessage = history[history.length - 1];
+
+      // Save the full content (could be text or array of content blocks)
+      const contentToSave = lastAssistantMessage?.role === 'assistant'
+        ? lastAssistantMessage.content
+        : { text: response };
+
       const assistantMessage = await this.messagesRepo.create(
         this.sessionId,
         'assistant' as const,
-        { text: response },
+        contentToSave as any,
         'claude-sonnet-4-5',
         tokenCount
       );

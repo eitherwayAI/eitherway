@@ -5,6 +5,7 @@ interface PreviewPaneProps {
   files: any[];
   sessionId: string | null;
   onUrlChange?: (url: string) => void;
+  deviceMode?: 'desktop' | 'mobile';
 }
 
 // Global singleton to prevent multiple WebContainer instances
@@ -51,13 +52,14 @@ async function tearDownWebContainer() {
   }
 }
 
-export default function PreviewPane({ files, sessionId, onUrlChange }: PreviewPaneProps) {
+export default function PreviewPane({ files, sessionId, onUrlChange, deviceMode = 'desktop' }: PreviewPaneProps) {
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [containerReady, setContainerReady] = useState(false);
   const [serverStatus, setServerStatus] = useState<string>('Not started');
+  const [iframeLoaded, setIframeLoaded] = useState(false);
   const containerRef = useRef<WebContainer | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const serverStartedRef = useRef(false);
@@ -75,8 +77,14 @@ export default function PreviewPane({ files, sessionId, onUrlChange }: PreviewPa
     }
   }, [files, previewUrl]);
 
+  // Reset iframe loaded state when URL changes
+  useEffect(() => {
+    setIframeLoaded(false);
+  }, [previewUrl]);
+
   const handleRefresh = () => {
     setRefreshKey(prev => prev + 1);
+    setIframeLoaded(false);
   };
 
   // Handle session changes: teardown old container, then boot new one
@@ -101,6 +109,7 @@ export default function PreviewPane({ files, sessionId, onUrlChange }: PreviewPa
           setError(null);
           setContainerReady(false);
           setServerStatus('Switching...');
+          setIframeLoaded(false);
           serverStartedRef.current = false;
 
           if (onUrlChange) {
@@ -514,62 +523,135 @@ server.listen(PORT, () => {
     syncAndRun();
   }, [files, containerReady, sessionId]);
 
+  const isMobile = deviceMode === 'mobile';
+
   return (
     <div className="preview-pane">
       {/* Preview Content Container */}
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        {/* WebContainer iframe - always rendered when there's a URL */}
-        {previewUrl && (
-          <iframe
-            key={refreshKey}
-            ref={iframeRef}
-            className="preview-frame"
-            src={previewUrl}
-            title="Preview"
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              opacity: loading ? 0 : 1,
-              transition: 'opacity 0.3s ease'
-            }}
-          />
-        )}
+      <div style={{
+        flex: 1,
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: isMobile ? '#f5f5f5' : 'transparent'
+      }}>
+        {isMobile ? (
+          /* Mobile Phone Mockup */
+          <div className="phone-mockup">
+            <div className="phone-frame">
+              <div className="phone-notch"></div>
+              <div className="phone-screen">
+                {previewUrl && (
+                  <iframe
+                    key={refreshKey}
+                    ref={iframeRef}
+                    className="preview-frame-mobile"
+                    src={previewUrl}
+                    title="Preview"
+                    onLoad={() => setIframeLoaded(true)}
+                    style={{
+                      opacity: (loading || !iframeLoaded) ? 0 : 1,
+                      transition: 'opacity 0.3s ease'
+                    }}
+                  />
+                )}
 
-        {/* Loading/Error/Empty State Overlay */}
-        {(loading || error || files.length === 0 || !previewUrl) && (
-          <div className="preview-overlay">
-            {files.length === 0 ? (
-              <div className="overlay-content">
-                <span>No files to preview</span>
-              </div>
-            ) : error ? (
-              <div className="overlay-content" style={{ color: 'var(--error)' }}>
-                <span>Error: {error}</span>
-              </div>
-            ) : loading ? (
-              <div className="overlay-content">
-                <div className="spinner"></div>
-                <span>{serverStatus === 'Switching...' ? 'Switching WebContainer...' : 'Booting WebContainer...'}</span>
-                {serverStatus === 'Switching...' && (
-                  <div style={{ marginTop: '10px', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                    Preparing new environment...
+                {/* Loading/Error/Empty State Overlay */}
+                {(loading || error || files.length === 0 || !previewUrl || !iframeLoaded) && (
+                  <div className="preview-overlay">
+                    {files.length === 0 ? (
+                      <div className="overlay-content">
+                        <span>No files to preview</span>
+                      </div>
+                    ) : error ? (
+                      <div className="overlay-content" style={{ color: 'var(--error)' }}>
+                        <span>Error: {error}</span>
+                      </div>
+                    ) : (loading || !iframeLoaded) ? (
+                      <div className="overlay-content">
+                        <div className="spinner"></div>
+                        <span>{serverStatus === 'Switching...' ? 'Switching WebContainer...' : 'Booting WebContainer...'}</span>
+                        {serverStatus === 'Switching...' && (
+                          <div style={{ marginTop: '10px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                            Preparing new environment...
+                          </div>
+                        )}
+                      </div>
+                    ) : !previewUrl && files.length > 0 ? (
+                      <div className="overlay-content">
+                        <span>{serverStatus}</span>
+                        {serverStatus.includes('Error') && (
+                          <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                            Check browser console for details
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </div>
-            ) : !previewUrl && files.length > 0 ? (
-              <div className="overlay-content">
-                <span>{serverStatus}</span>
-                {serverStatus.includes('Error') && (
-                  <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                    Check browser console for details
-                  </div>
-                )}
-              </div>
-            ) : null}
+            </div>
           </div>
+        ) : (
+          /* Desktop View */
+          <>
+            {/* WebContainer iframe - always rendered when there's a URL */}
+            {previewUrl && (
+              <iframe
+                key={refreshKey}
+                ref={iframeRef}
+                className="preview-frame"
+                src={previewUrl}
+                title="Preview"
+                onLoad={() => setIframeLoaded(true)}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  opacity: (loading || !iframeLoaded) ? 0 : 1,
+                  transition: 'opacity 0.3s ease'
+                }}
+              />
+            )}
+
+            {/* Loading/Error/Empty State Overlay */}
+            {(loading || error || files.length === 0 || !previewUrl || !iframeLoaded) && (
+              <div className="preview-overlay">
+                {files.length === 0 ? (
+                  <div className="overlay-content">
+                    <span>No files to preview</span>
+                  </div>
+                ) : error ? (
+                  <div className="overlay-content" style={{ color: 'var(--error)' }}>
+                    <span>Error: {error}</span>
+                  </div>
+                ) : (loading || !iframeLoaded) ? (
+                  <div className="overlay-content">
+                    <div className="spinner"></div>
+                    <span>{serverStatus === 'Switching...' ? 'Switching WebContainer...' : 'Booting WebContainer...'}</span>
+                    {serverStatus === 'Switching...' && (
+                      <div style={{ marginTop: '10px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                        Preparing new environment...
+                      </div>
+                    )}
+                  </div>
+                ) : !previewUrl && files.length > 0 ? (
+                  <div className="overlay-content">
+                    <span>{serverStatus}</span>
+                    {serverStatus.includes('Error') && (
+                      <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                        Check browser console for details
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

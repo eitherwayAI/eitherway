@@ -169,6 +169,7 @@ export default function App() {
               files={files}
               sessionId={currentSessionId}
               onUrlChange={handlePreviewUrlChange}
+              deviceMode={deviceMode}
             />
           )}
         </div>
