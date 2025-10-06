@@ -65,21 +65,44 @@ export async function registerSessionFileRoutes(
       const host = request.headers.host || 'localhost:3001';
       const serverOrigin = `${protocol}://${host}`;
 
-      let contentString: string;
-      if (typeof fileContent.content === 'string') {
-        contentString = fileContent.content;
-      } else if (Buffer.isBuffer(fileContent.content)) {
-        contentString = fileContent.content.toString('utf-8');
-      } else {
-        contentString = Buffer.from(fileContent.content).toString('utf-8');
-      }
+      // Detect if file is binary based on mime type
+      const mimeType = fileContent.mimeType || 'text/plain';
+      const isBinary = mimeType.startsWith('image/') ||
+                       mimeType.startsWith('video/') ||
+                       mimeType.startsWith('audio/') ||
+                       mimeType.startsWith('application/octet-stream') ||
+                       mimeType.startsWith('application/pdf') ||
+                       mimeType.startsWith('application/zip');
 
-      const rewrittenContent = maybeRewriteFile(path, contentString, { serverOrigin });
+      let content: string;
+      if (isBinary) {
+        // For binary files, return base64 encoded
+        if (Buffer.isBuffer(fileContent.content)) {
+          content = fileContent.content.toString('base64');
+        } else if (typeof fileContent.content === 'string') {
+          content = fileContent.content;
+        } else {
+          content = Buffer.from(fileContent.content).toString('base64');
+        }
+      } else {
+        // For text files, return as UTF-8 string
+        if (typeof fileContent.content === 'string') {
+          content = fileContent.content;
+        } else if (Buffer.isBuffer(fileContent.content)) {
+          content = fileContent.content.toString('utf-8');
+        } else {
+          content = Buffer.from(fileContent.content).toString('utf-8');
+        }
+
+        // Apply URL rewriting for text files
+        content = maybeRewriteFile(path, content, { serverOrigin });
+      }
 
       return {
         path: fileContent.path,
-        content: rewrittenContent,
-        mimeType: fileContent.mimeType,
+        content,
+        mimeType,
+        isBinary, // Include binary flag for frontend
         version: fileContent.version
       };
     } catch (error: any) {

@@ -263,9 +263,19 @@ export default function PreviewPane({ files, sessionId, onUrlChange, deviceMode 
           const promise = fetch(`/api/sessions/${sessionId}/files/read?path=${encodedPath}`)
             .then(res => res.json())
             .then(data => {
-              const pathParts = node.path.split('/');
+              // Strip leading slash and split path
+              // "/public/file.png" → "public/file.png" → ["public", "file.png"]
+              const normalizedPath = node.path.replace(/^\/+/, '');
+              const pathParts = normalizedPath.split('/').filter((part: string) => part.length > 0);
+
+              if (pathParts.length === 0) {
+                console.error(`[PreviewPane] Invalid path: ${node.path}`);
+                return;
+              }
+
               let current = fileTree;
 
+              // Build directory structure (all parts except last)
               for (let i = 0; i < pathParts.length - 1; i++) {
                 const part = pathParts[i];
                 if (!current[part]) {
@@ -275,9 +285,31 @@ export default function PreviewPane({ files, sessionId, onUrlChange, deviceMode 
               }
 
               const fileName = pathParts[pathParts.length - 1];
+
+              // Handle binary vs text files
+              let fileContents: string | Uint8Array;
+              if (data.isBinary && data.content) {
+                // Binary file: decode base64 to Uint8Array
+                try {
+                  const binaryString = atob(data.content);
+                  const bytes = new Uint8Array(binaryString.length);
+                  for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                  }
+                  fileContents = bytes;
+                  console.log(`[PreviewPane] Binary file ${node.path}: ${bytes.length} bytes`);
+                } catch (err) {
+                  console.error(`[PreviewPane] Failed to decode binary file ${node.path}:`, err);
+                  fileContents = '';
+                }
+              } else {
+                // Text file: use as string
+                fileContents = data.content || '';
+              }
+
               current[fileName] = {
                 file: {
-                  contents: data.content || ''
+                  contents: fileContents
                 }
               };
             })
@@ -290,6 +322,15 @@ export default function PreviewPane({ files, sessionId, onUrlChange, deviceMode 
       fileNodes.forEach(node => processNode(node));
 
       await Promise.all(filePromises);
+
+      // Debug: Log the file tree structure
+      console.log('[PreviewPane] File tree structure:', JSON.stringify(fileTree, (_key, value) => {
+        if (value instanceof Uint8Array) {
+          return `Uint8Array(${value.length} bytes)`;
+        }
+        return value;
+      }, 2));
+
       return fileTree;
     };
 
@@ -385,13 +426,22 @@ export default function PreviewPane({ files, sessionId, onUrlChange, deviceMode 
           serverStartedRef.current = true;
         } else if ((hasIndexHtml || anyHtmlFile) && containerRef.current && !isTearingDownRef.current) {
           setServerStatus('Starting static server...');
-          // For simple HTML apps, start a static server using Node.js http-server
-          // Find the directory containing the HTML file
-          const htmlFile = hasIndexHtml || anyHtmlFile;
-          const indexPath = htmlFile!.path; // e.g., "src/index.html" or "calculator.html"
-          const baseDir = indexPath.includes('/') ? indexPath.substring(0, indexPath.lastIndexOf('/')) : '.';
 
-          console.log('[PreviewPane] Starting static server for:', indexPath, 'baseDir:', baseDir);
+          const htmlFile = hasIndexHtml || anyHtmlFile;
+          const indexPath = htmlFile!.path;
+
+          // Normalize path: strip leading slashes for baseDir calculation
+          // "/index.html" -> "index.html", "/src/index.html" -> "src/index.html"
+          const normalizedPath = indexPath.replace(/^\/+/, '');
+
+          // Calculate base directory from normalized path
+          let baseDir = '.';
+          if (normalizedPath.includes('/')) {
+            const lastSlash = normalizedPath.lastIndexOf('/');
+            baseDir = normalizedPath.substring(0, lastSlash);
+          }
+
+          console.log('[PreviewPane] Starting static server for:', indexPath, 'normalized:', normalizedPath, 'baseDir:', baseDir);
 
           if (!containerRef.current || isTearingDownRef.current) {
             console.log('[PreviewPane] Container torn down, aborting static server');
@@ -399,7 +449,9 @@ export default function PreviewPane({ files, sessionId, onUrlChange, deviceMode 
           }
 
           // Extract the HTML filename for the default route
-          const htmlFileName = indexPath.includes('/') ? indexPath.substring(indexPath.lastIndexOf('/') + 1) : indexPath;
+          const htmlFileName = normalizedPath.includes('/')
+            ? normalizedPath.substring(normalizedPath.lastIndexOf('/') + 1)
+            : normalizedPath;
 
           const serverScript = `
 const http = require('http');
@@ -506,29 +558,86 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Regular static file serving
-  let reqPath = url.pathname === '/' ? '/' + DEFAULT_FILE : url.pathname;
-  let filePath = path.join(BASE_DIR, reqPath);
+  let reqPath = url.pathname === '/' ? DEFAULT_FILE : url.pathname;
+  // Strip leading slashes to ensure relative paths for WebContainer
+  reqPath = reqPath.replace(/^\\/+/, '');
+  const filePath = BASE_DIR === '.' ? reqPath : path.join(BASE_DIR, reqPath);
   const extname = path.extname(filePath);
   const contentType = mimeTypes[extname] || 'application/octet-stream';
 
   console.log('[Server] Request:', req.url, '-> File:', filePath);
 
-  fs.readFile(filePath, (error, content) => {
-    if (error) {
-      console.error('[Server] Error:', error.message);
-      res.writeHead(404, {
-        'Access-Control-Allow-Origin': '*'
-      });
-      res.end('File not found: ' + filePath);
-    } else {
-      res.writeHead(200, {
-        'Content-Type': contentType,
-        'Access-Control-Allow-Origin': '*',
-        'Cross-Origin-Resource-Policy': 'cross-origin'
-      });
-      res.end(content, 'utf-8');
-    }
-  });
+  const tryServeFile = (attemptPath, isRetry) => {
+    fs.readFile(attemptPath, (error, content) => {
+      if (error) {
+        if (!isRetry && (contentType.startsWith('image/') || contentType.startsWith('video/') || contentType.startsWith('audio/'))) {
+          const filename = path.basename(filePath);
+          const fallbackPaths = ['public', 'assets', 'images', 'media', 'static'].map(dir =>
+            BASE_DIR === '.' ? path.join(dir, filename) : path.join(BASE_DIR, dir, filename)
+          );
+
+          const tryNext = (index) => {
+            if (index >= fallbackPaths.length) {
+              console.error('[Server] Error: File not found after fallback search:', filePath);
+              res.writeHead(404, { 'Access-Control-Allow-Origin': '*' });
+              res.end('File not found: ' + filePath);
+              return;
+            }
+
+            fs.readFile(fallbackPaths[index], (err, data) => {
+              if (!err) {
+                console.log('[Server] Found file at fallback path:', fallbackPaths[index]);
+                res.writeHead(200, {
+                  'Content-Type': contentType,
+                  'Access-Control-Allow-Origin': '*',
+                  'Cross-Origin-Resource-Policy': 'cross-origin'
+                });
+                res.end(data);
+              } else {
+                tryNext(index + 1);
+              }
+            });
+          };
+
+          tryNext(0);
+        } else {
+          console.error('[Server] Error:', error.message);
+          res.writeHead(404, { 'Access-Control-Allow-Origin': '*' });
+          res.end('File not found: ' + attemptPath);
+        }
+      } else {
+        const isBinaryContent = contentType.startsWith('image/') ||
+                               contentType.startsWith('video/') ||
+                               contentType.startsWith('audio/') ||
+                               contentType === 'application/octet-stream';
+
+        console.log('[Server] Serving file:', attemptPath,
+                   'Type:', contentType,
+                   'Binary:', isBinaryContent,
+                   'Content type:', content.constructor.name,
+                   'Length:', content.length);
+
+        res.writeHead(200, {
+          'Content-Type': contentType,
+          'Access-Control-Allow-Origin': '*',
+          'Cross-Origin-Resource-Policy': 'cross-origin'
+        });
+
+        if (isBinaryContent) {
+          if (typeof content === 'string') {
+            console.error('[Server] ERROR: Binary file read as string!');
+            res.end(Buffer.from(content, 'binary'));
+          } else {
+            res.end(content);
+          }
+        } else {
+          res.end(content, 'utf-8');
+        }
+      }
+    });
+  };
+
+  tryServeFile(filePath, false);
 });
 
 server.listen(PORT, () => {

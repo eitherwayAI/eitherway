@@ -151,33 +151,29 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
 
   'eithergen--generate_image': {
     name: 'eithergen--generate_image',
-    description: 'Generate hero images, icons, or illustrations and save to disk.',
+    description: 'Generate high-quality images using DALL-E 3 and save to database-backed VFS. This tool WAITS for generation to complete and validates the image before returning. The tool response includes the EXACT file path - you MUST use this exact path when referencing the image in HTML/code (e.g., if saved to "/public/hero.png", use src="/public/hero.png" not src="/hero.png"). Generation takes 10-30 seconds.',
     input_schema: {
       type: 'object',
       properties: {
         prompt: {
           type: 'string',
-          description: 'Image generation prompt'
+          description: 'Detailed image generation prompt. Be specific about style, composition, colors, and content.'
         },
         path: {
           type: 'string',
-          description: 'Path where the image should be saved'
+          description: 'Path where the image should be saved (e.g., "/public/hero.png"). You MUST use this exact same path when referencing the image in HTML/code. Extension will be added automatically if missing.'
         },
         size: {
           type: 'string',
           pattern: '^[0-9]+x[0-9]+$',
-          description: 'Image size (e.g., "512x512", "1024x1024")',
-          default: '512x512'
+          description: 'Image size. Supports: "1024x1024" (square), "1792x1024" (landscape), "1024x1792" (portrait). Default: "1024x1024"',
+          default: '1024x1024'
         },
-        provider: {
+        quality: {
           type: 'string',
-          enum: ['openai', 'stability', 'fal', 'replicate', 'custom'],
-          description: 'Image generation provider',
-          default: 'custom'
-        },
-        seed: {
-          type: 'integer',
-          description: 'Random seed for reproducible generation'
+          enum: ['standard', 'hd'],
+          description: 'Image quality. "hd" creates finer details and greater consistency. Default: "standard"',
+          default: 'standard'
         }
       },
       required: ['prompt', 'path'],
