@@ -80,10 +80,10 @@ export function shouldRewriteFile(filename: string): boolean {
   return ['html', 'htm', 'js', 'jsx', 'ts', 'tsx', 'vue', 'svelte'].includes(ext);
 }
 
-function generateInlineShim(serverOrigin: string): string {
+function generateInlineShim(_serverOrigin: string): string {
   return `<script>
 (function() {
-  var serverOrigin = ${JSON.stringify(serverOrigin)};
+  var serverOrigin = window.location.origin;
   var API_PATTERN_HOST = /^(?:api\\.|pro-api\\.)/;
 
   function isExternal(url) {
@@ -91,6 +91,10 @@ function generateInlineShim(serverOrigin: string): string {
       var parsed = new URL(url, window.location.href);
       if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
       if (parsed.origin === window.location.origin) return false;
+      if (parsed.pathname && parsed.pathname.charAt(0) === '/') {
+        var isRelative = !parsed.host || parsed.host === window.location.host;
+        if (isRelative) return false;
+      }
       return true;
     } catch {
       return false;
@@ -109,13 +113,6 @@ function generateInlineShim(serverOrigin: string): string {
     }
   }
 
-  function handleProxyError(url, error) {
-    console.error('[Proxy Error]', url, error);
-    if (window.__EITHERWAY_PROXY_ERRORS) {
-      window.__EITHERWAY_PROXY_ERRORS.push({ url: url, error: error.message, timestamp: Date.now() });
-    }
-  }
-
   var _fetch = window.fetch;
   window.fetch = function(input, init) {
     var url = typeof input === 'string' ? input : (input instanceof Request ? input.url : String(input));
@@ -123,10 +120,6 @@ function generateInlineShim(serverOrigin: string): string {
     if (proxied) {
       input = proxied;
       init = Object.assign({ credentials: 'omit' }, init || {});
-      return _fetch.call(this, input, init).catch(function(err) {
-        handleProxyError(url, err);
-        throw err;
-      });
     }
     return _fetch.call(this, input, init);
   };
@@ -139,17 +132,27 @@ function generateInlineShim(serverOrigin: string): string {
     }
     return _xhrOpen.apply(this, arguments);
   };
-
-  window.__EITHERWAY_PROXY_ERRORS = [];
-  console.log('[Eitherway Proxy] Initialized with backend origin:', serverOrigin);
 })();
 </script>`;
 }
 
 /**
- * Rewrite file content for WebContainer preview
- * - Rewrites static CDN URLs in all text files (HTML/JS/TS/etc)
- * - Optionally injects runtime shim for dynamic requests (HTML only)
+ * Rewrite file content for preview environments
+ *
+ * IMPORTANT: For WebContainer previews, set injectShim: false
+ * The runtime shim uses window.location.origin and cannot reach external backend in WebContainer.
+ *
+ * What this does:
+ * 1. Rewrites absolute CDN URLs in text files (HTML/JS/TS/etc) to use /api/proxy-cdn
+ *    - Only touches absolute URLs (https://cdn.example.com/...)
+ *    - Never touches relative URLs (/public/image.png)
+ *
+ * 2. Optionally injects runtime shim for dynamic fetch/XHR requests (HTML only)
+ *    - Uses window.location.origin for proxy endpoints
+ *    - Only proxies truly external URLs
+ *    - Never proxies relative URLs or same-origin requests
+ *
+ * 3. Normalizes YouTube embeds to use nocookie embed URLs
  */
 export function maybeRewriteFile(
   filename: string,
@@ -158,7 +161,7 @@ export function maybeRewriteFile(
 ): string {
   const {
     serverOrigin,
-    injectShim = true,
+    injectShim = false, // Default false for WebContainer safety
     rewriteStaticUrls = true
   } = options;
 
@@ -169,7 +172,7 @@ export function maybeRewriteFile(
   let processedContent = content;
   const isHtml = filename.toLowerCase().endsWith('.html') || filename.toLowerCase().endsWith('.htm');
 
-  // Step 1: Rewrite static CDN URLs in text files
+  // Step 1: Rewrite static CDN URLs in text files (only absolute URLs)
   if (rewriteStaticUrls && shouldRewriteFile(filename)) {
     processedContent = rewriteCDNUrls(processedContent, {
       serverOrigin,
@@ -198,7 +201,7 @@ export function maybeRewriteFile(
       }
     );
 
-    // Inject runtime shim for dynamic requests (preview only)
+    // Inject runtime shim for dynamic requests (only if explicitly enabled)
     if (injectShim) {
       const shimTag = generateInlineShim(serverOrigin);
 
