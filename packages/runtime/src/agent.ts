@@ -110,10 +110,11 @@ ICONS AND VISUAL ELEMENTS (CRITICAL):
   Always use professional SVG icons for all UI elements
 
 READ-BEFORE-WRITE DISCIPLINE (CRITICAL):
-  - ALWAYS use either-view or either-search-files BEFORE any write or edit operation
-  - Verify file contents, line numbers, and context before modifying
+  - When EDITING existing files: ALWAYS use either-view BEFORE either-line-replace
+  - When CREATING new files: NO need to check if file exists - just use either-write
+  - either-write will fail if file exists (safe), so don't pre-check with either-view
   - Use the needle parameter in either-line-replace to ensure you're editing the right lines
-  - Check sha256 hashes to verify file integrity
+  - Performance: Avoid unnecessary reads - only read files you're about to modify
 
 For execution:
   Stage 1: Analyze request (intent, scope, constraints).
@@ -279,11 +280,20 @@ export class Agent {
       const { contentBlocks: enforcedAssistantBlocks, toolUses } =
         this.injectReadBeforeWriteBlocks(response.content);
 
-      // Add enforced assistant message to history so tool_results pair correctly
-      this.conversationHistory.push({
-        role: 'assistant',
-        content: enforcedAssistantBlocks as any
-      });
+      // Only add assistant message if it has content (Anthropic API requirement)
+      if (enforcedAssistantBlocks.length > 0) {
+        this.conversationHistory.push({
+          role: 'assistant',
+          content: enforcedAssistantBlocks as any
+        });
+      } else {
+        // Edge case: empty response - add placeholder to maintain conversation flow
+        console.warn('[Agent] Warning: Assistant response had no content blocks, adding placeholder');
+        this.conversationHistory.push({
+          role: 'assistant',
+          content: [{ type: 'text', text: '...' }]
+        });
+      }
 
       // If no tool uses (client-side tools), we're done - run verification if we executed tools
       // Server-side tools (web search) are already executed and don't need processing
@@ -432,6 +442,24 @@ export class Agent {
         );
       }
 
+      // Validate that content array is not empty (except for optional final assistant message)
+      if (msg.content.length === 0) {
+        const isFinalAssistant = idx === this.conversationHistory.length - 1 && msg.role === 'assistant';
+        if (!isFinalAssistant) {
+          console.error(`\n❌ CONVERSATION HISTORY VALIDATION ERROR:`);
+          console.error(`   Message [${idx}] (role: ${msg.role}) has empty content array`);
+          console.error(`\n   Claude API requires all messages to have non-empty content,`);
+          console.error(`   except for the optional final assistant message.`);
+          console.error('');
+
+          throw new Error(
+            `Conversation history validation failed: ` +
+            `Message ${idx} has empty content array. ` +
+            `This will cause Claude API to reject the request with "all messages must have non-empty content" error.`
+          );
+        }
+      }
+
       // Validate server_tool_use blocks are properly paired with web_search_tool_result
       if (msg.role === 'assistant' && Array.isArray(msg.content)) {
         const serverToolUses = msg.content.filter((b: any) => b.type === 'server_tool_use');
@@ -500,12 +528,13 @@ export class Agent {
         continue;
       }
 
-      // Before any WRITE tool, ensure we've read the target path in this turn
-      if (blk?.type === 'tool_use' && Agent.WRITE_TOOLS.has(blk.name)) {
+      // Before either-line-replace (EDIT), ensure we've read the target file
+      // NO injection for either-write (CREATE) - it handles file existence checks internally
+      if (blk?.type === 'tool_use' && blk.name === 'either-line-replace') {
         const path = blk.input?.path;
 
         if (typeof path === 'string' && path.length > 0 && !seenReadForPath.has(path)) {
-          // Inject a synthetic read tool_use directly before the write
+          // Inject a synthetic read tool_use directly before the edit
           const injectedId = `enforcer-view-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
           const injected = {
             type: 'tool_use',
@@ -517,14 +546,20 @@ export class Agent {
           seenReadForPath.add(path);
         }
 
-        // Optionally annotate missing needle for either-line-replace (soft warning)
-        if (blk.name === 'either-line-replace' && !blk.input?.needle) {
+        // Optionally annotate missing needle (soft warning)
+        if (!blk.input?.needle) {
           blk.input = {
             ...blk.input,
             _enforcerWarning: 'No `needle` provided; injected a read to reduce risk.'
           };
         }
 
+        pushAndCollect(blk);
+        continue;
+      }
+
+      // For eithergen--generate_image or other WRITE tools, no read injection needed
+      if (blk?.type === 'tool_use' && Agent.WRITE_TOOLS.has(blk.name)) {
         pushAndCollect(blk);
         continue;
       }
