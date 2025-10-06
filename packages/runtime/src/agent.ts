@@ -49,6 +49,66 @@ YOUTUBE EMBED REQUIREMENTS (CRITICAL):
   The credentialless attribute is REQUIRED for WebContainer COEP policy
   The allow attribute is REQUIRED - without these the video will be blocked
 
+SVG USAGE IN WEBCONTAINER (CRITICAL):
+  - WebContainer uses COEP credentialless which can block improperly formatted SVGs
+  - ALWAYS prefer inline SVG over data URIs for reliability
+  - Data URIs (data:image/svg+xml,...) may be blocked by CSP or COEP policies
+  - Use one of these reliable approaches:
+
+  Option 1 - Inline SVG (PREFERRED):
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+    <path d="..."/>
+  </svg>
+
+  Option 2 - External SVG file:
+  Create icon.svg as a separate file, then reference it:
+  <img src="icon.svg" alt="Icon">
+
+  AVOID these patterns in WebContainer:
+  ❌ <img src="data:image/svg+xml,..."> (may be blocked by COEP/CSP)
+  ❌ background: url('data:image/svg+xml,...') (may be blocked)
+  ❌ <use xlink:href="data:..."> (explicitly blocked since Dec 2023)
+
+  Always include xmlns="http://www.w3.org/2000/svg" in SVG elements
+  For icon libraries, create individual .svg files rather than data URI sprites
+
+ICONS AND VISUAL ELEMENTS (CRITICAL):
+  - NEVER use emojis (🚀 ❌ ✅ 💰 📊 etc.) in user-facing applications
+  - NEVER use Unicode symbols (•, ◆, ★, →, ✓, etc.) as icons - they're too simple
+  - Emojis and Unicode symbols appear unprofessional and inconsistent
+  - ALWAYS use proper SVG icons instead
+
+  How to create SVG icons:
+
+  1. Inline SVG icons (BEST - most reliable for WebContainer):
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
+  </svg>
+
+  2. Find SVG icons online using web_search:
+  Use web_search to find "free SVG icons [icon name]" or "open source SVG icons"
+  Popular sources: Heroicons, Feather Icons, Material Icons, Bootstrap Icons
+  Copy the SVG code and paste it inline or create a separate .svg file
+
+  3. External SVG files (for reusable icons):
+  Create separate .svg files for icons and reference them:
+  <img src="icons/rocket.svg" alt="Rocket icon" width="24" height="24">
+
+  Example: For a cryptocurrency app needing a rocket icon
+  - Use web_search: "free SVG rocket icon"
+  - Find a clean, professional SVG from Heroicons or similar
+  - Copy the SVG <path> data and create inline SVG or .svg file
+  - NEVER substitute with emoji 🚀 or Unicode ▲
+
+  Examples of what NOT to do:
+  ❌ <span>🚀</span> (emoji)
+  ❌ <span>▲</span> (Unicode symbol)
+  ❌ <span>★</span> (Unicode symbol)
+  ✓ <svg>...rocket path...</svg> (proper SVG icon)
+
+  The only exception: emojis in user-generated content or chat messages
+  Always use professional SVG icons for all UI elements
+
 READ-BEFORE-WRITE DISCIPLINE (CRITICAL):
   - ALWAYS use either-view or either-search-files BEFORE any write or edit operation
   - Verify file contents, line numbers, and context before modifying
@@ -104,7 +164,6 @@ Tools available:
   - web_search: Search the web for up-to-date information (server-side, automatic citations)
   - eithergen--generate_image: Generate images (OpenAI/custom provider, saves to disk)`;
 
-
 export interface AgentOptions {
   workingDir: string;
   claudeConfig: ClaudeConfig;
@@ -125,6 +184,10 @@ export class Agent {
   private recorder: TranscriptRecorder;
   private conversationHistory: Message[];
   private options: AgentOptions;
+
+  // --- READ-before-WRITE enforcement constants ---
+  private static readonly WRITE_TOOLS = new Set(['either-line-replace', 'either-write']);
+  private static readonly READ_TOOL = 'either-view';
 
   constructor(options: AgentOptions) {
     this.options = options;
@@ -152,10 +215,10 @@ export class Agent {
     // Start transcript
     const transcriptId = this.recorder.startTranscript(userMessage);
 
-    // Add user message to history
+    // Add user message to history (content must be array for Claude API)
     this.conversationHistory.push({
       role: 'user',
-      content: userMessage
+      content: [{ type: 'text', text: userMessage }]
     });
 
     this.recorder.addEntry({
@@ -206,25 +269,20 @@ export class Agent {
         }
       });
 
-      // Extract text and tool uses from response
+      // Extract text for final summary
       const textBlocks = response.content
         .filter((c: any) => c.type === 'text')
         .map((c: any) => c.text)
         .join('\n');
 
-      const toolUses = response.content
-        .filter((c: any) => c.type === 'tool_use')
-        .map((c: any) => ({
-          type: 'tool_use' as const,
-          id: c.id!,
-          name: c.name!,
-          input: c.input!
-        }));
+      // --- Enforce READ-before-WRITE by injecting either-view blocks if missing ---
+      const { contentBlocks: enforcedAssistantBlocks, toolUses } =
+        this.injectReadBeforeWriteBlocks(response.content);
 
-      // Add assistant message to history
+      // Add enforced assistant message to history so tool_results pair correctly
       this.conversationHistory.push({
         role: 'assistant',
-        content: response.content as any
+        content: enforcedAssistantBlocks as any
       });
 
       // If no tool uses (client-side tools), we're done - run verification if we executed tools
@@ -353,11 +411,28 @@ export class Agent {
   }
 
   /**
-   * Validate that server_tool_use blocks are properly paired with web_search_tool_result
-   * This prevents the error: "web_search tool use without corresponding web_search_tool_result"
+   * Validate conversation history format and content
+   * Prevents API errors by ensuring all messages follow Claude API requirements
    */
   private validateConversationHistory(): void {
     this.conversationHistory.forEach((msg, idx) => {
+      // Validate that content is always an array (Claude API requirement)
+      if (!Array.isArray(msg.content)) {
+        console.error(`\n❌ CONVERSATION HISTORY VALIDATION ERROR:`);
+        console.error(`   Message [${idx}] (role: ${msg.role}) has non-array content`);
+        console.error(`   Content type: ${typeof msg.content}`);
+        console.error(`   Content value:`, msg.content);
+        console.error(`\n   Claude API requires content to be an array of content blocks.`);
+        console.error('');
+
+        throw new Error(
+          `Conversation history validation failed: ` +
+          `Message ${idx} has invalid content format (expected array, got ${typeof msg.content}). ` +
+          `This will cause Claude API to reject the request with "Input should be a valid list" error.`
+        );
+      }
+
+      // Validate server_tool_use blocks are properly paired with web_search_tool_result
       if (msg.role === 'assistant' && Array.isArray(msg.content)) {
         const serverToolUses = msg.content.filter((b: any) => b.type === 'server_tool_use');
         const webSearchResults = msg.content.filter((b: any) => b.type === 'web_search_tool_result');
@@ -391,4 +466,75 @@ export class Agent {
       }
     });
   }
+
+  /**
+   * Injects `either-view` reads before any write/edit tool calls that lack a
+   * preceding read for the same `path` within the same assistant turn.
+   * Also returns the final list of tool_uses to execute (in order).
+   */
+  private injectReadBeforeWriteBlocks(contentBlocks: any[]): { contentBlocks: any[]; toolUses: ToolUse[] } {
+    const out: any[] = [];
+    const toolUsesCollected: ToolUse[] = [];
+    const seenReadForPath = new Set<string>();
+
+    const pushAndCollect = (blk: any) => {
+      out.push(blk);
+      if (blk && blk.type === 'tool_use') {
+        toolUsesCollected.push({
+          type: 'tool_use',
+          id: blk.id,
+          name: blk.name,
+          input: blk.input
+        });
+      }
+    };
+
+    for (const blk of contentBlocks) {
+      // Track explicit reads
+      if (blk?.type === 'tool_use' && blk.name === Agent.READ_TOOL) {
+        const path = blk.input?.path;
+        if (typeof path === 'string' && path.length > 0) {
+          seenReadForPath.add(path);
+        }
+        pushAndCollect(blk);
+        continue;
+      }
+
+      // Before any WRITE tool, ensure we've read the target path in this turn
+      if (blk?.type === 'tool_use' && Agent.WRITE_TOOLS.has(blk.name)) {
+        const path = blk.input?.path;
+
+        if (typeof path === 'string' && path.length > 0 && !seenReadForPath.has(path)) {
+          // Inject a synthetic read tool_use directly before the write
+          const injectedId = `enforcer-view-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+          const injected = {
+            type: 'tool_use',
+            id: injectedId,
+            name: Agent.READ_TOOL,
+            input: { path }
+          };
+          pushAndCollect(injected);
+          seenReadForPath.add(path);
+        }
+
+        // Optionally annotate missing needle for either-line-replace (soft warning)
+        if (blk.name === 'either-line-replace' && !blk.input?.needle) {
+          blk.input = {
+            ...blk.input,
+            _enforcerWarning: 'No `needle` provided; injected a read to reduce risk.'
+          };
+        }
+
+        pushAndCollect(blk);
+        continue;
+      }
+
+      // passthrough others
+      pushAndCollect(blk);
+    }
+
+    // Only return *tool_use* blocks as executable tool uses, in order
+    const executableToolUses = toolUsesCollected.filter((b: any) => b.type === 'tool_use') as ToolUse[];
+    return { contentBlocks: out, toolUses: executableToolUses };
+    }
 }

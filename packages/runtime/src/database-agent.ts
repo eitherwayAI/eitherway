@@ -67,16 +67,24 @@ export class DatabaseAgent {
       .map(msg => {
         let content = msg.content;
 
-        // Handle different content formats
-        if (typeof content === 'object' && content !== null) {
-          // If it's an array (tool use/results), keep it as-is
+        // Ensure content is always an array (Claude API requirement)
+        if (typeof content === 'string') {
+          // Plain string - wrap in text block
+          content = [{ type: 'text', text: content }];
+        } else if (typeof content === 'object' && content !== null) {
           if (Array.isArray(content)) {
+            // Already an array - keep as-is
             content = content;
+          } else if ('text' in content && content.text) {
+            // Object with text property - wrap in array
+            content = [{ type: 'text', text: content.text }];
+          } else {
+            // Other object - stringify and wrap
+            content = [{ type: 'text', text: JSON.stringify(content) }];
           }
-          // If it's an object with .text property, extract the text
-          else if ('text' in content && content.text) {
-            content = content.text;
-          }
+        } else {
+          // Fallback for any other type
+          content = [{ type: 'text', text: String(content) }];
         }
 
         return {

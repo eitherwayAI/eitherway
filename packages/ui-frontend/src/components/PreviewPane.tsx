@@ -516,10 +516,16 @@ const server = http.createServer(async (req, res) => {
   fs.readFile(filePath, (error, content) => {
     if (error) {
       console.error('[Server] Error:', error.message);
-      res.writeHead(404);
+      res.writeHead(404, {
+        'Access-Control-Allow-Origin': '*'
+      });
       res.end('File not found: ' + filePath);
     } else {
-      res.writeHead(200, { 'Content-Type': contentType });
+      res.writeHead(200, {
+        'Content-Type': contentType,
+        'Access-Control-Allow-Origin': '*',
+        'Cross-Origin-Resource-Policy': 'cross-origin'
+      });
       res.end(content, 'utf-8');
     }
   });
