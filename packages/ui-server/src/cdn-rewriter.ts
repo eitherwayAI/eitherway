@@ -32,6 +32,8 @@ export interface RewriteOptions {
   proxyBaseUrl?: string;
   skipFonts?: boolean;
   serverOrigin?: string;
+  injectShim?: boolean;
+  rewriteStaticUrls?: boolean;
 }
 
 /**
@@ -81,9 +83,7 @@ export function shouldRewriteFile(filename: string): boolean {
 function generateInlineShim(serverOrigin: string): string {
   return `<script>
 (function() {
-  // Use WebContainer's own origin for proxy endpoints (avoids cross-origin issues)
-  var serverOrigin = window.location.origin;
-  // Host-only check for API domains
+  var serverOrigin = ${JSON.stringify(serverOrigin)};
   var API_PATTERN_HOST = /^(?:api\\.|pro-api\\.)/;
 
   function isExternal(url) {
@@ -109,6 +109,13 @@ function generateInlineShim(serverOrigin: string): string {
     }
   }
 
+  function handleProxyError(url, error) {
+    console.error('[Proxy Error]', url, error);
+    if (window.__EITHERWAY_PROXY_ERRORS) {
+      window.__EITHERWAY_PROXY_ERRORS.push({ url: url, error: error.message, timestamp: Date.now() });
+    }
+  }
+
   var _fetch = window.fetch;
   window.fetch = function(input, init) {
     var url = typeof input === 'string' ? input : (input instanceof Request ? input.url : String(input));
@@ -116,6 +123,10 @@ function generateInlineShim(serverOrigin: string): string {
     if (proxied) {
       input = proxied;
       init = Object.assign({ credentials: 'omit' }, init || {});
+      return _fetch.call(this, input, init).catch(function(err) {
+        handleProxyError(url, err);
+        throw err;
+      });
     }
     return _fetch.call(this, input, init);
   };
@@ -129,66 +140,77 @@ function generateInlineShim(serverOrigin: string): string {
     return _xhrOpen.apply(this, arguments);
   };
 
-  ['src', 'href'].forEach(function(prop) {
-    ['HTMLImageElement', 'HTMLScriptElement', 'HTMLLinkElement'].forEach(function(ctor) {
-      if (!window[ctor]) return;
-      var desc = Object.getOwnPropertyDescriptor(window[ctor].prototype, prop);
-      if (!desc || !desc.set) return;
-      Object.defineProperty(window[ctor].prototype, prop, {
-        set: function(value) {
-          var proxied = toProxy(value);
-          return desc.set.call(this, proxied || value);
-        },
-        get: desc.get
-      });
-    });
-  });
+  window.__EITHERWAY_PROXY_ERRORS = [];
+  console.log('[Eitherway Proxy] Initialized with backend origin:', serverOrigin);
 })();
 </script>`;
 }
 
 /**
- * Inject runtime shim into HTML files (no URL rewriting)
+ * Rewrite file content for WebContainer preview
+ * - Rewrites static CDN URLs in all text files (HTML/JS/TS/etc)
+ * - Optionally injects runtime shim for dynamic requests (HTML only)
  */
 export function maybeRewriteFile(
   filename: string,
   content: string,
   options: RewriteOptions = {}
 ): string {
-  const isHtml = filename.toLowerCase().endsWith('.html') || filename.toLowerCase().endsWith('.htm');
+  const {
+    serverOrigin,
+    injectShim = true,
+    rewriteStaticUrls = true
+  } = options;
 
-  if (!isHtml || !options.serverOrigin) {
+  if (!serverOrigin) {
     return content;
   }
 
-  // Normalize YouTube embeds: convert watch URLs to embed URLs and add required permissions
-  let processedContent = content.replace(
-    /<iframe([^>]*?)src=["']https?:\/\/(www\.)?youtube\.com\/watch\?v=([A-Za-z0-9_-]{11})[^"']*["']([^>]*)><\/iframe>/gi,
-    (_match, pre, _www, videoId, post) => {
-      const mustAllow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
-      let attrs = `${pre}src="https://www.youtube-nocookie.com/embed/${videoId}"`;
+  let processedContent = content;
+  const isHtml = filename.toLowerCase().endsWith('.html') || filename.toLowerCase().endsWith('.htm');
 
-      // Add allow attribute if not present
-      if (!/allow=/i.test(pre + post)) {
-        attrs += ` allow="${mustAllow}"`;
-      }
-
-      // Add allowfullscreen if not present
-      if (!/allowfullscreen/i.test(pre + post)) {
-        attrs += ` allowfullscreen`;
-      }
-
-      return `<iframe${attrs}${post}></iframe>`;
-    }
-  );
-
-  const shimTag = generateInlineShim(options.serverOrigin);
-
-  if (processedContent.includes('</head>')) {
-    return processedContent.replace('</head>', `${shimTag}\n</head>`);
-  } else if (processedContent.includes('</body>')) {
-    return processedContent.replace('</body>', `${shimTag}\n</body>`);
-  } else {
-    return shimTag + '\n' + processedContent;
+  // Step 1: Rewrite static CDN URLs in text files
+  if (rewriteStaticUrls && shouldRewriteFile(filename)) {
+    processedContent = rewriteCDNUrls(processedContent, {
+      serverOrigin,
+      skipFonts: options.skipFonts
+    });
   }
+
+  // Step 2: HTML-specific processing
+  if (isHtml) {
+    // Normalize YouTube embeds
+    processedContent = processedContent.replace(
+      /<iframe([^>]*?)src=["']https?:\/\/(www\.)?youtube\.com\/watch\?v=([A-Za-z0-9_-]{11})[^"']*["']([^>]*)><\/iframe>/gi,
+      (_match, pre, _www, videoId, post) => {
+        const mustAllow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+        let attrs = `${pre}src="https://www.youtube-nocookie.com/embed/${videoId}"`;
+
+        if (!/allow=/i.test(pre + post)) {
+          attrs += ` allow="${mustAllow}"`;
+        }
+
+        if (!/allowfullscreen/i.test(pre + post)) {
+          attrs += ` allowfullscreen`;
+        }
+
+        return `<iframe${attrs}${post}></iframe>`;
+      }
+    );
+
+    // Inject runtime shim for dynamic requests (preview only)
+    if (injectShim) {
+      const shimTag = generateInlineShim(serverOrigin);
+
+      if (processedContent.includes('</head>')) {
+        processedContent = processedContent.replace('</head>', `${shimTag}\n</head>`);
+      } else if (processedContent.includes('</body>')) {
+        processedContent = processedContent.replace('</body>', `${shimTag}\n</body>`);
+      } else {
+        processedContent = shimTag + '\n' + processedContent;
+      }
+    }
+  }
+
+  return processedContent;
 }
