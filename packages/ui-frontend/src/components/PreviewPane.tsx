@@ -657,10 +657,19 @@ server.listen(PORT, () => {
           serverProcess.output.pipeTo(new WritableStream({
             write(data) {
               console.log('[static server]', data);
+
               // Check if server started message appears
               if (data.includes('Server running on port') || data.includes('3000')) {
                 setServerStatus('Server started on port 3000');
                 serverStartedRef.current = true;
+              }
+
+              // Handle EADDRINUSE - server already running
+              if (data.includes('EADDRINUSE') || data.includes('address already in use')) {
+                console.log('[static server] Port already in use, server is already running');
+                setServerStatus('Server already running on port 3000');
+                serverStartedRef.current = true;
+                currentRunningSessionId = sessionId;
               }
             }
           }));

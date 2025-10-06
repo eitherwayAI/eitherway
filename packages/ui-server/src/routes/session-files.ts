@@ -94,8 +94,12 @@ export async function registerSessionFileRoutes(
           content = Buffer.from(fileContent.content).toString('utf-8');
         }
 
-        // Apply URL rewriting for text files
-        content = maybeRewriteFile(path, content, { serverOrigin });
+        // Apply URL rewriting for text files (no shim injection for WebContainer)
+        content = maybeRewriteFile(path, content, {
+          serverOrigin,
+          injectShim: false,
+          rewriteStaticUrls: true
+        });
       }
 
       return {
