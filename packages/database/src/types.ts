@@ -222,3 +222,15 @@ export interface BackgroundJob {
   max_retries: number;
   created_at: Date;
 }
+
+export interface UserDailyLimit {
+  user_id: string;
+  limit_date: Date;
+  sessions_created: number;
+}
+
+export interface SessionDailyLimit {
+  session_id: string;
+  limit_date: Date;
+  messages_sent: number;
+}

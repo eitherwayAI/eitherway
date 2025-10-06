@@ -33,4 +33,7 @@ export { PreparedQueries } from './services/prepared-queries.js';
 export { PostgresFileStore } from './services/file-store.js';
 export type { FileStore, FileNode, FileContent } from './services/file-store.js';
 
+export { RateLimiter } from './services/rate-limiter.js';
+export type { RateLimitResult } from './services/rate-limiter.js';
+
 export type * from './types.js';

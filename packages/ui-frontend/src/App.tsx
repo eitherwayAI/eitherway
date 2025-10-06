@@ -1,11 +1,14 @@
 import { useState, useCallback } from 'react';
+import { Toaster } from 'react-hot-toast';
 import ChatPanel from './components/ChatPanel';
 import ChatSwitcher from './components/ChatSwitcher';
 import FileTree from './components/FileTree';
 import CodeViewer from './components/CodeViewer';
 import PreviewPane from './components/PreviewPane';
 import ViewToolbar from './components/ViewToolbar';
+import LoginScreen from './components/LoginScreen';
 import { useWebSocket } from './useWebSocket';
+import { useAuth } from './AuthContext';
 
 type ViewMode = 'code' | 'preview';
 type DeviceMode = 'desktop' | 'mobile';
@@ -17,6 +20,7 @@ type DeviceMode = 'desktop' | 'mobile';
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/agent`;
 
 export default function App() {
+  const { isAuthenticated, logout, userId } = useAuth();
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const { connected, messages, files, sendMessage, clearMessages } = useWebSocket(WS_URL, currentSessionId);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -109,10 +113,33 @@ export default function App() {
   // Determine preview status based on files, connection, and preview URL
   const previewStatus = previewUrl ? 'ready' : files.length > 0 && connected ? 'building' : 'stopped';
 
+  // Show login screen if not authenticated
+  if (!isAuthenticated) {
+    return <LoginScreen />;
+  }
+
   return (
-    <div className="app">
-      {/* Left Column: Chat (always visible, full height) */}
-      <div className="chat-column">
+    <>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          style: {
+            background: '#000000',
+            color: '#ffffff',
+            border: '1px solid #ff5252',
+          },
+          error: {
+            duration: 5000,
+            iconTheme: {
+              primary: '#ff5252',
+              secondary: '#ffffff',
+            },
+          },
+        }}
+      />
+      <div className="app">
+        {/* Left Column: Chat (always visible, full height) */}
+        <div className="chat-column">
         <div className="chat-header">
           <ChatSwitcher
             currentSessionId={currentSessionId}
@@ -138,6 +165,8 @@ export default function App() {
           previewStatus={previewStatus}
           previewUrl={previewUrl}
           onRefresh={handleRefresh}
+          userId={userId}
+          onLogout={logout}
         />
 
         <div className="view-container">
@@ -177,6 +206,7 @@ export default function App() {
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
+import { useAuth } from '../AuthContext';
 
 interface Session {
   id: string;
@@ -20,6 +22,7 @@ export default function ChatSwitcher({
   onNewChat,
   onSaveCurrentWorkspace
 }: ChatSwitcherProps) {
+  const { userId: authUserId } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -28,36 +31,42 @@ export default function ChatSwitcher({
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    initUser();
-  }, []);
+    if (authUserId) {
+      initUser();
+    }
+  }, [authUserId]);
 
   const initUser = async () => {
     try {
-      // Use a fixed email for the default user
-      const email = 'default@example.com';
+      // Use the authenticated user ID to get the email
+      const email = authUserId || 'default@example.com';
 
-      // Create a session to get/create the user
-      const response = await fetch('/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          title: 'temp'
-        })
-      });
+      // Check if we have a cached DB user ID in localStorage
+      const cachedDbUserId = localStorage.getItem(`db_user_id_${email}`);
+      if (cachedDbUserId) {
+        setUserId(cachedDbUserId);
+        loadSessions(cachedDbUserId);
+        return;
+      }
 
-      const session = await response.json();
+      // Use the dedicated user lookup endpoint (doesn't count against rate limit)
+      const response = await fetch(`/api/users?email=${encodeURIComponent(email)}`);
 
-      // Delete the temp session
-      await fetch(`/api/sessions/${session.id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        throw new Error('Failed to lookup user');
+      }
 
-      // Extract user_id from the session and store it
-      setUserId(session.user_id);
+      const user = await response.json();
 
-      // Now load sessions
-      loadSessions(session.user_id);
+      // Cache the DB user ID in localStorage
+      localStorage.setItem(`db_user_id_${email}`, user.id);
+
+      // Store and load sessions
+      setUserId(user.id);
+      loadSessions(user.id);
     } catch (error) {
       console.error('Failed to initialize user:', error);
+      toast.error('Failed to initialize user. Please try again.');
     }
   };
 
@@ -86,24 +95,38 @@ export default function ChatSwitcher({
         await onSaveCurrentWorkspace();
       }
 
+      const email = authUserId || 'default@example.com';
       const response = await fetch('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: 'default@example.com',
+          email,
           title: newChatName
         })
       });
 
-      const newSession = await response.json();
-      setSessions([newSession, ...sessions]);
+      const data = await response.json();
+
+      // Check for rate limit error
+      if (response.status === 429) {
+        toast.error(data.message || 'Rate limit exceeded. Please try again later.');
+        setShowNewChatDialog(false);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create session');
+      }
+
+      setSessions([data, ...sessions]);
       setNewChatName('');
       setShowNewChatDialog(false);
 
       // Switch to the new session (this will clear workspace and load empty one)
-      onSessionChange(newSession.id);
+      onSessionChange(data.id);
     } catch (error) {
       console.error('Failed to create session:', error);
+      toast.error('Failed to create chat. Please try again.');
     }
   };
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import toast from 'react-hot-toast';
 
 interface Message {
   type: 'status' | 'response' | 'error' | 'files_updated';
@@ -76,6 +77,10 @@ export function useWebSocket(url: string, sessionId: string | null) {
           break;
 
         case 'error':
+          // Show toast notification for rate limit errors
+          if (data.message && data.message.toLowerCase().includes('rate limit')) {
+            toast.error(data.message);
+          }
           setMessages(prev => [...prev, {
             role: 'system',
             content: `Error: ${data.message}`,

@@ -9,7 +9,7 @@ import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import { Agent, DatabaseAgent, ConfigLoader } from '@eitherway/runtime';
 import { getAllExecutors } from '@eitherway/tools-impl';
-import { createDatabaseClient, FilesRepository, SessionsRepository, PostgresFileStore } from '@eitherway/database';
+import { createDatabaseClient, FilesRepository, SessionsRepository, PostgresFileStore, RateLimiter } from '@eitherway/database';
 import { readdir, readFile, stat, writeFile, rm, mkdir, access } from 'fs/promises';
 import { join, dirname, resolve, relative } from 'path';
 import { fileURLToPath } from 'url';
@@ -71,11 +71,13 @@ const { claudeConfig, agentConfig } = await loader.loadAll();
 // Initialize database client (optional - will work without DB if not configured)
 let db: any = null;
 let dbConnected = false;
+let rateLimiter: RateLimiter | null = null;
 try {
   db = createDatabaseClient();
   dbConnected = await db.healthCheck();
   if (dbConnected) {
     console.log('✓ Database connected - using DB-backed VFS');
+    rateLimiter = new RateLimiter(db);
     await registerSessionRoutes(fastify, db);
     await registerSessionFileRoutes(fastify, db);
   } else {
@@ -480,6 +482,18 @@ fastify.register(async (fastify) => {
               return;
             }
 
+            // Check rate limit for user prompts
+            if (rateLimiter) {
+              const rateLimitCheck = await rateLimiter.checkMessageSending(sessionId);
+              if (!rateLimitCheck.allowed) {
+                connection.socket.send(JSON.stringify({
+                  type: 'error',
+                  message: `Rate limit exceeded: You have reached your daily limit of ${rateLimitCheck.limit} messages per chat. Please try again after ${rateLimitCheck.resetsAt.toISOString()}.`
+                }));
+                return;
+              }
+            }
+
             const dbAgent = new DatabaseAgent({
               db,
               sessionId,
@@ -526,6 +540,11 @@ fastify.register(async (fastify) => {
             type: 'response',
             content: response
           }));
+
+          // Increment message count after successful processing
+          if (rateLimiter && sessionId) {
+            await rateLimiter.incrementMessageCount(sessionId);
+          }
 
           if (!USE_LOCAL_FS && dbConnected && db && sessionId) {
             const sessionsRepo = new SessionsRepository(db);
