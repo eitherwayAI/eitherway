@@ -287,21 +287,17 @@ export default function PreviewPane({ files, sessionId, onUrlChange, deviceMode 
               const fileName = pathParts[pathParts.length - 1];
 
               // Handle binary vs text files
-              let fileContents: string | Uint8Array;
+              let fileContents: string;
               if (data.isBinary && data.content) {
-                // Binary file: decode base64 to Uint8Array
-                try {
-                  const binaryString = atob(data.content);
-                  const bytes = new Uint8Array(binaryString.length);
-                  for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                  }
-                  fileContents = bytes;
-                  console.log(`[PreviewPane] Binary file ${node.path}: ${bytes.length} bytes`);
-                } catch (err) {
-                  console.error(`[PreviewPane] Failed to decode binary file ${node.path}:`, err);
-                  fileContents = '';
+                // Binary file: store as base64 string prefixed with __BASE64__ marker
+                // Server will decode it - this avoids Uint8Array corruption in WebContainer
+                let normalized = String(data.content).replace(/^\s+|\s+$/g, '');
+                // Fix common corruption where a stray '0' prefixes a valid PNG base64
+                if ((data.mimeType || '').toLowerCase().includes('image/png') && normalized[0] === '0' && normalized[1] === 'i') {
+                  normalized = normalized.slice(1);
                 }
+                fileContents = '__BASE64__' + normalized;
+                console.log(`[PreviewPane] Binary file ${node.path}: stored as base64, length: ${normalized.length}`);
               } else {
                 // Text file: use as string
                 fileContents = data.content || '';
@@ -325,8 +321,8 @@ export default function PreviewPane({ files, sessionId, onUrlChange, deviceMode 
 
       // Debug: Log the file tree structure
       console.log('[PreviewPane] File tree structure:', JSON.stringify(fileTree, (_key, value) => {
-        if (value instanceof Uint8Array) {
-          return `Uint8Array(${value.length} bytes)`;
+        if (typeof value === 'string' && value.startsWith('__BASE64__')) {
+          return `Base64(${value.length - 10} chars)`;
         }
         return value;
       }, 2));
@@ -462,14 +458,19 @@ const BASE_DIR = '${baseDir}';
 const PORT = 3000;
 const DEFAULT_FILE = '${htmlFileName}';
 const mimeTypes = {
-  '.html': 'text/html',
-  '.css': 'text/css',
-  '.js': 'application/javascript',
-  '.json': 'application/json',
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.mjs': 'application/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
   '.gif': 'image/gif',
   '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.bmp': 'image/bmp',
 };
 
 // Simple cache for proxy requests
@@ -561,7 +562,15 @@ const server = http.createServer(async (req, res) => {
   let reqPath = url.pathname === '/' ? DEFAULT_FILE : url.pathname;
   // Strip leading slashes to ensure relative paths for WebContainer
   reqPath = reqPath.replace(/^\\/+/, '');
-  const filePath = BASE_DIR === '.' ? reqPath : path.join(BASE_DIR, reqPath);
+
+  // If the request targets a conventional top-level static dir, resolve from project root
+  // This ensures paths like "/public/*" work even when index.html is nested (e.g., src/index.html)
+  const topDir = reqPath.split('/')[0];
+  const treatAsRoot = ['public', 'assets', 'static', 'images', 'media'].includes(topDir);
+
+  const filePath = (BASE_DIR === '.' || treatAsRoot)
+    ? reqPath
+    : path.join(BASE_DIR, reqPath);
   const extname = path.extname(filePath);
   const contentType = mimeTypes[extname] || 'application/octet-stream';
 
@@ -572,9 +581,13 @@ const server = http.createServer(async (req, res) => {
       if (error) {
         if (!isRetry && (contentType.startsWith('image/') || contentType.startsWith('video/') || contentType.startsWith('audio/'))) {
           const filename = path.basename(filePath);
-          const fallbackPaths = ['public', 'assets', 'images', 'media', 'static'].map(dir =>
-            BASE_DIR === '.' ? path.join(dir, filename) : path.join(BASE_DIR, dir, filename)
-          );
+          const roots = ['public', 'assets', 'images', 'media', 'static'];
+          const fallbackPaths = [
+            // Prefer project-root fallbacks first
+            ...roots.map(dir => path.join(dir, filename)),
+            // Then try baseDir fallbacks (for nested setups)
+            ...roots.map(dir => BASE_DIR === '.' ? path.join(dir, filename) : path.join(BASE_DIR, dir, filename))
+          ];
 
           const tryNext = (index) => {
             if (index >= fallbackPaths.length) {
@@ -606,10 +619,11 @@ const server = http.createServer(async (req, res) => {
           res.end('File not found: ' + attemptPath);
         }
       } else {
-        const isBinaryContent = contentType.startsWith('image/') ||
-                               contentType.startsWith('video/') ||
-                               contentType.startsWith('audio/') ||
-                               contentType === 'application/octet-stream';
+        const ct = contentType.toLowerCase();
+        const isBinaryContent = ct.startsWith('image/') ||
+                               ct.startsWith('video/') ||
+                               ct.startsWith('audio/') ||
+                               ct === 'application/octet-stream';
 
         console.log('[Server] Serving file:', attemptPath,
                    'Type:', contentType,
@@ -617,21 +631,42 @@ const server = http.createServer(async (req, res) => {
                    'Content type:', content.constructor.name,
                    'Length:', content.length);
 
-        res.writeHead(200, {
+        // Check if content is base64-encoded (our marker)
+        const contentStr = content.toString('utf-8');
+        let bodyBuf;
+
+        if (contentStr.startsWith('__BASE64__')) {
+          // Decode base64 to binary Buffer
+          const base64Data = contentStr.substring(10); // Remove __BASE64__ prefix
+          console.log('[Server] Detected base64 marker, decoding...');
+          bodyBuf = Buffer.from(base64Data, 'base64');
+          console.log('[Server] Decoded from base64, buffer length:', bodyBuf.length);
+        } else {
+          // Regular content
+          bodyBuf = Buffer.isBuffer(content) ? content : Buffer.from(content);
+        }
+
+        const headers = {
           'Content-Type': contentType,
           'Access-Control-Allow-Origin': '*',
-          'Cross-Origin-Resource-Policy': 'cross-origin'
-        });
+          'Cross-Origin-Resource-Policy': 'cross-origin',
+          'X-Content-Type-Options': 'nosniff',
+          'Cache-Control': 'no-store',
+          'Content-Length': String(bodyBuf.length),
+        };
+
+        res.writeHead(200, headers);
 
         if (isBinaryContent) {
-          if (typeof content === 'string') {
-            console.error('[Server] ERROR: Binary file read as string!');
-            res.end(Buffer.from(content, 'binary'));
-          } else {
-            res.end(content);
-          }
+          // Debug: log magic bytes for verification
+          try {
+            const head = Array.from(bodyBuf.slice(0, 8))
+              .map(b => b.toString(16).padStart(2, '0')).join(' ');
+            console.log('[Server] Binary head:', head);
+          } catch {}
+          res.end(bodyBuf);
         } else {
-          res.end(content, 'utf-8');
+          res.end(bodyBuf.toString('utf-8'));
         }
       }
     });
