@@ -23,19 +23,22 @@ async function getWebContainer(): Promise<WebContainer> {
     return bootPromise;
   }
 
-  bootPromise = WebContainer.boot();
+  bootPromise = WebContainer.boot({
+    coep: 'credentialless',
+    workdirName: 'project'
+  });
   webContainerInstance = await bootPromise;
   bootPromise = null;
 
   return webContainerInstance;
 }
 
-// Helper to tear down WebContainer completely
-async function tearDownWebContainer() {
+// Helper to tear down WebContainer completely (exported for potential external use)
+export function tearDownWebContainer() {
   if (webContainerInstance) {
     try {
       console.log('[WebContainer] Tearing down container...');
-      await webContainerInstance.teardown();
+      webContainerInstance.teardown();
       webContainerInstance = null;
       bootPromise = null;
       currentRunningSessionId = null;
@@ -82,10 +85,6 @@ export default function PreviewPane({ files, sessionId, onUrlChange, deviceMode 
     setIframeLoaded(false);
   }, [previewUrl]);
 
-  const handleRefresh = () => {
-    setRefreshKey(prev => prev + 1);
-    setIframeLoaded(false);
-  };
 
   // Handle session changes: teardown old container, then boot new one
   useEffect(() => {
@@ -123,8 +122,8 @@ export default function PreviewPane({ files, sessionId, onUrlChange, deviceMode 
           // Teardown without logging/delay to minimize switch time
           if (webContainerInstance) {
             try {
-              // Fire and forget - teardown happens quickly in background
-              webContainerInstance.teardown().catch(() => {});
+              // Synchronous teardown
+              webContainerInstance.teardown();
             } catch (err) {
               // Ignore errors, just continue
             }

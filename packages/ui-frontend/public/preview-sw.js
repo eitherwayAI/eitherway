@@ -17,7 +17,9 @@ const CDN_HOSTS = [
   'stackpath.bootstrapcdn.com',
   'maxcdn.bootstrapcdn.com',
   'code.jquery.com',
-  'ajax.googleapis.com'
+  'ajax.googleapis.com',
+  'coin-images.coingecko.com',
+  'assets.coingecko.com'
 ];
 
 self.addEventListener('install', (event) => {

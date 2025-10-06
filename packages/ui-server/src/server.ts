@@ -67,10 +67,31 @@ fastify.get('/api/health', async () => {
   };
 });
 
+function isSecureUrl(url: URL): { valid: boolean; error?: string } {
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return { valid: false, error: 'Only HTTP/HTTPS protocols allowed' };
+  }
+
+  const hostname = url.hostname.toLowerCase();
+
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0') {
+    return { valid: false, error: 'Local addresses not allowed' };
+  }
+
+  if (hostname.match(/^10\.|^172\.(1[6-9]|2[0-9]|3[01])\.|^192\.168\./)) {
+    return { valid: false, error: 'Private IP ranges not allowed' };
+  }
+
+  if (hostname.match(/^169\.254\.|^fc00:|^fe80:/)) {
+    return { valid: false, error: 'Link-local addresses not allowed' };
+  }
+
+  return { valid: true };
+}
+
 /**
  * GET /api/proxy-cdn
- * Proxy external CDN resources with proper CORS headers for WebContainer
- * Fixes ERR_BLOCKED_BY_RESPONSE.NotSameOriginAfterDefaultedToSameOriginByCoep
+ * Universal proxy for external CDN resources with CORS/COEP headers
  */
 fastify.get<{ Querystring: { url: string } }>('/api/proxy-cdn', async (request, reply) => {
   const { url } = request.query;
@@ -81,41 +102,24 @@ fastify.get<{ Querystring: { url: string } }>('/api/proxy-cdn', async (request, 
 
   try {
     const targetUrl = new URL(url);
+    const securityCheck = isSecureUrl(targetUrl);
 
-    const allowedHosts = [
-      'cdn.jsdelivr.net',
-      'unpkg.com',
-      'cdnjs.cloudflare.com',
-      'fonts.googleapis.com',
-      'fonts.gstatic.com',
-      'raw.githubusercontent.com',
-      'i.imgur.com',
-      'via.placeholder.com',
-      'placehold.co',
-      'ui-avatars.com',
-      'api.dicebear.com',
-      'avatars.githubusercontent.com',
-      'source.unsplash.com',
-      'cdn.simpleicons.org',
-      'cdn.tailwindcss.com',
-      'stackpath.bootstrapcdn.com',
-      'maxcdn.bootstrapcdn.com',
-      'code.jquery.com',
-      'ajax.googleapis.com'
-    ];
-
-    const isAllowed = allowedHosts.some(host =>
-      targetUrl.hostname === host || targetUrl.hostname.endsWith('.' + host)
-    );
-
-    if (!isAllowed) {
-      return reply.code(403).send({ error: 'CDN host not allowed' });
+    if (!securityCheck.valid) {
+      return reply.code(403).send({ error: securityCheck.error });
     }
 
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': '*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': targetUrl.origin + '/',
+        'Origin': targetUrl.origin
+      }
+    });
 
     if (!response.ok) {
-      return reply.code(response.status).send({ error: `CDN returned ${response.status}` });
+      return reply.code(response.status).send({ error: `Upstream returned ${response.status}` });
     }
 
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
@@ -130,6 +134,92 @@ fastify.get<{ Querystring: { url: string } }>('/api/proxy-cdn', async (request, 
 
   } catch (error: any) {
     reply.code(500).send({ error: `Proxy error: ${error.message}` });
+  }
+});
+
+const COINGECKO_DEMO_KEY = process.env.COINGECKO_DEMO_API_KEY || '';
+const COINGECKO_PRO_KEY = process.env.COINGECKO_PRO_API_KEY || '';
+
+const apiCache = new Map<string, { t: number; body: Buffer; headers: Record<string, string>; status: number }>();
+const API_CACHE_TTL = 30_000;
+
+/**
+ * GET /api/proxy-api
+ * Universal proxy for external APIs with auth injection and caching
+ */
+fastify.get<{ Querystring: { url: string } }>('/api/proxy-api', async (request, reply) => {
+  const { url } = request.query;
+
+  if (!url) {
+    return reply.code(400).send({ error: 'Missing url parameter' });
+  }
+
+  let targetUrl: URL;
+  try {
+    targetUrl = new URL(url);
+  } catch {
+    return reply.code(400).send({ error: 'Invalid url' });
+  }
+
+  const securityCheck = isSecureUrl(targetUrl);
+  if (!securityCheck.valid) {
+    return reply.code(403).send({ error: securityCheck.error });
+  }
+
+  const cacheKey = `GET:${targetUrl.toString()}`;
+  const hit = apiCache.get(cacheKey);
+  if (hit && (Date.now() - hit.t) < API_CACHE_TTL) {
+    return reply
+      .headers({
+        ...hit.headers,
+        'Access-Control-Allow-Origin': '*',
+        'Vary': 'Origin',
+        'Cross-Origin-Resource-Policy': 'cross-origin',
+        'X-Cache': 'HIT'
+      })
+      .code(hit.status)
+      .send(hit.body);
+  }
+
+  const headers: Record<string, string> = {
+    'Accept': 'application/json',
+    'User-Agent': 'EitherWay-Proxy/1.0'
+  };
+
+  if (targetUrl.hostname === 'api.coingecko.com' && COINGECKO_DEMO_KEY) {
+    headers['x-cg-demo-api-key'] = COINGECKO_DEMO_KEY;
+  }
+  if (targetUrl.hostname === 'pro-api.coingecko.com' && COINGECKO_PRO_KEY) {
+    headers['x-cg-pro-api-key'] = COINGECKO_PRO_KEY;
+  }
+
+  try {
+    const upstream = await fetch(targetUrl.toString(), {
+      method: 'GET',
+      headers,
+      credentials: 'omit'
+    });
+
+    const body = Buffer.from(await upstream.arrayBuffer());
+    const passthrough = Object.fromEntries(upstream.headers);
+    const status = upstream.status;
+
+    if (status >= 200 && status < 400) {
+      apiCache.set(cacheKey, { t: Date.now(), body, headers: passthrough, status });
+    }
+
+    return reply
+      .headers({
+        ...passthrough,
+        'Access-Control-Allow-Origin': '*',
+        'Vary': 'Origin',
+        'Cross-Origin-Resource-Policy': 'cross-origin',
+        'Cache-Control': passthrough['cache-control'] || 'public, max-age=30',
+      })
+      .code(status)
+      .send(body);
+  } catch (error: any) {
+    reply.code(500).send({ error: `API proxy error: ${error.message}` });
   }
 });
 
