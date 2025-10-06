@@ -20,6 +20,18 @@ import type {
 const SYSTEM_PROMPT = `You are a single agent that builds and edits apps end-to-end FOR END USERS.
 Use ONLY the tools listed below. Prefer either-line-replace for small, targeted edits.
 
+COMPLETENESS REQUIREMENT (HIGHEST PRIORITY):
+  - EVERY app you create must be 100% COMPLETE and FUNCTIONAL from the start
+  - If HTML references a .js file → YOU MUST CREATE that .js file in the SAME turn
+  - If HTML references a .css file → YOU MUST CREATE that .css file in the SAME turn
+  - If you create HTML with buttons/forms → YOU MUST CREATE the JavaScript that makes them work
+  - If you mention a feature → YOU MUST IMPLEMENT that feature completely
+  - NEVER stop until ALL referenced files exist and ALL functionality works
+  - Check: Does the user's request require JavaScript? If YES, create it in the same response
+  - Check: Are there ANY <script src="..."> tags? If YES, create those files NOW
+  - Check: Will buttons/inputs work without JavaScript? If NO, create the JavaScript NOW
+  - DO NOT create partial apps - users expect working applications, not templates
+
 CRITICAL BUILD RULES:
   - You are building apps for END USERS, not developers
   - NEVER create README.md, QUICKSTART.md, or ANY .md/.txt documentation files
@@ -119,9 +131,13 @@ READ-BEFORE-WRITE DISCIPLINE (CRITICAL):
 For execution:
   Stage 1: Analyze request (intent, scope, constraints).
   Stage 2: Plan architecture (design system, components, files).
+           CRITICAL: List ALL files needed (HTML, CSS, JS, etc.) - create them ALL in one turn.
   Stage 3: Select tools (name each planned call, READ first for edits).
+           CRITICAL: If HTML references script.js → add either-write for script.js to your plan.
   Stage 4: Execute in parallel (emit multiple tool_use blocks that do not conflict).
-  Stage 5: Verify & Respond (self-check diff & tests; concise summary).
+           CRITICAL: Create ALL files in this single turn - don't leave any for later.
+  Stage 5: Verify & Respond (self-check: did I create ALL referenced files? Are all features working?)
+           CRITICAL: Before responding, confirm every <script src="..."> file was created.
 
 Determinism:
   - Default temperature low (0.2); fix seeds where supported.
@@ -321,11 +337,27 @@ export class Agent {
         toolResults = await this.toolRunner.executeTools(toolUses);
         hasExecutedTools = true;
 
-        // Track changed files
+        // Track changed files and collect created file paths
+        const createdFilesThisTurn = new Set<string>();
         for (const result of toolResults) {
           const metadata = (result as any).metadata;
           if (metadata?.path && !result.is_error) {
             changedFiles.add(metadata.path);
+            createdFilesThisTurn.add(metadata.path);
+          }
+        }
+
+        // Check for missing file references in newly created HTML files
+        const missingRefs = await this.checkMissingFileReferences(toolUses, createdFilesThisTurn, toolResults);
+        if (missingRefs.length > 0) {
+          // Add warning to the last tool result to inform the agent
+          const warningMessage = `\n\n⚠️ WARNING: Missing file references detected:\n${missingRefs.map(ref => `  - ${ref.htmlFile} references <${ref.tag} ${ref.attr}="${ref.file}"> but ${ref.file} was not created`).join('\n')}\n\nYou MUST create these files in your next response to make the app functional.`;
+
+          // Append warning to the last tool result
+          if (toolResults.length > 0) {
+            const lastResult = toolResults[toolResults.length - 1];
+            lastResult.content = (lastResult.content || '') + warningMessage;
+            console.warn('[Agent]' + warningMessage);
           }
         }
       }
@@ -571,5 +603,78 @@ export class Agent {
     // Only return *tool_use* blocks as executable tool uses, in order
     const executableToolUses = toolUsesCollected.filter((b: any) => b.type === 'tool_use') as ToolUse[];
     return { contentBlocks: out, toolUses: executableToolUses };
+  }
+
+  /**
+   * Check for missing file references in newly created HTML files
+   * Detects <script src="..."> and <link href="..."> that reference non-existent files
+   */
+  private async checkMissingFileReferences(
+    toolUses: ToolUse[],
+    createdFiles: Set<string>,
+    toolResults: ToolResult[]
+  ): Promise<Array<{ htmlFile: string; tag: string; attr: string; file: string }>> {
+    const missing: Array<{ htmlFile: string; tag: string; attr: string; file: string }> = [];
+
+    // Find all HTML files that were created this turn
+    const htmlWrites = toolUses.filter(tu =>
+      (tu.name === 'either-write' || tu.name === 'either-line-replace') &&
+      tu.input?.path?.toLowerCase().endsWith('.html')
+    );
+
+    for (const htmlWrite of htmlWrites) {
+      const htmlPath = htmlWrite.input?.path;
+      if (!htmlPath) continue;
+
+      // Get the HTML content from the tool result
+      const resultIdx = toolUses.indexOf(htmlWrite);
+      const result = toolResults[resultIdx];
+      if (!result || result.is_error) continue;
+
+      // For either-write, the content is in the input
+      const htmlContent = htmlWrite.name === 'either-write'
+        ? htmlWrite.input?.content
+        : null;
+
+      if (!htmlContent || typeof htmlContent !== 'string') continue;
+
+      // Extract script and link references using simple regex
+      // <script src="...">
+      const scriptMatches = htmlContent.matchAll(/<script[^>]+src=["']([^"']+)["']/gi);
+      for (const match of scriptMatches) {
+        const scriptPath = match[1];
+        // Normalize path (remove leading ./ or /)
+        const normalizedPath = scriptPath.replace(/^\.?\//, '');
+        if (!createdFiles.has(normalizedPath) && !createdFiles.has(scriptPath)) {
+          missing.push({
+            htmlFile: htmlPath,
+            tag: 'script',
+            attr: 'src',
+            file: scriptPath
+          });
+        }
+      }
+
+      // <link href="..." rel="stylesheet">
+      const linkMatches = htmlContent.matchAll(/<link[^>]+href=["']([^"']+)["'][^>]*>/gi);
+      for (const match of linkMatches) {
+        const fullTag = match[0];
+        // Only check stylesheets, not other links
+        if (fullTag.includes('stylesheet')) {
+          const linkPath = match[1];
+          const normalizedPath = linkPath.replace(/^\.?\//, '');
+          if (!createdFiles.has(normalizedPath) && !createdFiles.has(linkPath)) {
+            missing.push({
+              htmlFile: htmlPath,
+              tag: 'link',
+              attr: 'href',
+              file: linkPath
+            });
+          }
+        }
+      }
     }
+
+    return missing;
+  }
 }
