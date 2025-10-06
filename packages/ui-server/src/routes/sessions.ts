@@ -51,13 +51,31 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
     const memory = await memoryRepo.findBySession(session.id);
     const workingSet = await workingSetRepo.findBySessionWithFiles(session.id);
 
-    // Transform messages: if content is object with text, extract it
-    const messages = rawMessages.map(msg => ({
-      ...msg,
-      content: typeof msg.content === 'object' && msg.content !== null && 'text' in msg.content
-        ? msg.content.text
-        : msg.content
-    }));
+    // Transform messages: extract text from Claude API content blocks
+    const messages = rawMessages.map(msg => {
+      let content = msg.content;
+
+      // Handle array of content blocks (Claude API format)
+      if (Array.isArray(content)) {
+        content = content
+          .filter((block: any) => block.type === 'text')
+          .map((block: any) => block.text)
+          .join('\n');
+      }
+      // Handle object with text property
+      else if (typeof content === 'object' && content !== null && 'text' in content) {
+        content = content.text;
+      }
+      // Handle plain string or stringify other objects
+      else if (typeof content !== 'string') {
+        content = JSON.stringify(content);
+      }
+
+      return {
+        ...msg,
+        content
+      };
+    });
 
     return {
       session,

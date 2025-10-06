@@ -7,11 +7,14 @@ import PreviewPane from './components/PreviewPane';
 import ViewToolbar from './components/ViewToolbar';
 import { useWebSocket } from './useWebSocket';
 
-// Use backend server port (3001), not frontend dev server port
-const WS_URL = `ws://${window.location.hostname}:3001/api/agent`;
-
 type ViewMode = 'code' | 'preview';
 type DeviceMode = 'desktop' | 'mobile';
+
+/**
+ * Use Vite proxy for WebSocket connection - it handles HTTPS/HTTP automatically
+ * and trusts self-signed certificates in development
+ */
+const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/agent`;
 
 export default function App() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);

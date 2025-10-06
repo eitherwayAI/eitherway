@@ -10,14 +10,48 @@ import websocket from '@fastify/websocket';
 import { Agent, DatabaseAgent, ConfigLoader } from '@eitherway/runtime';
 import { getAllExecutors } from '@eitherway/tools-impl';
 import { createDatabaseClient, FilesRepository, SessionsRepository, PostgresFileStore } from '@eitherway/database';
-import { readdir, readFile, stat, writeFile, rm, mkdir } from 'fs/promises';
+import { readdir, readFile, stat, writeFile, rm, mkdir, access } from 'fs/promises';
 import { join, dirname, resolve, relative } from 'path';
 import { fileURLToPath } from 'url';
 import { maybeRewriteFile } from './cdn-rewriter.js';
 import { registerSessionRoutes } from './routes/sessions.js';
 import { registerSessionFileRoutes } from './routes/session-files.js';
+import { constants } from 'fs';
 
-const fastify = Fastify({ logger: true });
+// Resolve project root (go up from packages/ui-server/src to project root)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const PROJECT_ROOT = join(__dirname, '../../..');
+
+// Check for HTTPS certificates
+const CERTS_DIR = join(PROJECT_ROOT, '.certs');
+const CERT_PATH = join(CERTS_DIR, 'localhost-cert.pem');
+const KEY_PATH = join(CERTS_DIR, 'localhost-key.pem');
+
+let useHttps = false;
+let httpsOptions = {};
+
+try {
+  await access(CERT_PATH, constants.R_OK);
+  await access(KEY_PATH, constants.R_OK);
+
+  const [cert, key] = await Promise.all([
+    readFile(CERT_PATH, 'utf-8'),
+    readFile(KEY_PATH, 'utf-8')
+  ]);
+
+  httpsOptions = { https: { cert, key } };
+  useHttps = true;
+  console.log('✓ HTTPS certificates found - server will use HTTPS');
+} catch (error) {
+  console.log('⚠ No HTTPS certificates found - server will use HTTP');
+  console.log('  Run: npm run setup:https to enable HTTPS for WebContainer preview compatibility');
+}
+
+const fastify = Fastify({
+  logger: true,
+  ...httpsOptions
+});
 
 // Enable CORS
 await fastify.register(cors, {
@@ -26,11 +60,6 @@ await fastify.register(cors, {
 
 // Enable WebSocket
 await fastify.register(websocket);
-
-// Resolve project root (go up from packages/ui-server/src to project root)
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const PROJECT_ROOT = join(__dirname, '../../..');
 
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || join(PROJECT_ROOT, 'workspace');
 const USE_LOCAL_FS = process.env.USE_LOCAL_FS === 'true';
@@ -616,8 +645,15 @@ const PORT = process.env.PORT || 3001;
 
 try {
   await fastify.listen({ port: Number(PORT), host: '0.0.0.0' });
-  console.log(`\n🚀 EitherWay UI Server running on http://localhost:${PORT}`);
-  console.log(`📁 Workspace: ${WORKSPACE_DIR}\n`);
+  const protocol = useHttps ? 'https' : 'http';
+  console.log(`\n🚀 EitherWay UI Server running on ${protocol}://localhost:${PORT}`);
+  console.log(`📁 Workspace: ${WORKSPACE_DIR}`);
+  if (useHttps) {
+    console.log(`🔐 HTTPS enabled - WebContainer previews will work without mixed content issues\n`);
+  } else {
+    console.log(`⚠️  Using HTTP - WebContainer previews may have mixed content issues`);
+    console.log(`   Run: npm run setup:https to enable HTTPS\n`);
+  }
 } catch (err) {
   fastify.log.error(err);
   process.exit(1);

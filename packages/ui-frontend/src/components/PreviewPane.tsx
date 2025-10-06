@@ -420,8 +420,93 @@ const mimeTypes = {
   '.svg': 'image/svg+xml',
 };
 
-const server = http.createServer((req, res) => {
-  let reqPath = req.url === '/' ? '/' + DEFAULT_FILE : req.url;
+// Simple cache for proxy requests
+const cache = new Map();
+const CACHE_TTL = 30000; // 30 seconds
+
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url, \`http://localhost:\${PORT}\`);
+
+  // Proxy API endpoint - uses fetch API which works in WebContainer
+  if (url.pathname === '/api/proxy-api') {
+    const targetUrl = url.searchParams.get('url');
+    if (!targetUrl) {
+      res.writeHead(400);
+      res.end('Missing url parameter');
+      return;
+    }
+
+    try {
+      // Check cache first
+      const cacheKey = targetUrl;
+      const cached = cache.get(cacheKey);
+      if (cached && (Date.now() - cached.time) < CACHE_TTL) {
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'X-Cache': 'HIT'
+        });
+        res.end(cached.data);
+        return;
+      }
+
+      // Fetch using browser's fetch API (works in WebContainer)
+      const response = await fetch(targetUrl, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'WebContainer/1.0'
+        }
+      });
+
+      const data = await response.text();
+
+      // Cache successful responses
+      if (response.ok) {
+        cache.set(cacheKey, { data, time: Date.now() });
+      }
+
+      res.writeHead(response.status, {
+        'Content-Type': response.headers.get('content-type') || 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      });
+      res.end(data);
+    } catch (error) {
+      console.error('[Proxy API] Error:', error.message);
+      res.writeHead(500);
+      res.end(JSON.stringify({ error: error.message }));
+    }
+    return;
+  }
+
+  // Proxy CDN endpoint
+  if (url.pathname === '/api/proxy-cdn') {
+    const targetUrl = url.searchParams.get('url');
+    if (!targetUrl) {
+      res.writeHead(400);
+      res.end('Missing url parameter');
+      return;
+    }
+
+    try {
+      const response = await fetch(targetUrl);
+      const buffer = Buffer.from(await response.arrayBuffer());
+
+      res.writeHead(response.status, {
+        'Content-Type': response.headers.get('content-type') || 'application/octet-stream',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=86400'
+      });
+      res.end(buffer);
+    } catch (error) {
+      console.error('[Proxy CDN] Error:', error.message);
+      res.writeHead(500);
+      res.end('Proxy error');
+    }
+    return;
+  }
+
+  // Regular static file serving
+  let reqPath = url.pathname === '/' ? '/' + DEFAULT_FILE : url.pathname;
   let filePath = path.join(BASE_DIR, reqPath);
   const extname = path.extname(filePath);
   const contentType = mimeTypes[extname] || 'application/octet-stream';
@@ -441,7 +526,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log('[Server] Static server running on port ' + PORT + ', serving from ' + BASE_DIR);
+  console.log('[Server] Static server with proxy running on port ' + PORT);
 });
 `;
 

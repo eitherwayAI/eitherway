@@ -79,11 +79,12 @@ export function shouldRewriteFile(filename: string): boolean {
 }
 
 function generateInlineShim(serverOrigin: string): string {
-  const port = serverOrigin.split(':').pop() || '3001';
   return `<script>
 (function() {
-  var serverOrigin = window.location.protocol + '//' + window.location.hostname + ':${port}';
-  var API_PATTERN = /^https?:\\/\\/(?:api\\.|pro-api\\.)/;
+  // Use WebContainer's own origin for proxy endpoints (avoids cross-origin issues)
+  var serverOrigin = window.location.origin;
+  // Host-only check for API domains
+  var API_PATTERN_HOST = /^(?:api\\.|pro-api\\.)/;
 
   function isExternal(url) {
     try {
@@ -101,7 +102,7 @@ function generateInlineShim(serverOrigin: string): string {
     try {
       var parsed = new URL(url, window.location.href);
       var fullUrl = parsed.toString();
-      var endpoint = API_PATTERN.test(parsed.hostname) ? '/api/proxy-api' : '/api/proxy-cdn';
+      var endpoint = API_PATTERN_HOST.test(parsed.hostname) ? '/api/proxy-api' : '/api/proxy-cdn';
       return serverOrigin + endpoint + '?url=' + encodeURIComponent(fullUrl);
     } catch {
       return null;
@@ -160,13 +161,34 @@ export function maybeRewriteFile(
     return content;
   }
 
+  // Normalize YouTube embeds: convert watch URLs to embed URLs and add required permissions
+  let processedContent = content.replace(
+    /<iframe([^>]*?)src=["']https?:\/\/(www\.)?youtube\.com\/watch\?v=([A-Za-z0-9_-]{11})[^"']*["']([^>]*)><\/iframe>/gi,
+    (_match, pre, _www, videoId, post) => {
+      const mustAllow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+      let attrs = `${pre}src="https://www.youtube-nocookie.com/embed/${videoId}"`;
+
+      // Add allow attribute if not present
+      if (!/allow=/i.test(pre + post)) {
+        attrs += ` allow="${mustAllow}"`;
+      }
+
+      // Add allowfullscreen if not present
+      if (!/allowfullscreen/i.test(pre + post)) {
+        attrs += ` allowfullscreen`;
+      }
+
+      return `<iframe${attrs}${post}></iframe>`;
+    }
+  );
+
   const shimTag = generateInlineShim(options.serverOrigin);
 
-  if (content.includes('</head>')) {
-    return content.replace('</head>', `${shimTag}\n</head>`);
-  } else if (content.includes('</body>')) {
-    return content.replace('</body>', `${shimTag}\n</body>`);
+  if (processedContent.includes('</head>')) {
+    return processedContent.replace('</head>', `${shimTag}\n</head>`);
+  } else if (processedContent.includes('</body>')) {
+    return processedContent.replace('</body>', `${shimTag}\n</body>`);
   } else {
-    return shimTag + '\n' + content;
+    return shimTag + '\n' + processedContent;
   }
 }
