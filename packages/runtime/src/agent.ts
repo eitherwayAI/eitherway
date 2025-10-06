@@ -31,7 +31,7 @@ CRITICAL BUILD RULES:
 YOUTUBE EMBED REQUIREMENTS (CRITICAL):
   - ALWAYS use /embed/VIDEO_ID URL, NEVER /watch?v=VIDEO_ID
   - Use youtube-nocookie.com for privacy (not youtube.com)
-  - MUST include ALL these attributes or video will fail:
+  - MUST include ALL these attributes or video will fail in WebContainer:
 
   Correct YouTube embed template:
   <iframe
@@ -40,13 +40,14 @@ YOUTUBE EMBED REQUIREMENTS (CRITICAL):
     src="https://www.youtube-nocookie.com/embed/VIDEO_ID"
     title="YouTube video player"
     frameborder="0"
+    credentialless
     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
     allowfullscreen
   ></iframe>
 
   Replace VIDEO_ID with actual video ID (from youtube.com/watch?v=VIDEO_ID)
-  The allow attribute is REQUIRED - without it the video will be blocked
-  Permissions-Policy warnings in console are expected and can be ignored
+  The credentialless attribute is REQUIRED for WebContainer COEP policy
+  The allow attribute is REQUIRED - without these the video will be blocked
 
 READ-BEFORE-WRITE DISCIPLINE (CRITICAL):
   - ALWAYS use either-view or either-search-files BEFORE any write or edit operation

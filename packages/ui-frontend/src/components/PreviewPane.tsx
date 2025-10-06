@@ -447,6 +447,9 @@ server.listen(PORT, () => {
 
           await containerRef.current.fs.writeFile('/server.js', serverScript);
 
+          // Mark server as started BEFORE spawning to prevent duplicate starts
+          serverStartedRef.current = true;
+
           // Start the static server
           const serverProcess = await containerRef.current.spawn('node', ['server.js']);
 
@@ -549,6 +552,8 @@ server.listen(PORT, () => {
                     className="preview-frame-mobile"
                     src={previewUrl}
                     title="Preview"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-popups-to-escape-sandbox allow-presentation"
+                    allow="autoplay; encrypted-media; fullscreen; accelerometer; gyroscope; clipboard-write; web-share; picture-in-picture"
                     onLoad={() => setIframeLoaded(true)}
                     style={{
                       opacity: (loading || !iframeLoaded) ? 0 : 1,
@@ -604,6 +609,8 @@ server.listen(PORT, () => {
                 className="preview-frame"
                 src={previewUrl}
                 title="Preview"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-popups-to-escape-sandbox allow-presentation"
+                allow="autoplay; encrypted-media; fullscreen; accelerometer; gyroscope; clipboard-write; web-share; picture-in-picture"
                 onLoad={() => setIframeLoaded(true)}
                 style={{
                   position: 'absolute',
