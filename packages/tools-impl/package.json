@@ -11,7 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@eitherway/tools-core": "*",
+    "@eitherway/tools-core": "workspace:*",
+    "@eitherway/database": "workspace:*",
     "fast-glob": "^3.3.2"
   },
   "devDependencies": {

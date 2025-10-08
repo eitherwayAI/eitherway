@@ -1,0 +1,30 @@
+{
+  "name": "@eitherway/database",
+  "version": "0.1.0",
+  "description": "PostgreSQL database layer for EitherWay",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "migrate": "node --env-file=../../.env --import tsx/esm src/migrations/runner.ts",
+    "migrate:create": "node --env-file=../../.env --import tsx/esm src/migrations/create.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "diff": "^5.1.0",
+    "openai": "^4.77.3",
+    "pg": "^8.11.3",
+    "sharp": "^0.33.5",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/diff": "^7.0.2",
+    "@types/node": "^20.11.16",
+    "@types/pg": "^8.10.9",
+    "dotenv": "^17.2.3",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "vitest": "^3.2.4"
+  }
+}

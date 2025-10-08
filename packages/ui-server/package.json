@@ -10,17 +10,19 @@
     "start": "node --env-file=../../.env dist/server.js"
   },
   "dependencies": {
-    "@eitherway/runtime": "*",
-    "@eitherway/tools-impl": "*",
-    "fastify": "^4.25.2",
+    "@eitherway/database": "workspace:*",
+    "@eitherway/runtime": "workspace:*",
+    "@eitherway/tools-impl": "workspace:*",
     "@fastify/cors": "^8.5.0",
     "@fastify/websocket": "^8.3.1",
-    "ws": "^8.16.0"
+    "fastify": "^4.25.2",
+    "ws": "^8.16.0",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/node": "^20.11.16",
     "@types/ws": "^8.5.10",
-    "typescript": "^5.3.3",
-    "tsx": "^4.7.0"
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
   }
 }

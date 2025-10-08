@@ -4,6 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>EitherWay Agent - App Builder</title>
+
+    <!-- Font Preconnect -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- Font Preload -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&display=block" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@300;400;500;600;700&display=block" as="style" onload="this.onload=null;this.rel='stylesheet'">
+
+    <!-- Font Stylesheets -->
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&display=block" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@300;400;500;600;700&display=block" rel="stylesheet">
+
     <style>
       * {
         margin: 0;
@@ -11,19 +24,46 @@
         box-sizing: border-box;
       }
 
+      /* Font loading optimization */
+      html.fonts-loading * {
+        visibility: hidden;
+      }
+
+      html.fonts-loaded * {
+        visibility: visible;
+        transition: visibility 0.1s ease-in-out;
+      }
+
       body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-          'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-          sans-serif;
+        font-family: 'Azeret Mono', 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'Courier New', monospace;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
         overflow: hidden;
       }
 
       code {
-        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+        font-family: 'Azeret Mono', 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
       }
     </style>
+
+    <script>
+      // Optimize font loading
+      (function() {
+        document.documentElement.classList.add('fonts-loading');
+
+        if (document.fonts && document.fonts.ready) {
+          document.fonts.ready.then(function() {
+            document.documentElement.classList.remove('fonts-loading');
+            document.documentElement.classList.add('fonts-loaded');
+          });
+        } else {
+          setTimeout(function() {
+            document.documentElement.classList.remove('fonts-loading');
+            document.documentElement.classList.add('fonts-loaded');
+          }, 1000);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

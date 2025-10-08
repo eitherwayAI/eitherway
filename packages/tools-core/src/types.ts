@@ -117,6 +117,10 @@ export interface ExecutionContext {
   allowedPaths: string[];
   deniedPaths: string[];
   config: AgentConfig;
+  // Database integration (optional) - when present, tools should use DB instead of filesystem
+  fileStore?: any; // FileStore from @eitherway/database
+  appId?: string;  // App ID for database file operations
+  sessionId?: string; // Session ID for context
 }
 
 export interface ToolExecutorResult {

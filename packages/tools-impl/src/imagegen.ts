@@ -1,104 +1,22 @@
 /**
- * eithergen--generate_image: Image generation with provider adapters
+ * eithergen--generate_image: Database-backed image generation
+ *
+ * CRITICAL: This tool uses the ImageGenerationService which:
+ * - Uses response_format: 'b64_json' to avoid TTL expiration
+ * - Stores images in PostgreSQL (compatible with VFS)
+ * - Validates images with sharp
+ * - Polls until completion
  */
 
-import { writeFile, mkdir } from 'fs/promises';
-import { resolve, dirname } from 'path';
 import type { ToolExecutor, ExecutionContext, ToolExecutorResult } from '@eitherway/tools-core';
 import { SecurityGuard } from './security.js';
-
-/**
- * Image generation provider interface
- */
-interface ImageProvider {
-  generate(prompt: string, options: ImageGenOptions): Promise<Uint8Array>;
-}
-
-interface ImageGenOptions {
-  size: string;
-  seed?: number;
-}
-
-/**
- * OpenAI DALL-E provider
- */
-class OpenAIProvider implements ImageProvider {
-  private apiKey: string;
-
-  constructor(apiKey: string) {
-    this.apiKey = apiKey;
-  }
-
-  async generate(prompt: string, options: ImageGenOptions): Promise<Uint8Array> {
-    const response = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'dall-e-3',
-        prompt,
-        size: this.mapSize(options.size),
-        quality: 'standard',
-        n: 1
-      })
-    });
-
-    if (!response.ok) {
-      const error: any = await response.json();
-      throw new Error(`OpenAI API error: ${error.error?.message || response.statusText}`);
-    }
-
-    const data: any = await response.json();
-    const imageUrl = data.data[0].url;
-
-    // Download the image
-    const imageResponse = await fetch(imageUrl);
-    if (!imageResponse.ok) {
-      throw new Error('Failed to download generated image');
-    }
-
-    return new Uint8Array(await imageResponse.arrayBuffer());
-  }
-
-  private mapSize(size: string): string {
-    // DALL-E 3 supports: 1024x1024, 1024x1792, 1792x1024
-    const [w, h] = size.split('x').map(Number);
-    if (w >= 1024 && h >= 1024) {
-      if (w > h) return '1792x1024';
-      if (h > w) return '1024x1792';
-      return '1024x1024';
-    }
-    return '1024x1024'; // Default
-  }
-}
-
-/**
- * Custom/mock provider (creates a placeholder)
- */
-class CustomProvider implements ImageProvider {
-  async generate(prompt: string, options: ImageGenOptions): Promise<Uint8Array> {
-    // Generate a simple SVG placeholder
-    const [width, height] = options.size.split('x').map(Number);
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-  <rect width="100%" height="100%" fill="#e0e0e0"/>
-  <text x="50%" y="50%" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#666">
-    <tspan x="50%" dy="0">Image: ${prompt.slice(0, 30)}${prompt.length > 30 ? '...' : ''}</tspan>
-    <tspan x="50%" dy="20">Size: ${options.size}</tspan>
-    <tspan x="50%" dy="20">Provider: custom (placeholder)</tspan>
-    ${options.seed ? `<tspan x="50%" dy="20">Seed: ${options.seed}</tspan>` : ''}
-  </text>
-</svg>`;
-    return new TextEncoder().encode(svg);
-  }
-}
+import { ImageGenerationService, createDatabaseClient, PostgresFileStore } from '@eitherway/database';
 
 export class ImageGenExecutor implements ToolExecutor {
   name = 'eithergen--generate_image';
 
   async execute(input: Record<string, any>, context: ExecutionContext): Promise<ToolExecutorResult> {
-    const { prompt, path, size = '512x512', provider = 'custom', seed } = input;
+    const { prompt, path, size = '1024x1024', quality = 'standard' } = input;
 
     // Security check
     const guard = new SecurityGuard(context.config.security);
@@ -109,60 +27,147 @@ export class ImageGenExecutor implements ToolExecutor {
       };
     }
 
+    // Validate OPENAI_API_KEY
+    if (!process.env.OPENAI_API_KEY) {
+      return {
+        content: `Error: OpenAI API key not configured.\n\nTo enable:\n1. Get API key from https://platform.openai.com/api-keys\n2. Set environment variable: export OPENAI_API_KEY=your_key`,
+        isError: true
+      };
+    }
+
     try {
-      const fullPath = resolve(context.workingDir, path);
+      // Get database client and services
+      const db = createDatabaseClient();
+      const imageService = new ImageGenerationService(db);
 
-      // Initialize provider
-      let imageProvider: ImageProvider;
-      let actualProvider = provider;
+      // Extract sessionId and appId from context if available
+      const sessionId = context.sessionId;
+      const appId = context.appId;
 
-      if (provider === 'openai') {
-        const apiKey = process.env.OPENAI_API_KEY;
-        if (!apiKey) {
-          return {
-            content: `Error: OpenAI provider requires OPENAI_API_KEY environment variable.\n\nTo enable:\n1. Get API key from https://platform.openai.com/api-keys\n2. Set environment variable: export OPENAI_API_KEY=your_key`,
-            isError: true
-          };
-        }
-        imageProvider = new OpenAIProvider(apiKey);
-      } else {
-        // Use custom/placeholder provider
-        imageProvider = new CustomProvider();
-        actualProvider = 'custom';
+      if (!appId) {
+        // DO NOT close db - it's a singleton shared by all tools
+        return {
+          content: `Error: No app context found. Image generation requires an active app/session.`,
+          isError: true
+        };
       }
 
-      // Generate image
-      const imageData = await imageProvider.generate(prompt, { size, seed });
+      // Map size to DALL-E 3 supported sizes
+      const dalleSize = this.mapSize(size);
 
-      // Create parent directories if needed
-      const dir = dirname(fullPath);
-      await mkdir(dir, { recursive: true });
+      // Start image generation job
+      const jobId = await imageService.generateImage({
+        prompt,
+        model: 'dall-e-3',
+        size: dalleSize,
+        quality: quality as 'standard' | 'hd',
+        n: 1,
+        sessionId,
+        appId
+      });
 
-      // Save image
-      await writeFile(fullPath, imageData);
+      // Poll until complete (60 second timeout)
+      const result = await imageService.pollJobUntilComplete(jobId, 60000, 500);
 
-      // Determine file extension
-      const extension = path.endsWith('.svg') ? 'svg' : 'png';
+      if (result.job.state !== 'succeeded') {
+        // DO NOT close db - it's a singleton shared by all tools
+        return {
+          content: `Error: Image generation failed.\nJob ID: ${jobId}\nState: ${result.job.state}\nError: ${JSON.stringify(result.job.error)}`,
+          isError: true
+        };
+      }
+
+      if (!result.assets || result.assets.length === 0) {
+        // DO NOT close db - it's a singleton shared by all tools
+        return {
+          content: `Error: No image assets generated.\nJob ID: ${jobId}`,
+          isError: true
+        };
+      }
+
+      // Get the actual image bytes
+      const assetId = result.assets[0].id;
+      const asset = await imageService.getAsset(assetId);
+
+      if (!asset) {
+        // DO NOT close db - it's a singleton shared by all tools
+        return {
+          content: `Error: Failed to retrieve generated image.\nAsset ID: ${assetId}`,
+          isError: true
+        };
+      }
+
+      // Save to VFS (database-backed file system)
+      const fileStore = new PostgresFileStore(db);
+      const mimeType = asset.mimeType;
+      const extension = mimeType === 'image/png' ? '.png' : '.jpg';
+
+      // Ensure path has correct extension
+      let finalPath = path;
+      if (!finalPath.endsWith('.png') && !finalPath.endsWith('.jpg') && !finalPath.endsWith('.jpeg')) {
+        finalPath = path + extension;
+      }
+
+      await fileStore.write(appId, finalPath, asset.bytes, mimeType);
+
+      // DO NOT close db - it's a singleton shared by all tools
+      // The server manages database lifecycle, not individual tools
+
+      // Build public URL for the image
+      const serverOrigin = process.env.SERVER_ORIGIN || 'http://localhost:3001';
+      const assetUrl = `${serverOrigin}/api/images/assets/${assetId}`;
 
       return {
-        content: `Successfully generated image and saved to '${path}'\n\nPrompt: "${prompt}"\nSize: ${size}\nProvider: ${actualProvider}\n${seed ? `Seed: ${seed}\n` : ''}Format: ${extension}`,
+        content: `✅ Image generated and saved successfully!
+
+📁 File Path: ${finalPath}
+⚠️  IMPORTANT: Use this EXACT path in your HTML/code: ${finalPath}
+
+Example usage:
+<img src="${finalPath}" alt="${prompt.substring(0, 50)}...">
+
+Details:
+- Prompt: "${prompt}"
+- Size: ${dalleSize}
+- Quality: ${quality}
+- Format: ${mimeType}
+- File size: ${(asset.bytes.length / 1024).toFixed(2)} KB
+- Job ID: ${jobId}
+- Asset ID: ${assetId}
+
+The image is now available in the file system and will display in the preview.`,
         isError: false,
         metadata: {
-          path,
+          path: finalPath,
           prompt,
-          size,
-          provider: actualProvider,
-          seed,
-          fileSize: imageData.length,
-          extension
+          size: dalleSize,
+          quality,
+          jobId,
+          assetId,
+          assetUrl,
+          mimeType,
+          fileSize: asset.bytes.length,
+          width: result.assets[0].width,
+          height: result.assets[0].height
         }
       };
     } catch (error: any) {
       return {
-        content: `Image generation error: ${error.message}`,
+        content: `Image generation error: ${error.message}\n\nStack trace:\n${error.stack}`,
         isError: true
       };
     }
+  }
+
+  private mapSize(size: string): '1024x1024' | '1792x1024' | '1024x1792' {
+    // DALL-E 3 supports: 1024x1024, 1024x1792, 1792x1024
+    const [w, h] = size.split('x').map(Number);
+    if (w >= 1024 && h >= 1024) {
+      if (w > h) return '1792x1024';
+      if (h > w) return '1024x1792';
+      return '1024x1024';
+    }
+    return '1024x1024'; // Default
   }
 }
 

@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "setup": "bash scripts/setup.sh",
+    "setup:https": "bash scripts/setup-https.sh",
     "init-workspace": "bash scripts/init-workspace.sh",
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces",

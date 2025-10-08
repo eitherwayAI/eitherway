@@ -3,41 +3,86 @@ import Editor from '@monaco-editor/react';
 
 interface CodeViewerProps {
   filePath: string | null;
+  sessionId: string | null;
 }
 
-export default function CodeViewer({ filePath }: CodeViewerProps) {
+export default function CodeViewer({ filePath, sessionId }: CodeViewerProps) {
   const [content, setContent] = useState('');
+  const [originalContent, setOriginalContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!filePath) {
+    if (!filePath || !sessionId) {
       setContent('');
+      setOriginalContent('');
+      setHasChanges(false);
       return;
     }
 
     const loadFile = async () => {
       setLoading(true);
       setError(null);
+      setHasChanges(false);
 
       try {
-        const response = await fetch(`/api/files/${filePath}`);
+        const encodedPath = encodeURIComponent(filePath);
+        const response = await fetch(`/api/sessions/${sessionId}/files/read?path=${encodedPath}`);
         if (!response.ok) {
           throw new Error(`Failed to load file: ${response.statusText}`);
         }
 
         const data = await response.json();
-        setContent(data.content || '');
+        const fileContent = data.content || '';
+        setContent(fileContent);
+        setOriginalContent(fileContent);
       } catch (err: any) {
         setError(err.message);
         setContent('');
+        setOriginalContent('');
       } finally {
         setLoading(false);
       }
     };
 
     loadFile();
-  }, [filePath]);
+  }, [filePath, sessionId]);
+
+  const handleEditorChange = (value: string | undefined) => {
+    const newContent = value || '';
+    setContent(newContent);
+    setHasChanges(newContent !== originalContent);
+  };
+
+  const handleSave = async () => {
+    if (!filePath || !sessionId || !hasChanges) return;
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/files/write`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ path: filePath, content }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to save file: ${response.statusText}`);
+      }
+
+      setOriginalContent(content);
+      setHasChanges(false);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const getLanguage = (path: string | null) => {
     if (!path) return 'plaintext';
@@ -100,13 +145,25 @@ export default function CodeViewer({ filePath }: CodeViewerProps) {
 
   return (
     <div className="code-viewer">
+      {hasChanges && (
+        <div className="save-button-container">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="save-button"
+          >
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      )}
       <Editor
         height="100%"
         language={getLanguage(filePath)}
         value={content}
+        onChange={handleEditorChange}
         theme="vs-dark"
         options={{
-          readOnly: true,
+          readOnly: false,
           minimap: { enabled: false },
           fontSize: 13,
           lineNumbers: 'on',
