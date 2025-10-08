@@ -32,12 +32,34 @@ export interface DeltaEvent extends BaseEvent {
 }
 
 // Phase transition event
-export type AgentPhase = 'pending' | 'thinking' | 'code-writing' | 'building' | 'completed';
+export type AgentPhase = 'pending' | 'thinking' | 'reasoning' | 'code-writing' | 'building' | 'completed';
 
 export interface PhaseEvent extends BaseEvent {
   kind: 'phase';
   messageId: string;
   name: AgentPhase;
+}
+
+// Thinking complete event (with duration)
+export interface ThinkingCompleteEvent extends BaseEvent {
+  kind: 'thinking_complete';
+  messageId: string;
+  durationSeconds: number;
+}
+
+// Reasoning content event (the plan/approach text)
+export interface ReasoningEvent extends BaseEvent {
+  kind: 'reasoning';
+  messageId: string;
+  text: string;
+}
+
+// File operation event (grouped by file, deduplicated, with progressive states)
+export interface FileOperationEvent extends BaseEvent {
+  kind: 'file_operation';
+  messageId: string;
+  operation: 'creating' | 'editing' | 'created' | 'edited';
+  filePath: string;
 }
 
 // Tool execution event
@@ -82,6 +104,9 @@ export type StreamEvent =
   | StreamStartEvent
   | DeltaEvent
   | PhaseEvent
+  | ThinkingCompleteEvent
+  | ReasoningEvent
+  | FileOperationEvent
   | ToolEvent
   | StreamEndEvent
   | FilesUpdatedEvent
@@ -126,4 +151,16 @@ export function isStatusEvent(event: StreamEvent): event is StatusEvent {
 
 export function isResponseEvent(event: StreamEvent): event is ResponseEvent {
   return event.kind === 'response';
+}
+
+export function isThinkingCompleteEvent(event: StreamEvent): event is ThinkingCompleteEvent {
+  return event.kind === 'thinking_complete';
+}
+
+export function isReasoningEvent(event: StreamEvent): event is ReasoningEvent {
+  return event.kind === 'reasoning';
+}
+
+export function isFileOperationEvent(event: StreamEvent): event is FileOperationEvent {
+  return event.kind === 'file_operation';
 }

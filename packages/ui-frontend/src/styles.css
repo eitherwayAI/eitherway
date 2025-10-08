@@ -449,6 +449,71 @@ h1, h2, h3, h4, h5, h6 {
   font-style: italic;
 }
 
+/* Thinking complete message (special styling) */
+.chat-message.thinking-complete {
+  align-self: center;
+  background: rgba(156, 39, 176, 0.1);
+  border: 1px solid rgba(156, 39, 176, 0.3);
+  color: #9c27b0;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 16px;
+  animation: fade-in 0.3s ease-in-out;
+}
+
+/* Reasoning message (planning text) */
+.chat-message.reasoning {
+  background: rgba(156, 39, 176, 0.05);
+  border: 1px solid rgba(156, 39, 176, 0.15);
+  animation: fade-in 0.2s ease-in-out;
+}
+
+.chat-message.reasoning .message-content {
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* Fade-in animation for smooth appearance */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* File operation indicators */
+.chat-message.file-operation {
+  align-self: flex-start;
+  background: rgba(13, 0, 255, 0.05);
+  border: 1px solid rgba(13, 0, 255, 0.2);
+  color: var(--accent);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 500;
+  padding: 8px 12px;
+  max-width: 90%;
+  font-family: var(--font-mono);
+  animation: slide-in 0.2s ease-out;
+}
+
+/* Slide-in animation for file operations */
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 .chat-input-container {
   padding: 12px 16px;
   border-top: 1px solid var(--border-color);
@@ -1161,6 +1226,20 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+/* Pulse animation for cursor during reasoning */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
 /* Typing dots for initial streaming state (before content arrives) */
 .typing-dots {
   display: inline-flex;
@@ -1205,6 +1284,16 @@ h1, h2, h3, h4, h5, h6 {
   border-color: rgba(13, 0, 255, 0.3);
   box-shadow: 0 0 12px rgba(13, 0, 255, 0.15);
   animation: streaming-glow 2s ease-in-out infinite;
+  /* No min-height to allow natural growth with content */
+}
+
+/* Hide empty streaming messages (after thinking completes, before reasoning starts) */
+.chat-message.streaming.assistant:not(.thinking-shimmer):not(.reasoning) {
+  display: none;
+}
+
+.chat-message.streaming.assistant.reasoning {
+  display: flex; /* Ensure reasoning messages are visible */
 }
 
 @keyframes streaming-glow {
@@ -1343,6 +1432,27 @@ h1, h2, h3, h4, h5, h6 {
    ENHANCED CHAT STREAMING - Phase 2
    ======================================== */
 
+/* Thinking shimmer text (no box) */
+.chat-message.thinking-shimmer {
+  align-self: flex-start;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  font-size: 14px;
+  color: var(--text-secondary);
+  animation: shimmer-text 1.5s ease-in-out infinite;
+  font-family: var(--font-montserrat);
+}
+
+@keyframes shimmer-text {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 /* Shimmer effect for thinking phase */
 .chat-message.streaming.thinking::before {
   content: '';
@@ -1358,6 +1468,7 @@ h1, h2, h3, h4, h5, h6 {
     transparent
   );
   animation: shimmer 2s infinite;
+  pointer-events: none; /* Don't intercept scroll/touch events */
 }
 
 @keyframes shimmer {
@@ -1371,7 +1482,12 @@ h1, h2, h3, h4, h5, h6 {
 
 .chat-message {
   position: relative;
-  overflow: hidden;
+}
+
+/* Only hide overflow during thinking phase (for shimmer effect) */
+.chat-message.streaming.thinking {
+  overflow-x: hidden; /* Only clip horizontal for shimmer, allow vertical growth */
+  overflow-y: visible;
 }
 
 /* Enhanced phase-specific styling */

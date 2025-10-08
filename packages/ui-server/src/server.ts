@@ -7,7 +7,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
-import { Agent, DatabaseAgent, ConfigLoader } from '@eitherway/runtime';
+import { Agent, DatabaseAgent, ConfigLoader, StreamingCallbacks } from '@eitherway/runtime';
 import { getAllExecutors } from '@eitherway/tools-impl';
 import { createDatabaseClient, FilesRepository, SessionsRepository, PostgresFileStore } from '@eitherway/database';
 import { readdir, readFile, stat, writeFile, rm, mkdir, access } from 'fs/promises';
@@ -19,17 +19,6 @@ import { registerSessionFileRoutes } from './routes/session-files.js';
 import { constants } from 'fs';
 import { randomUUID } from 'crypto';
 import { StreamEvents, createEventSender } from './events/index.js';
-
-// Streaming callback types (should match @eitherway/runtime types)
-type AgentPhase = 'pending' | 'thinking' | 'code-writing' | 'building' | 'completed';
-
-interface StreamingCallbacks {
-  onDelta?: (delta: { type: string; content: string }) => void;
-  onPhase?: (phase: AgentPhase) => void;
-  onToolStart?: (tool: { name: string; toolUseId: string; filePath?: string }) => void;
-  onToolEnd?: (tool: { name: string; toolUseId: string; filePath?: string }) => void;
-  onComplete?: (usage: { inputTokens: number; outputTokens: number }) => void;
-}
 
 // Resolve project root (go up from packages/ui-server/src to project root)
 const __filename = fileURLToPath(import.meta.url);
@@ -535,8 +524,20 @@ fastify.register(async (fastify) => {
                   sender.send(StreamEvents.delta(messageId, delta.content));
                 }
               },
+              onReasoning: (delta) => {
+                // Stream reasoning text smoothly
+                sender.send(StreamEvents.reasoning(messageId, delta.text));
+              },
               onPhase: (phase) => {
                 sender.send(StreamEvents.phase(messageId, phase));
+              },
+              onThinkingComplete: (duration) => {
+                // Emit thinking complete with duration
+                sender.send(StreamEvents.thinkingComplete(messageId, duration));
+              },
+              onFileOperation: (operation, filePath) => {
+                // Emit deduplicated file operations
+                sender.send(StreamEvents.fileOperation(messageId, operation, filePath));
               },
               onToolStart: (tool) => {
                 sender.send(StreamEvents.toolStart(tool.name, tool.toolUseId, messageId, tool.filePath));
@@ -580,8 +581,20 @@ fastify.register(async (fastify) => {
                   sender.send(StreamEvents.delta(messageId, delta.content));
                 }
               },
+              onReasoning: (delta) => {
+                // Stream reasoning text smoothly
+                sender.send(StreamEvents.reasoning(messageId, delta.text));
+              },
               onPhase: (phase) => {
                 sender.send(StreamEvents.phase(messageId, phase));
+              },
+              onThinkingComplete: (duration) => {
+                // Emit thinking complete with duration
+                sender.send(StreamEvents.thinkingComplete(messageId, duration));
+              },
+              onFileOperation: (operation, filePath) => {
+                // Emit deduplicated file operations
+                sender.send(StreamEvents.fileOperation(messageId, operation, filePath));
               },
               onToolStart: (tool) => {
                 sender.send(StreamEvents.toolStart(tool.name, tool.toolUseId, messageId, tool.filePath));

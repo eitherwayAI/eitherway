@@ -37,7 +37,29 @@ const DeltaEventSchema = BaseEventSchema.extend({
 const PhaseEventSchema = BaseEventSchema.extend({
   kind: z.literal('phase'),
   messageId: z.string(),
-  name: z.enum(['pending', 'thinking', 'code-writing', 'building', 'completed']),
+  name: z.enum(['pending', 'thinking', 'reasoning', 'code-writing', 'building', 'completed']),
+});
+
+// Thinking complete event (with duration)
+const ThinkingCompleteEventSchema = BaseEventSchema.extend({
+  kind: z.literal('thinking_complete'),
+  messageId: z.string(),
+  durationSeconds: z.number(),
+});
+
+// Reasoning content event (the plan/approach text)
+const ReasoningEventSchema = BaseEventSchema.extend({
+  kind: z.literal('reasoning'),
+  messageId: z.string(),
+  text: z.string(),
+});
+
+// File operation event (grouped by file, deduplicated, with progressive states)
+const FileOperationEventSchema = BaseEventSchema.extend({
+  kind: z.literal('file_operation'),
+  messageId: z.string(),
+  operation: z.enum(['creating', 'editing', 'created', 'edited']),
+  filePath: z.string(),
 });
 
 // Tool execution event
@@ -83,6 +105,9 @@ export const StreamEventSchema = z.discriminatedUnion('kind', [
   StreamStartEventSchema,
   DeltaEventSchema,
   PhaseEventSchema,
+  ThinkingCompleteEventSchema,
+  ReasoningEventSchema,
+  FileOperationEventSchema,
   ToolEventSchema,
   StreamEndEventSchema,
   FilesUpdatedEventSchema,
@@ -96,6 +121,9 @@ export type StreamEvent = z.infer<typeof StreamEventSchema>;
 export type StreamStartEvent = z.infer<typeof StreamStartEventSchema>;
 export type DeltaEvent = z.infer<typeof DeltaEventSchema>;
 export type PhaseEvent = z.infer<typeof PhaseEventSchema>;
+export type ThinkingCompleteEvent = z.infer<typeof ThinkingCompleteEventSchema>;
+export type ReasoningEvent = z.infer<typeof ReasoningEventSchema>;
+export type FileOperationEvent = z.infer<typeof FileOperationEventSchema>;
 export type ToolEvent = z.infer<typeof ToolEventSchema>;
 export type StreamEndEvent = z.infer<typeof StreamEndEventSchema>;
 export type FilesUpdatedEvent = z.infer<typeof FilesUpdatedEventSchema>;
@@ -226,6 +254,37 @@ export const StreamEvents = {
       kind: 'response',
       content,
       messageId,
+      ts: Date.now(),
+      requestId,
+    };
+  },
+
+  thinkingComplete(messageId: string, durationSeconds: number, requestId?: string): ThinkingCompleteEvent {
+    return {
+      kind: 'thinking_complete',
+      messageId,
+      durationSeconds,
+      ts: Date.now(),
+      requestId,
+    };
+  },
+
+  reasoning(messageId: string, text: string, requestId?: string): ReasoningEvent {
+    return {
+      kind: 'reasoning',
+      messageId,
+      text,
+      ts: Date.now(),
+      requestId,
+    };
+  },
+
+  fileOperation(messageId: string, operation: 'creating' | 'editing' | 'created' | 'edited', filePath: string, requestId?: string): FileOperationEvent {
+    return {
+      kind: 'file_operation',
+      messageId,
+      operation,
+      filePath,
       ts: Date.now(),
       requestId,
     };

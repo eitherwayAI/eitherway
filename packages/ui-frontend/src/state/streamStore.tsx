@@ -2,9 +2,9 @@ import { createContext, useContext, useState, useCallback, ReactNode } from 'rea
 
 /**
  * Agent streaming phases following the pipeline:
- * pending → thinking → code-writing → building → completed
+ * pending → thinking → reasoning → code-writing → building → completed
  */
-export type AgentPhase = 'idle' | 'pending' | 'thinking' | 'code-writing' | 'building' | 'completed' | 'error';
+export type AgentPhase = 'idle' | 'pending' | 'thinking' | 'reasoning' | 'code-writing' | 'building' | 'completed' | 'error';
 
 /**
  * Tool execution info
@@ -40,11 +40,15 @@ export interface StreamState {
   // Content tracking
   tokenCount: number;
   accumulatedText: string;
+  reasoningText: string; // Separate buffer for reasoning (plan/approach)
+  thinkingDuration: number | null; // Duration in seconds
 
   // Tool tracking
   activeTool: ToolExecution | null;
   toolHistory: ToolExecution[];
   fileOpsCount: number;
+  editedFiles: Set<string>; // Unique files that were edited
+  createdFiles: Set<string>; // Unique files that were created
 
   // Phase tracking
   currentPhaseStartTime: number | null;
@@ -68,8 +72,11 @@ export interface StreamActions {
   startStream: (requestId: string) => void;
   setPhase: (phase: AgentPhase) => void;
   appendToken: (text: string) => void;
+  appendReasoning: (text: string) => void; // Add reasoning text
+  setThinkingDuration: (seconds: number) => void; // Set thinking duration
   startTool: (toolUseId: string, toolName: string, filePath?: string) => void;
   completeTool: (toolUseId: string) => void;
+  addFileOperation: (operation: 'create' | 'edit', filePath: string) => void; // Track file ops
   setError: (error: string) => void;
   completeStream: (usage?: { inputTokens: number; outputTokens: number }) => void;
   resetStream: () => void;
@@ -91,9 +98,13 @@ const initialState: StreamState = {
   startedAt: null,
   tokenCount: 0,
   accumulatedText: '',
+  reasoningText: '',
+  thinkingDuration: null,
   activeTool: null,
   toolHistory: [],
   fileOpsCount: 0,
+  editedFiles: new Set(),
+  createdFiles: new Set(),
   currentPhaseStartTime: null,
   phaseHistory: [],
   currentFile: null,
@@ -149,6 +160,40 @@ export function StreamProvider({ children }: { children: ReactNode }) {
       accumulatedText: prev.accumulatedText + text,
       tokenCount: prev.tokenCount + 1,
     }));
+  }, []);
+
+  const appendReasoning = useCallback((text: string) => {
+    setState(prev => ({
+      ...prev,
+      reasoningText: prev.reasoningText + text,
+    }));
+  }, []);
+
+  const setThinkingDuration = useCallback((seconds: number) => {
+    setState(prev => ({
+      ...prev,
+      thinkingDuration: seconds,
+    }));
+  }, []);
+
+  const addFileOperation = useCallback((operation: 'create' | 'edit', filePath: string) => {
+    setState(prev => {
+      const newEditedFiles = new Set(prev.editedFiles);
+      const newCreatedFiles = new Set(prev.createdFiles);
+
+      if (operation === 'edit') {
+        newEditedFiles.add(filePath);
+      } else {
+        newCreatedFiles.add(filePath);
+      }
+
+      return {
+        ...prev,
+        editedFiles: newEditedFiles,
+        createdFiles: newCreatedFiles,
+        fileOpsCount: newEditedFiles.size + newCreatedFiles.size,
+      };
+    });
   }, []);
 
   const startTool = useCallback((toolUseId: string, toolName: string, filePath?: string) => {
@@ -222,8 +267,11 @@ export function StreamProvider({ children }: { children: ReactNode }) {
     startStream,
     setPhase,
     appendToken,
+    appendReasoning,
+    setThinkingDuration,
     startTool,
     completeTool,
+    addFileOperation,
     setError,
     completeStream,
     resetStream,
@@ -288,6 +336,8 @@ export function getPhaseLabel(phase: AgentPhase): string {
       return 'Starting...';
     case 'thinking':
       return 'Thinking';
+    case 'reasoning':
+      return 'Planning';
     case 'code-writing':
       return 'Writing code';
     case 'building':
@@ -311,6 +361,8 @@ export function getPhaseColor(phase: AgentPhase): string {
     case 'pending':
     case 'thinking':
       return '#ffc107'; // warning yellow
+    case 'reasoning':
+      return '#9c27b0'; // purple (planning)
     case 'code-writing':
       return 'var(--accent)'; // blue
     case 'building':
