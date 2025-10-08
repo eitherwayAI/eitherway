@@ -17,6 +17,22 @@ import type {
   ToolExecutor
 } from '@eitherway/tools-core';
 
+/**
+ * Phase types for streaming UI
+ */
+export type StreamingPhase = 'thinking' | 'code-writing' | 'building' | 'completed';
+
+/**
+ * Streaming callbacks for real-time updates
+ */
+export interface StreamingCallbacks {
+  onDelta?: (delta: { type: string; content: string }) => void;
+  onPhase?: (phase: StreamingPhase) => void;
+  onToolStart?: (tool: { name: string; toolUseId: string; filePath?: string }) => void;
+  onToolEnd?: (tool: { name: string; toolUseId: string; filePath?: string }) => void;
+  onComplete?: (usage: { inputTokens: number; outputTokens: number }) => void;
+}
+
 const SYSTEM_PROMPT = `You are a single agent that builds and edits apps end-to-end FOR END USERS.
 Use ONLY the tools listed below. Prefer either-line-replace for small, targeted edits.
 
@@ -227,8 +243,10 @@ export class Agent {
 
   /**
    * Process a user request through the agent workflow
+   * @param userMessage - The user's prompt
+   * @param callbacks - Optional streaming callbacks for real-time updates
    */
-  async processRequest(userMessage: string): Promise<string> {
+  async processRequest(userMessage: string, callbacks?: StreamingCallbacks): Promise<string> {
     // Start transcript
     const transcriptId = this.recorder.startTranscript(userMessage);
 
@@ -250,11 +268,18 @@ export class Agent {
     const changedFiles = new Set<string>();
     let hasExecutedTools = false;
 
+    // Track cumulative token usage across all turns
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+
     while (turnCount < maxTurns) {
       turnCount++;
 
       // Validate conversation history before sending to Claude
       this.validateConversationHistory();
+
+      // Emit 'thinking' phase when we start receiving text
+      let hasEmittedThinking = false;
 
       // Send message to Claude
       const response = await this.modelClient.sendMessage(
@@ -264,12 +289,27 @@ export class Agent {
         {
           onDelta: (delta) => {
             if (delta.type === 'text') {
-              process.stdout.write(delta.content);
+              // Emit 'thinking' phase on first text delta
+              if (!hasEmittedThinking && callbacks?.onPhase) {
+                callbacks.onPhase('thinking');
+                hasEmittedThinking = true;
+              }
+
+              // Forward delta to callback or fallback to stdout
+              if (callbacks?.onDelta) {
+                callbacks.onDelta(delta);
+              } else {
+                process.stdout.write(delta.content);
+              }
             }
           },
           webSearchConfig: this.options.webSearch
         }
       );
+
+      // Accumulate token usage
+      totalInputTokens += response.usage.inputTokens;
+      totalOutputTokens += response.usage.outputTokens;
 
       // Record assistant response
       this.recorder.addEntry({
@@ -325,6 +365,11 @@ export class Agent {
         break;
       }
 
+      // Emit 'code-writing' phase when we have tools to execute
+      if (toolUses.length > 0 && callbacks?.onPhase) {
+        callbacks.onPhase('code-writing');
+      }
+
       // Execute tools (dry run if specified)
       let toolResults: ToolResult[];
       if (this.options.dryRun) {
@@ -334,7 +379,34 @@ export class Agent {
           content: `[DRY RUN] Would execute: ${tu.name} with input: ${JSON.stringify(tu.input, null, 2)}`
         }));
       } else {
-        toolResults = await this.toolRunner.executeTools(toolUses);
+        // Emit tool start events and execute tools
+        toolResults = [];
+        for (const toolUse of toolUses) {
+          // Extract file path for file operation tools
+          const filePath = (toolUse.input as any)?.path;
+
+          // Emit tool start
+          if (callbacks?.onToolStart) {
+            callbacks.onToolStart({
+              name: toolUse.name,
+              toolUseId: toolUse.id,
+              filePath
+            });
+          }
+
+          // Execute single tool
+          const result = await this.toolRunner.executeTools([toolUse]);
+          toolResults.push(...result);
+
+          // Emit tool end
+          if (callbacks?.onToolEnd) {
+            callbacks.onToolEnd({
+              name: toolUse.name,
+              toolUseId: toolUse.id,
+              filePath
+            });
+          }
+        }
         hasExecutedTools = true;
 
         // Track changed files and collect created file paths
@@ -383,6 +455,14 @@ export class Agent {
 
     // End transcript
     this.recorder.endTranscript(transcriptId, finalResponse);
+
+    // Emit completion with token usage
+    if (callbacks?.onComplete) {
+      callbacks.onComplete({
+        inputTokens: totalInputTokens,
+        outputTokens: totalOutputTokens
+      });
+    }
 
     return finalResponse;
   }

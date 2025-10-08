@@ -1,21 +1,41 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
+import { useStreamContext } from './state/streamStore';
+import { StreamService } from './services/StreamService';
+import type { StreamEvent, AgentPhase } from './types/stream-events';
+import {
+  isStreamStartEvent,
+  isDeltaEvent,
+  isPhaseEvent,
+  isToolEvent,
+  isStreamEndEvent,
+  isStatusEvent,
+  isResponseEvent,
+  isErrorEvent,
+  isFilesUpdatedEvent,
+} from './types/stream-events';
 
-interface Message {
-  type: 'status' | 'response' | 'error' | 'files_updated';
-  message?: string;
-  content?: string;
-  files?: any[];
+interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  error?: boolean;
+  streaming?: boolean;
+  phase?: AgentPhase;
 }
 
 export function useWebSocket(url: string, sessionId: string | null) {
+  const { actions } = useStreamContext();
   const [connected, setConnected] = useState(false);
-  const [messages, setMessages] = useState<any[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [files, setFiles] = useState<any[]>([]);
-  const ws = useRef<WebSocket | null>(null);
+  const streamServiceRef = useRef<StreamService | null>(null);
+  const streamingMessageRef = useRef<{ messageId: string; content: string; phase?: AgentPhase } | null>(null);
+  const completedStreamIdsRef = useRef<Set<string>>(new Set());
 
-  const clearMessages = useCallback((newMessages: any[] = []) => {
+  const clearMessages = useCallback((newMessages: ChatMessage[] = []) => {
     setMessages(newMessages);
+    streamingMessageRef.current = null;
+    completedStreamIdsRef.current.clear();
   }, []);
 
   useEffect(() => {
@@ -49,78 +69,168 @@ export function useWebSocket(url: string, sessionId: string | null) {
       return;
     }
 
-    let isCleanup = false;
-    const wsUrl = sessionId ? `${url}?sessionId=${sessionId}` : url;
-    const websocket = new WebSocket(wsUrl);
-
-    websocket.onopen = () => {
-      console.log('✅ WebSocket connected successfully for session:', sessionId);
-      setConnected(true);
-    };
-
-    websocket.onmessage = (event) => {
-      const data: Message = JSON.parse(event.data);
-
-      switch (data.type) {
-        case 'status':
-          setMessages(prev => [...prev, {
-            role: 'system',
-            content: data.message
-          }]);
-          break;
-
-        case 'response':
+    // Create StreamService instance
+    const streamService = new StreamService({
+      url,
+      sessionId,
+      onConnect: () => {
+        console.log('✅ WebSocket connected successfully for session:', sessionId);
+        setConnected(true);
+      },
+      onDisconnect: () => {
+        console.log('⚠️ WebSocket disconnected');
+        setConnected(false);
+      },
+      onError: (error) => {
+        console.error('❌ WebSocket error:', error);
+      },
+      onEvent: (event: StreamEvent) => {
+        // Handle events using type guards
+        if (isStreamStartEvent(event)) {
+          // Initialize streaming message
+          streamingMessageRef.current = {
+            messageId: event.messageId,
+            content: '',
+            phase: undefined
+          };
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: data.content
+            content: '',
+            streaming: true
           }]);
-          break;
+          actions.startStream(event.messageId);
+        }
 
-        case 'error':
+        else if (isDeltaEvent(event)) {
+          // Append delta to streaming message
+          if (streamingMessageRef.current) {
+            streamingMessageRef.current.content += event.text;
+            setMessages(prev => {
+              const newMessages = [...prev];
+              const lastMsg = newMessages[newMessages.length - 1];
+              if (lastMsg && lastMsg.streaming) {
+                lastMsg.content = streamingMessageRef.current!.content;
+                lastMsg.phase = streamingMessageRef.current!.phase;
+              }
+              return newMessages;
+            });
+            actions.appendToken(event.text);
+          }
+        }
+
+        else if (isPhaseEvent(event)) {
+          // Update phase
+          if (streamingMessageRef.current) {
+            streamingMessageRef.current.phase = event.name;
+            setMessages(prev => {
+              const newMessages = [...prev];
+              const lastMsg = newMessages[newMessages.length - 1];
+              if (lastMsg && lastMsg.streaming) {
+                lastMsg.phase = event.name;
+              }
+              return newMessages;
+            });
+            actions.setPhase(event.name);
+          }
+        }
+
+        else if (isToolEvent(event)) {
+          // Tool start/end events
+          if (event.event === 'start' && event.toolUseId && event.toolName) {
+            actions.startTool(event.toolUseId, event.toolName, event.filePath);
+            if (event.toolName === 'either-write' || event.toolName === 'either-line-replace') {
+              actions.incrementFileOps();
+            }
+            // Set current file if present
+            if (event.filePath) {
+              actions.setCurrentFile(event.filePath);
+            }
+          } else if (event.event === 'end' && event.toolUseId) {
+            actions.completeTool(event.toolUseId);
+            // Clear current file after completion
+            actions.setCurrentFile(null);
+          }
+        }
+
+        else if (isStreamEndEvent(event)) {
+          // Seal the streaming message
+          if (streamingMessageRef.current) {
+            const completedMessageId = streamingMessageRef.current.messageId;
+
+            setMessages(prev => {
+              const newMessages = [...prev];
+              const lastMsg = newMessages[newMessages.length - 1];
+              if (lastMsg && lastMsg.streaming) {
+                lastMsg.streaming = false;
+                delete lastMsg.phase;
+              }
+              return newMessages;
+            });
+
+            // Track completed stream to ignore duplicate response events
+            completedStreamIdsRef.current.add(completedMessageId);
+            streamingMessageRef.current = null;
+
+            if (event.usage) {
+              actions.completeStream(event.usage);
+            } else {
+              actions.completeStream();
+            }
+          }
+        }
+
+        else if (isStatusEvent(event)) {
+          setMessages(prev => [...prev, {
+            role: 'system',
+            content: event.message
+          }]);
+        }
+
+        else if (isResponseEvent(event)) {
+          // Backward compatibility: if we get a final response without streaming
+          // Ignore if this messageId was already handled via streaming
+          if (event.messageId && completedStreamIdsRef.current.has(event.messageId)) {
+            // This is a duplicate of a streamed message, ignore it
+            return;
+          }
+
+          if (!streamingMessageRef.current) {
+            setMessages(prev => [...prev, {
+              role: 'assistant',
+              content: event.content
+            }]);
+          }
+        }
+
+        else if (isErrorEvent(event)) {
           // Show toast notification for rate limit errors
-          if (data.message && data.message.toLowerCase().includes('rate limit')) {
-            toast.error(data.message);
+          if (event.message.toLowerCase().includes('rate limit')) {
+            toast.error(event.message);
           }
           setMessages(prev => [...prev, {
             role: 'system',
-            content: `Error: ${data.message}`,
+            content: `Error: ${event.message}`,
             error: true
           }]);
-          break;
+          actions.setError(event.message);
+        }
 
-        case 'files_updated':
-          if (data.files) {
-            setFiles(data.files);
-          }
-          break;
+        else if (isFilesUpdatedEvent(event)) {
+          setFiles(event.files);
+        }
       }
-    };
+    });
 
-    websocket.onclose = () => {
-      if (!isCleanup) {
-        console.log('⚠️ WebSocket disconnected unexpectedly');
-        setConnected(false);
-      } else {
-        console.log('🔄 WebSocket closed for cleanup (React StrictMode)');
-      }
-    };
-
-    websocket.onerror = (error) => {
-      if (!isCleanup) {
-        console.error('❌ WebSocket error:', error);
-      }
-    };
-
-    ws.current = websocket;
+    streamServiceRef.current = streamService;
+    streamService.connect();
 
     return () => {
-      isCleanup = true;
-      websocket.close();
+      streamService.disconnect();
     };
   }, [url, sessionId]);
 
   const sendMessage = useCallback((prompt: string) => {
-    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+    if (streamServiceRef.current?.isConnected) {
       // Add user message to chat
       setMessages(prev => [...prev, {
         role: 'user',
@@ -128,10 +238,7 @@ export function useWebSocket(url: string, sessionId: string | null) {
       }]);
 
       // Send to backend
-      ws.current.send(JSON.stringify({
-        type: 'prompt',
-        prompt
-      }));
+      streamServiceRef.current.sendPrompt(prompt);
     }
   }, []);
 
@@ -140,6 +247,7 @@ export function useWebSocket(url: string, sessionId: string | null) {
     messages,
     files,
     sendMessage,
-    clearMessages
+    clearMessages,
+    streamService: streamServiceRef.current
   };
 }

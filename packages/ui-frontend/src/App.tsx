@@ -7,8 +7,11 @@ import CodeViewer from './components/CodeViewer';
 import PreviewPane from './components/PreviewPane';
 import ViewToolbar from './components/ViewToolbar';
 import LoginScreen from './components/LoginScreen';
+import StatusBar from './components/StatusBar';
+import DevOverlay from './components/DevOverlay';
 import { useWebSocket } from './useWebSocket';
 import { useAuth } from './AuthContext';
+import { StreamProvider } from './state/streamStore';
 
 type ViewMode = 'code' | 'preview';
 type DeviceMode = 'desktop' | 'mobile';
@@ -19,10 +22,10 @@ type DeviceMode = 'desktop' | 'mobile';
  */
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/agent`;
 
-export default function App() {
+function AppContent() {
   const { isAuthenticated, logout, userId } = useAuth();
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-  const { connected, messages, files, sendMessage, clearMessages } = useWebSocket(WS_URL, currentSessionId);
+  const { connected, messages, files, sendMessage, clearMessages, streamService } = useWebSocket(WS_URL, currentSessionId);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<ViewMode>('code');
   const [deviceMode, setDeviceMode] = useState<DeviceMode>('desktop');
@@ -155,7 +158,7 @@ export default function App() {
         />
       </div>
 
-      {/* Center Column: Toolbar + Code/Preview */}
+      {/* Center Column: Toolbar + StatusBar + Code/Preview */}
       <div className="center-column">
         <ViewToolbar
           currentView={currentView}
@@ -168,6 +171,8 @@ export default function App() {
           userId={userId}
           onLogout={logout}
         />
+
+        <StatusBar />
 
         <div className="view-container">
           {currentView === 'code' ? (
@@ -207,6 +212,20 @@ export default function App() {
         </div>
       </div>
       </div>
+
+      {/* DevOverlay - Toggle with Cmd/Ctrl + ` */}
+      {import.meta.env.DEV && <DevOverlay streamService={streamService} />}
     </>
+  );
+}
+
+/**
+ * Root App component with StreamProvider
+ */
+export default function App() {
+  return (
+    <StreamProvider>
+      <AppContent />
+    </StreamProvider>
   );
 }

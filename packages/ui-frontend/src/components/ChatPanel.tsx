@@ -1,9 +1,30 @@
 import { useState, useRef, useEffect } from 'react';
+import type { AgentPhase } from '../types/stream-events';
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   error?: boolean;
+  streaming?: boolean;
+  phase?: AgentPhase;
+}
+
+// Helper to get phase display text
+function getPhaseLabel(phase?: AgentPhase): string {
+  switch (phase) {
+    case 'pending':
+      return 'Starting...';
+    case 'thinking':
+      return 'Thinking...';
+    case 'code-writing':
+      return 'Writing code...';
+    case 'building':
+      return 'Building...';
+    case 'completed':
+      return 'Done';
+    default:
+      return '';
+  }
 }
 
 interface ChatPanelProps {
@@ -51,11 +72,23 @@ export default function ChatPanel({ messages, onSendMessage, disabled }: ChatPan
         {messages.map((msg, idx) => (
           <div
             key={idx}
-            className={`chat-message ${msg.role} ${msg.error ? 'error' : ''}`}
+            className={`chat-message ${msg.role} ${msg.error ? 'error' : ''} ${msg.streaming ? 'streaming' : ''} ${msg.phase || ''}`}
+            data-phase={msg.phase}
           >
-            <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0 }}>
+            {msg.phase && msg.streaming && (
+              <div className="phase-indicator">
+                <span className="phase-label">{getPhaseLabel(msg.phase)}</span>
+              </div>
+            )}
+            <div className="message-content">
               {msg.content}
-            </pre>
+              {msg.streaming && msg.content.length > 0 && <span className="typing-cursor">▋</span>}
+            </div>
+            {msg.streaming && msg.content.length === 0 && (
+              <span className="typing-dots">
+                <span>.</span><span>.</span><span>.</span>
+              </span>
+            )}
           </div>
         ))}
         <div ref={messagesEndRef} />

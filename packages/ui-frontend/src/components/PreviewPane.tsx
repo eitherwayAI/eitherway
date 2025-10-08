@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { WebContainer } from '@webcontainer/api';
+import { usePhase } from '../state/streamStore';
 
 interface PreviewPaneProps {
   files: any[];
@@ -56,6 +57,7 @@ export function tearDownWebContainer() {
 }
 
 export default function PreviewPane({ files, sessionId, onUrlChange, deviceMode = 'desktop' }: PreviewPaneProps) {
+  const phase = usePhase();
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -839,6 +841,16 @@ server.listen(PORT, () => {
                     ) : null}
                   </div>
                 )}
+
+                {/* Building Phase Overlay */}
+                {phase === 'building' && previewUrl && !loading && (
+                  <div className="building-overlay">
+                    <div className="building-content">
+                      <div className="building-spinner"></div>
+                      <span>Building preview...</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -899,6 +911,16 @@ server.listen(PORT, () => {
                     )}
                   </div>
                 ) : null}
+              </div>
+            )}
+
+            {/* Building Phase Overlay */}
+            {phase === 'building' && previewUrl && !loading && (
+              <div className="building-overlay">
+                <div className="building-content">
+                  <div className="building-spinner"></div>
+                  <span>Building preview...</span>
+                </div>
               </div>
             )}
           </>

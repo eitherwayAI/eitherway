@@ -9,7 +9,7 @@ import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import { Agent, DatabaseAgent, ConfigLoader } from '@eitherway/runtime';
 import { getAllExecutors } from '@eitherway/tools-impl';
-import { createDatabaseClient, FilesRepository, SessionsRepository, PostgresFileStore, RateLimiter } from '@eitherway/database';
+import { createDatabaseClient, FilesRepository, SessionsRepository, PostgresFileStore } from '@eitherway/database';
 import { readdir, readFile, stat, writeFile, rm, mkdir, access } from 'fs/promises';
 import { join, dirname, resolve, relative } from 'path';
 import { fileURLToPath } from 'url';
@@ -17,6 +17,19 @@ import { maybeRewriteFile } from './cdn-rewriter.js';
 import { registerSessionRoutes } from './routes/sessions.js';
 import { registerSessionFileRoutes } from './routes/session-files.js';
 import { constants } from 'fs';
+import { randomUUID } from 'crypto';
+import { StreamEvents, createEventSender } from './events/index.js';
+
+// Streaming callback types (should match @eitherway/runtime types)
+type AgentPhase = 'pending' | 'thinking' | 'code-writing' | 'building' | 'completed';
+
+interface StreamingCallbacks {
+  onDelta?: (delta: { type: string; content: string }) => void;
+  onPhase?: (phase: AgentPhase) => void;
+  onToolStart?: (tool: { name: string; toolUseId: string; filePath?: string }) => void;
+  onToolEnd?: (tool: { name: string; toolUseId: string; filePath?: string }) => void;
+  onComplete?: (usage: { inputTokens: number; outputTokens: number }) => void;
+}
 
 // Resolve project root (go up from packages/ui-server/src to project root)
 const __filename = fileURLToPath(import.meta.url);
@@ -71,13 +84,11 @@ const { claudeConfig, agentConfig } = await loader.loadAll();
 // Initialize database client (optional - will work without DB if not configured)
 let db: any = null;
 let dbConnected = false;
-let rateLimiter: RateLimiter | null = null;
 try {
   db = createDatabaseClient();
   dbConnected = await db.healthCheck();
   if (dbConnected) {
     console.log('✓ Database connected - using DB-backed VFS');
-    rateLimiter = new RateLimiter(db);
     await registerSessionRoutes(fastify, db);
     await registerSessionFileRoutes(fastify, db);
   } else {
@@ -452,11 +463,11 @@ fastify.register(async (fastify) => {
   }>('/api/agent', { websocket: true }, async (connection, request) => {
     const { sessionId } = request.query;
 
+    // Create event sender for this connection
+    const sender = createEventSender(connection.socket);
+
     if (!sessionId && !USE_LOCAL_FS) {
-      connection.socket.send(JSON.stringify({
-        type: 'error',
-        message: 'sessionId query parameter is required'
-      }));
+      sender.send(StreamEvents.error('sessionId query parameter is required'));
       connection.socket.close();
       return;
     }
@@ -467,6 +478,7 @@ fastify.register(async (fastify) => {
       if (data.type === 'prompt') {
         try {
           let response: string;
+          let messageId: string = randomUUID(); // Generate message ID for streaming
 
           // Use DatabaseAgent when in database mode
           if (!USE_LOCAL_FS && dbConnected && db && sessionId) {
@@ -475,24 +487,21 @@ fastify.register(async (fastify) => {
             const session = await sessionsRepo.findById(sessionId);
 
             if (!session) {
-              connection.socket.send(JSON.stringify({
-                type: 'error',
-                message: 'Session not found'
-              }));
+              sender.send(StreamEvents.error('Session not found'));
               return;
             }
 
-            // Check rate limit for user prompts
-            if (rateLimiter) {
-              const rateLimitCheck = await rateLimiter.checkMessageSending(sessionId);
-              if (!rateLimitCheck.allowed) {
-                connection.socket.send(JSON.stringify({
-                  type: 'error',
-                  message: `Rate limit exceeded: You have reached your daily limit of ${rateLimitCheck.limit} messages per chat. Please try again after ${rateLimitCheck.resetsAt.toISOString()}.`
-                }));
-                return;
-              }
-            }
+            // Rate limiting disabled for local testing
+            // if (rateLimiter) {
+            //   const rateLimitCheck = await rateLimiter.checkMessageSending(sessionId);
+            //   if (!rateLimitCheck.allowed) {
+            //     sendEvent(connection.socket, {
+            //       type: 'error',
+            //       message: `Rate limit exceeded: You have reached your daily limit of ${rateLimitCheck.limit} messages per chat. Please try again after ${rateLimitCheck.resetsAt.toISOString()}.`
+            //     });
+            //     return;
+            //   }
+            // }
 
             const dbAgent = new DatabaseAgent({
               db,
@@ -511,12 +520,40 @@ fastify.register(async (fastify) => {
               dbAgent.setDatabaseContext(fileStore, session.app_id, sessionId);
             }
 
-            connection.socket.send(JSON.stringify({
-              type: 'status',
-              message: 'Processing request...'
-            }));
+            // Use the messageId declared above
+            let accumulatedText = '';
+            let tokenUsage: { inputTokens: number; outputTokens: number } | undefined;
 
-            response = await dbAgent.processRequest(data.prompt);
+            // Send stream_start event
+            sender.send(StreamEvents.streamStart(messageId));
+
+            // Create streaming callbacks
+            const streamingCallbacks: StreamingCallbacks = {
+              onDelta: (delta) => {
+                if (delta.type === 'text') {
+                  accumulatedText += delta.content;
+                  sender.send(StreamEvents.delta(messageId, delta.content));
+                }
+              },
+              onPhase: (phase) => {
+                sender.send(StreamEvents.phase(messageId, phase));
+              },
+              onToolStart: (tool) => {
+                sender.send(StreamEvents.toolStart(tool.name, tool.toolUseId, messageId, tool.filePath));
+              },
+              onToolEnd: (tool) => {
+                sender.send(StreamEvents.toolEnd(tool.name, tool.toolUseId, messageId, tool.filePath));
+              },
+              onComplete: (usage) => {
+                tokenUsage = usage;
+              }
+            };
+
+            // Process request with streaming
+            response = await dbAgent.processRequest(data.prompt, streamingCallbacks);
+
+            // Send stream_end event with token usage
+            sender.send(StreamEvents.streamEnd(messageId, tokenUsage));
           } else {
             // Use regular Agent for local filesystem mode
             const agent = new Agent({
@@ -528,23 +565,48 @@ fastify.register(async (fastify) => {
               webSearch: agentConfig.tools.webSearch
             });
 
-            connection.socket.send(JSON.stringify({
-              type: 'status',
-              message: 'Processing request...'
-            }));
+            // Use the messageId declared above
+            let accumulatedText = '';
+            let tokenUsage: { inputTokens: number; outputTokens: number } | undefined;
 
-            response = await agent.processRequest(data.prompt);
+            // Send stream_start event
+            sender.send(StreamEvents.streamStart(messageId));
+
+            // Create streaming callbacks
+            const streamingCallbacks: StreamingCallbacks = {
+              onDelta: (delta) => {
+                if (delta.type === 'text') {
+                  accumulatedText += delta.content;
+                  sender.send(StreamEvents.delta(messageId, delta.content));
+                }
+              },
+              onPhase: (phase) => {
+                sender.send(StreamEvents.phase(messageId, phase));
+              },
+              onToolStart: (tool) => {
+                sender.send(StreamEvents.toolStart(tool.name, tool.toolUseId, messageId, tool.filePath));
+              },
+              onToolEnd: (tool) => {
+                sender.send(StreamEvents.toolEnd(tool.name, tool.toolUseId, messageId, tool.filePath));
+              },
+              onComplete: (usage) => {
+                tokenUsage = usage;
+              }
+            };
+
+            response = await agent.processRequest(data.prompt, streamingCallbacks);
+
+            // Send stream_end event with token usage
+            sender.send(StreamEvents.streamEnd(messageId, tokenUsage));
           }
 
-          connection.socket.send(JSON.stringify({
-            type: 'response',
-            content: response
-          }));
+          // Send final response for backward compatibility
+          sender.send(StreamEvents.response(response, messageId));
 
-          // Increment message count after successful processing
-          if (rateLimiter && sessionId) {
-            await rateLimiter.incrementMessageCount(sessionId);
-          }
+          // Rate limiting disabled for local testing
+          // if (rateLimiter && sessionId) {
+          //   await rateLimiter.incrementMessageCount(sessionId);
+          // }
 
           if (!USE_LOCAL_FS && dbConnected && db && sessionId) {
             const sessionsRepo = new SessionsRepository(db);
@@ -555,18 +617,11 @@ fastify.register(async (fastify) => {
             if (session?.app_id) {
               const files = await fileStore.list(session.app_id);
 
-              connection.socket.send(JSON.stringify({
-                type: 'files_updated',
-                files,
-                sessionId
-              }));
+              sender.send(StreamEvents.filesUpdated(files, sessionId));
             }
           } else {
             const files = await getFileTree(WORKSPACE_DIR);
-            connection.socket.send(JSON.stringify({
-              type: 'files_updated',
-              files
-            }));
+            sender.send(StreamEvents.filesUpdated(files));
           }
 
         } catch (error: any) {
@@ -596,10 +651,7 @@ fastify.register(async (fastify) => {
             }
           }
 
-          connection.socket.send(JSON.stringify({
-            type: 'error',
-            message: errorMessage
-          }));
+          sender.send(StreamEvents.error(errorMessage));
         }
       }
     });

@@ -7,8 +7,7 @@ import {
   WorkingSetRepository,
   EventsRepository,
   AppsRepository,
-  DatabaseClient,
-  RateLimiter
+  DatabaseClient
 } from '@eitherway/database';
 
 export async function registerSessionRoutes(fastify: FastifyInstance, db: DatabaseClient) {
@@ -19,7 +18,6 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
   const workingSetRepo = new WorkingSetRepository(db);
   const eventsRepo = new EventsRepository(db);
   const appsRepo = new AppsRepository(db);
-  const rateLimiter = new RateLimiter(db);
 
   // User lookup endpoint - does NOT count against rate limits
   fastify.get<{
@@ -42,24 +40,24 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
 
     const user = await usersRepo.findOrCreate(email);
 
-    // Check rate limit before creating session
-    const rateLimitCheck = await rateLimiter.checkSessionCreation(user.id);
-    if (!rateLimitCheck.allowed) {
-      return reply.code(429).send({
-        error: 'Rate limit exceeded',
-        message: `You have reached your daily limit of ${rateLimitCheck.limit} chats. Please try again after ${rateLimitCheck.resetsAt.toISOString()}.`,
-        current: rateLimitCheck.current,
-        limit: rateLimitCheck.limit,
-        resetsAt: rateLimitCheck.resetsAt.toISOString()
-      });
-    }
+    // Rate limiting disabled for local testing
+    // const rateLimitCheck = await rateLimiter.checkSessionCreation(user.id);
+    // if (!rateLimitCheck.allowed) {
+    //   return reply.code(429).send({
+    //     error: 'Rate limit exceeded',
+    //     message: `You have reached your daily limit of ${rateLimitCheck.limit} chats. Please try again after ${rateLimitCheck.resetsAt.toISOString()}.`,
+    //     current: rateLimitCheck.current,
+    //     limit: rateLimitCheck.limit,
+    //     resetsAt: rateLimitCheck.resetsAt.toISOString()
+    //   });
+    // }
 
     // Create a unique app for each session to ensure isolated workspaces
     const app = await appsRepo.create(user.id, title, 'private');
     const session = await sessionsRepo.create(user.id, title, app.id);
 
-    // Increment session count after successful creation
-    await rateLimiter.incrementSessionCount(user.id);
+    // Rate limiting disabled for local testing
+    // await rateLimiter.incrementSessionCount(user.id);
 
     await eventsRepo.log('session.created', { sessionId: session.id, title }, {
       sessionId: session.id,
@@ -146,26 +144,26 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
       return reply.code(404).send({ error: 'Session not found' });
     }
 
-    // Check rate limit for user messages only
-    if (role === 'user') {
-      const rateLimitCheck = await rateLimiter.checkMessageSending(id);
-      if (!rateLimitCheck.allowed) {
-        return reply.code(429).send({
-          error: 'Rate limit exceeded',
-          message: `You have reached your daily limit of ${rateLimitCheck.limit} messages per chat. Please try again after ${rateLimitCheck.resetsAt.toISOString()}.`,
-          current: rateLimitCheck.current,
-          limit: rateLimitCheck.limit,
-          resetsAt: rateLimitCheck.resetsAt.toISOString()
-        });
-      }
-    }
+    // Rate limiting disabled for local testing
+    // if (role === 'user') {
+    //   const rateLimitCheck = await rateLimiter.checkMessageSending(id);
+    //   if (!rateLimitCheck.allowed) {
+    //     return reply.code(429).send({
+    //       error: 'Rate limit exceeded',
+    //       message: `You have reached your daily limit of ${rateLimitCheck.limit} messages per chat. Please try again after ${rateLimitCheck.resetsAt.toISOString()}.`,
+    //       current: rateLimitCheck.current,
+    //       limit: rateLimitCheck.limit,
+    //       resetsAt: rateLimitCheck.resetsAt.toISOString()
+    //     });
+    //   }
+    // }
 
     const message = await messagesRepo.create(id, role, content, model, tokenCount);
 
-    // Increment message count for user messages only
-    if (role === 'user') {
-      await rateLimiter.incrementMessageCount(id);
-    }
+    // Rate limiting disabled for local testing
+    // if (role === 'user') {
+    //   await rateLimiter.incrementMessageCount(id);
+    // }
 
     await sessionsRepo.touchLastMessage(id);
 

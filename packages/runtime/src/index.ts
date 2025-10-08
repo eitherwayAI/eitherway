@@ -11,7 +11,7 @@ export { ConfigLoader } from './config.js';
 export { MetricsCollector } from './metrics.js';
 export { RateLimiter } from './rate-limiter.js';
 
-export type { AgentOptions } from './agent.js';
+export type { AgentOptions, StreamingCallbacks, StreamingPhase } from './agent.js';
 export type { DatabaseAgentOptions } from './database-agent.js';
 export type { ModelResponse, StreamDelta } from './model-client.js';
 export type { ToolMetrics } from './metrics.js';

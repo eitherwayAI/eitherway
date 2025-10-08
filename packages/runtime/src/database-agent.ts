@@ -1,4 +1,4 @@
-import { Agent, AgentOptions } from './agent.js';
+import { Agent, AgentOptions, StreamingCallbacks } from './agent.js';
 import type {
   DatabaseClient,
   Session,
@@ -52,7 +52,7 @@ export class DatabaseAgent {
     });
   }
 
-  async processRequest(prompt: string): Promise<string> {
+  async processRequest(prompt: string, callbacks?: StreamingCallbacks): Promise<string> {
     await this.eventsRepo.log('request.started', { prompt }, {
       sessionId: this.sessionId,
       actor: 'user'
@@ -110,7 +110,7 @@ export class DatabaseAgent {
     let tokenCount = 0;
 
     try {
-      response = await this.agent.processRequest(prompt);
+      response = await this.agent.processRequest(prompt, callbacks);
 
       const estimatedTokens = Math.ceil(response.length / 4);
       tokenCount = estimatedTokens;
