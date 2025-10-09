@@ -1,0 +1,282 @@
+/* Color Tokens Light Theme */
+:root,
+:root[data-theme='light'] {
+  /* Primary Brand Colors */
+  --eitherway-primary: #0d00ff;
+  --eitherway-primary-hover: #0b00e6;
+  --eitherway-primary-light: rgba(13, 0, 255, 0.1);
+  --eitherway-primary-dark: #0800cc;
+
+  --eitherway-elements-borderColor: #e6e6e6;
+  --eitherway-elements-borderColorActive: #21c352;
+
+  --eitherway-elements-bg-depth-1: #ffffff;
+  --eitherway-elements-bg-depth-2: #ffffff;
+  --eitherway-elements-bg-depth-3: #f8f8f8;
+  --eitherway-elements-bg-depth-4: rgba(0, 0, 0, 0.02);
+
+  --eitherway-elements-textPrimary: #000000;
+  --eitherway-elements-textSecondary: #666666;
+  --eitherway-elements-textTertiary: #999999;
+
+  --eitherway-elements-code-background: #e0e0e0;
+  --eitherway-elements-code-text: #000000;
+
+  --eitherway-elements-button-primary-background: rgba(255, 255, 255, 0.1);
+  --eitherway-elements-button-primary-backgroundHover: rgba(255, 255, 255, 0.2);
+  --eitherway-elements-button-primary-text: #000000;
+
+  --eitherway-elements-button-secondary-background: rgba(0, 0, 0, 0.05);
+  --eitherway-elements-button-secondary-backgroundHover: rgba(0, 0, 0, 0.1);
+  --eitherway-elements-button-secondary-text: #000000;
+
+  --eitherway-elements-button-danger-background: rgba(255, 82, 82, 0.1);
+  --eitherway-elements-button-danger-backgroundHover: rgba(255, 82, 82, 0.2);
+  --eitherway-elements-button-danger-text: #ff5252;
+
+  --eitherway-elements-item-contentDefault: rgba(0, 0, 0, 0.5);
+  --eitherway-elements-item-contentActive: #000000;
+  --eitherway-elements-item-contentAccent: #000000;
+  --eitherway-elements-item-contentDanger: #ff5252;
+  --eitherway-elements-item-backgroundDefault: rgba(0, 0, 0, 0);
+  --eitherway-elements-item-backgroundActive: rgba(0, 0, 0, 0.05);
+  --eitherway-elements-item-backgroundAccent: rgba(165, 165, 165, 0.1);
+  --eitherway-elements-item-backgroundDanger: rgba(255, 82, 82, 0.1);
+
+  --eitherway-elements-loader-background: rgba(255, 255, 255, 0.1);
+  --eitherway-elements-loader-progress: #ffffff;
+
+  --eitherway-elements-artifacts-background: #000000;
+  --eitherway-elements-artifacts-backgroundHover: rgba(255, 255, 255, 0.02);
+  --eitherway-elements-artifacts-borderColor: var(--eitherway-elements-borderColor);
+  --eitherway-elements-artifacts-inlineCode-background: #000000;
+  --eitherway-elements-artifacts-inlineCode-text: var(--eitherway-elements-textPrimary);
+
+  --eitherway-elements-actions-background: #000000;
+  --eitherway-elements-actions-code-background: #000000;
+
+  --eitherway-elements-messages-background: #000000;
+  --eitherway-elements-messages-linkColor: #ffffff;
+  --eitherway-elements-messages-code-background: #000000;
+  --eitherway-elements-messages-inlineCode-background: #000000;
+  --eitherway-elements-messages-inlineCode-text: #ffffff;
+
+  --eitherway-elements-icon-success: #000000;
+  --eitherway-elements-icon-error: #ff5252;
+  --eitherway-elements-icon-primary: #ffffff;
+  --eitherway-elements-icon-secondary: #666666;
+  --eitherway-elements-icon-tertiary: #999999;
+
+  --eitherway-elements-dividerColor: #333333;
+
+  --eitherway-elements-prompt-background: rgba(0, 0, 0, 0.8);
+
+  --eitherway-elements-sidebar-dropdownShadow: rgba(255, 255, 255, 0.1);
+  --eitherway-elements-sidebar-buttonBackgroundDefault: rgba(59, 59, 59, 0.1);
+  --eitherway-elements-sidebar-buttonBackgroundHover: rgba(85, 85, 85, 0.2);
+  --eitherway-elements-sidebar-buttonText: #000000;
+
+  --eitherway-elements-preview-addressBar-background: #000000;
+  --eitherway-elements-preview-addressBar-backgroundHover: rgba(255, 255, 255, 0.05);
+  --eitherway-elements-preview-addressBar-backgroundActive: #000000;
+  --eitherway-elements-preview-addressBar-text: var(--eitherway-elements-textSecondary);
+  --eitherway-elements-preview-addressBar-textActive: var(--eitherway-elements-textPrimary);
+
+  --eitherway-elements-terminals-background: #000000;
+  --eitherway-elements-terminals-buttonBackground: var(--eitherway-elements-bg-depth-4);
+
+  --eitherway-elements-cta-background: #000000;
+  --eitherway-elements-cta-text: #ffffff;
+
+  /* Terminal Colors */
+  --eitherway-terminal-background: var(--eitherway-elements-terminals-background);
+  --eitherway-terminal-foreground: #ffffff;
+  --eitherway-terminal-selection-background: rgba(255, 255, 255, 0.2);
+  --eitherway-terminal-black: #000000;
+  --eitherway-terminal-red: #ff5252;
+  --eitherway-terminal-green: #ffffff;
+  --eitherway-terminal-yellow: #ffc107;
+  --eitherway-terminal-blue: #2196f3;
+  --eitherway-terminal-magenta: #e91e63;
+  --eitherway-terminal-cyan: #00bcd4;
+  --eitherway-terminal-white: #ffffff;
+  --eitherway-terminal-brightBlack: #ffffff;
+  --eitherway-terminal-brightRed: #ff5252;
+  --eitherway-terminal-brightGreen: #ffffff;
+  --eitherway-terminal-brightYellow: #ffc107;
+  --eitherway-terminal-brightBlue: #2196f3;
+  --eitherway-terminal-brightMagenta: #e91e63;
+  --eitherway-terminal-brightCyan: #00bcd4;
+  --eitherway-terminal-brightWhite: #ffffff;
+}
+
+/* Color Tokens Dark Theme */
+:root,
+:root[data-theme='dark'] {
+  /* Primary Brand Colors */
+  --eitherway-primary: #0d00ff;
+  --eitherway-primary-hover: #0b00e6;
+  --eitherway-primary-light: rgba(13, 0, 255, 0.1);
+  --eitherway-primary-dark: #0800cc;
+
+  --eitherway-elements-borderColor: #333333;
+  --eitherway-elements-borderColorActive: #21c352;
+
+  --eitherway-elements-bg-depth-1: #000000;
+  --eitherway-elements-bg-depth-2: #000000;
+  --eitherway-elements-bg-depth-3: #000000;
+  --eitherway-elements-bg-depth-4: rgba(255, 255, 255, 0.02);
+
+  --eitherway-elements-textPrimary: #ffffff;
+  --eitherway-elements-textSecondary: #ffffff;
+  --eitherway-elements-textTertiary: #ffffff;
+
+  --eitherway-elements-code-background: #000000;
+  --eitherway-elements-code-text: #ffffff;
+
+  --eitherway-elements-button-primary-background: rgba(255, 255, 255, 0.1);
+  --eitherway-elements-button-primary-backgroundHover: rgba(255, 255, 255, 0.2);
+  --eitherway-elements-button-primary-text: #ffffff;
+
+  --eitherway-elements-button-secondary-background: rgba(255, 255, 255, 0.05);
+  --eitherway-elements-button-secondary-backgroundHover: rgba(255, 255, 255, 0.1);
+  --eitherway-elements-button-secondary-text: #ffffff;
+
+  --eitherway-elements-button-danger-background: rgba(255, 82, 82, 0.1);
+  --eitherway-elements-button-danger-backgroundHover: rgba(255, 82, 82, 0.2);
+  --eitherway-elements-button-danger-text: #ff5252;
+
+  --eitherway-elements-item-contentDefault: rgba(255, 255, 255, 0.5);
+  --eitherway-elements-item-contentActive: #ffffff;
+  --eitherway-elements-item-contentAccent: #ffffff;
+  --eitherway-elements-item-contentDanger: #ff5252;
+  --eitherway-elements-item-backgroundDefault: transparent;
+  --eitherway-elements-item-backgroundActive: rgba(255, 255, 255, 0.05);
+  --eitherway-elements-item-backgroundAccent: rgba(255, 255, 255, 0.1);
+  --eitherway-elements-item-backgroundDanger: rgba(255, 82, 82, 0.1);
+
+  --eitherway-elements-loader-background: rgba(255, 255, 255, 0.1);
+  --eitherway-elements-loader-progress: #ffffff;
+
+  --eitherway-elements-artifacts-background: #000000;
+  --eitherway-elements-artifacts-backgroundHover: rgba(255, 255, 255, 0.02);
+  --eitherway-elements-artifacts-borderColor: var(--eitherway-elements-borderColor);
+  --eitherway-elements-artifacts-inlineCode-background: #000000;
+  --eitherway-elements-artifacts-inlineCode-text: var(--eitherway-elements-textPrimary);
+
+  --eitherway-elements-actions-background: #000000;
+  --eitherway-elements-actions-code-background: #000000;
+
+  --eitherway-elements-messages-background: #000000;
+  --eitherway-elements-messages-linkColor: #ffffff;
+  --eitherway-elements-messages-code-background: #000000;
+  --eitherway-elements-messages-inlineCode-background: #000000;
+  --eitherway-elements-messages-inlineCode-text: #ffffff;
+
+  --eitherway-elements-icon-success: #ffffff;
+  --eitherway-elements-icon-error: #ff5252;
+  --eitherway-elements-icon-primary: #ffffff;
+  --eitherway-elements-icon-secondary: #ffffff;
+  --eitherway-elements-icon-tertiary: #ffffff;
+
+  --eitherway-elements-dividerColor: #333333;
+
+  --eitherway-elements-prompt-background: rgba(0, 0, 0, 0.8);
+
+  --eitherway-elements-sidebar-dropdownShadow: rgba(255, 255, 255, 0.1);
+  --eitherway-elements-sidebar-buttonBackgroundDefault: rgba(255, 255, 255, 0.1);
+  --eitherway-elements-sidebar-buttonBackgroundHover: rgba(255, 255, 255, 0.2);
+  --eitherway-elements-sidebar-buttonText: #ffffff;
+
+  --eitherway-elements-preview-addressBar-background: #000000;
+  --eitherway-elements-preview-addressBar-backgroundHover: rgba(255, 255, 255, 0.05);
+  --eitherway-elements-preview-addressBar-backgroundActive: #000000;
+  --eitherway-elements-preview-addressBar-text: var(--eitherway-elements-textSecondary);
+  --eitherway-elements-preview-addressBar-textActive: var(--eitherway-elements-textPrimary);
+
+  --eitherway-elements-terminals-background: #000000;
+  --eitherway-elements-terminals-buttonBackground: var(--eitherway-elements-bg-depth-4);
+
+  --eitherway-elements-cta-background: #000000;
+  --eitherway-elements-cta-text: #ffffff;
+
+  /* Terminal Colors */
+  --eitherway-terminal-background: var(--eitherway-elements-terminals-background);
+  --eitherway-terminal-foreground: #ffffff;
+  --eitherway-terminal-selection-background: rgba(255, 255, 255, 0.2);
+  --eitherway-terminal-black: #000000;
+  --eitherway-terminal-red: #ff5252;
+  --eitherway-terminal-green: #ffffff;
+  --eitherway-terminal-yellow: #ffc107;
+  --eitherway-terminal-blue: #2196f3;
+  --eitherway-terminal-magenta: #e91e63;
+  --eitherway-terminal-cyan: #00bcd4;
+  --eitherway-terminal-white: #ffffff;
+  --eitherway-terminal-brightBlack: #ffffff;
+  --eitherway-terminal-brightRed: #ff5252;
+  --eitherway-terminal-brightGreen: #ffffff;
+  --eitherway-terminal-brightYellow: #ffc107;
+  --eitherway-terminal-brightBlue: #2196f3;
+  --eitherway-terminal-brightMagenta: #e91e63;
+  --eitherway-terminal-brightCyan: #00bcd4;
+  --eitherway-terminal-brightWhite: #ffffff;
+}
+
+/*
+ * Element Tokens
+ *
+ * Hierarchy: Element Token -> (Element Token | Color Tokens) -> Primitives
+ */
+:root {
+  /* Font Families */
+  --font-righteous: 'Righteous', cursive;
+  --font-mono: 'Azeret Mono', ui-monospace, 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono',
+    'Courier New', monospace;
+
+  --header-height: 128px;
+  --chat-max-width: 37rem;
+  --chat-min-width: 640px;
+  --workbench-min-width: 600px;
+
+  /* До 1280px - тільки один режим (full width) */
+  /* Toasts */
+  --toastify-color-progress-success: #ffffff;
+  --toastify-color-progress-error: #ff5252;
+
+  /* Terminal */
+  --eitherway-elements-terminal-backgroundColor: var(--eitherway-terminal-background);
+
+  @media (max-width: 1279px) {
+    --workbench-width: calc(100vw - 48px);
+    --workbench-inner-width: var(--workbench-width);
+    --workbench-left: 24px;
+    --chat-width: 100%;
+  }
+
+  /* Після 1280px - звичайний режим */
+  @media (min-width: 1280px) {
+    --workbench-width: max(min(calc(100% - var(--chat-min-width)), 1536px), var(--workbench-min-width));
+    --workbench-inner-width: var(--workbench-width);
+    --workbench-left: calc(100% - var(--workbench-width));
+    --chat-width: var(--chat-min-width);
+  }
+  --eitherway-elements-terminal-textColor: var(--eitherway-terminal-foreground);
+  --eitherway-elements-terminal-cursorColor: var(--eitherway-terminal-foreground);
+  --eitherway-elements-terminal-selection-backgroundColor: var(--eitherway-terminal-selection-background);
+  --eitherway-elements-terminal-color-black: var(--eitherway-terminal-black);
+  --eitherway-elements-terminal-color-red: var(--eitherway-terminal-red);
+  --eitherway-elements-terminal-color-green: var(--eitherway-terminal-green);
+  --eitherway-elements-terminal-color-yellow: var(--eitherway-terminal-yellow);
+  --eitherway-elements-terminal-color-blue: var(--eitherway-terminal-blue);
+  --eitherway-elements-terminal-color-magenta: var(--eitherway-terminal-magenta);
+  --eitherway-elements-terminal-color-cyan: var(--eitherway-terminal-cyan);
+  --eitherway-elements-terminal-color-white: var(--eitherway-terminal-white);
+  --eitherway-elements-terminal-color-brightBlack: var(--eitherway-terminal-brightBlack);
+  --eitherway-elements-terminal-color-brightRed: var(--eitherway-terminal-brightRed);
+  --eitherway-elements-terminal-color-brightGreen: var(--eitherway-terminal-brightGreen);
+  --eitherway-elements-terminal-color-brightYellow: var(--eitherway-terminal-brightYellow);
+  --eitherway-elements-terminal-color-brightBlue: var(--eitherway-terminal-brightBlue);
+  --eitherway-elements-terminal-color-brightMagenta: var(--eitherway-terminal-brightMagenta);
+  --eitherway-elements-terminal-color-brightCyan: var(--eitherway-terminal-brightCyan);
+  --eitherway-elements-terminal-color-brightWhite: var(--eitherway-terminal-brightWhite);
+}

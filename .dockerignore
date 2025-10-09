@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.env
+*.log
+workspace
+*.md
+.vscode
+.DS_Store
+coverage
+*.test.ts
+*.spec.ts
+repomix-output.xml

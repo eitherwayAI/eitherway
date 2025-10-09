@@ -1,0 +1,135 @@
+:root {
+  --cm-backgroundColor: var(--eitherway-elements-editor-backgroundColor, var(--eitherway-elements-bg-depth-1));
+  --cm-textColor: var(--eitherway-elements-editor-textColor, var(--eitherway-elements-textPrimary));
+
+  /* Gutter */
+
+  --cm-gutter-backgroundColor: var(--eitherway-elements-editor-gutter-backgroundColor, var(--cm-backgroundColor));
+  --cm-gutter-textColor: var(--eitherway-elements-editor-gutter-textColor, var(--eitherway-elements-textSecondary));
+  --cm-gutter-activeLineTextColor: var(--eitherway-elements-editor-gutter-activeLineTextColor, var(--cm-gutter-textColor));
+
+  /* Fold Gutter */
+
+  --cm-foldGutter-textColor: var(--eitherway-elements-editor-foldGutter-textColor, var(--cm-gutter-textColor));
+  --cm-foldGutter-textColorHover: var(--eitherway-elements-editor-foldGutter-textColorHover, var(--cm-gutter-textColor));
+
+  /* Active Line */
+
+  --cm-activeLineBackgroundColor: var(--eitherway-elements-editor-activeLineBackgroundColor, rgb(224 231 235 / 30%));
+
+  /* Cursor */
+
+  --cm-cursor-width: 2px;
+  --cm-cursor-backgroundColor: var(--eitherway-elements-editor-cursorColor, var(--eitherway-elements-textSecondary));
+
+  /* Matching Brackets */
+
+  --cm-matching-bracket: var(--eitherway-elements-editor-matchingBracketBackgroundColor, rgb(50 140 130 / 0.3));
+
+  /* Selection */
+
+  --cm-selection-backgroundColorFocused: var(--eitherway-elements-editor-selection-backgroundColor, #42b4ff);
+  --cm-selection-backgroundOpacityFocused: var(--eitherway-elements-editor-selection-backgroundOpacity, 0.3);
+  --cm-selection-backgroundColorBlured: var(--eitherway-elements-editor-selection-inactiveBackgroundColor, #c9e9ff);
+  --cm-selection-backgroundOpacityBlured: var(--eitherway-elements-editor-selection-inactiveBackgroundOpacity, 0.3);
+
+  /* Panels */
+
+  --cm-panels-borderColor: var(--eitherway-elements-editor-panels-borderColor, var(--eitherway-elements-borderColor));
+
+  /* Search */
+
+  --cm-search-backgroundColor: var(--eitherway-elements-editor-search-backgroundColor, var(--cm-backgroundColor));
+  --cm-search-textColor: var(--eitherway-elements-editor-search-textColor, var(--eitherway-elements-textSecondary));
+  --cm-search-closeButton-backgroundColor: var(--eitherway-elements-editor-search-closeButton-backgroundColor, transparent);
+
+  --cm-search-closeButton-backgroundColorHover: var(
+    --eitherway-elements-editor-search-closeButton-backgroundColorHover,
+    var(--eitherway-elements-item-backgroundActive)
+  );
+
+  --cm-search-closeButton-textColor: var(
+    --eitherway-elements-editor-search-closeButton-textColor,
+    var(--eitherway-elements-item-contentDefault)
+  );
+
+  --cm-search-closeButton-textColorHover: var(
+    --eitherway-elements-editor-search-closeButton-textColorHover,
+    var(--eitherway-elements-item-contentActive)
+  );
+
+  --cm-search-button-backgroundColor: var(
+    --eitherway-elements-editor-search-button-backgroundColor,
+    var(--eitherway-elements-item-backgroundDefault)
+  );
+
+  --cm-search-button-backgroundColorHover: var(
+    --eitherway-elements-editor-search-button-backgroundColorHover,
+    var(--eitherway-elements-item-backgroundActive)
+  );
+
+  --cm-search-button-textColor: var(--eitherway-elements-editor-search-button-textColor, var(--eitherway-elements-textSecondary));
+
+  --cm-search-button-textColorHover: var(
+    --eitherway-elements-editor-search-button-textColorHover,
+    var(--eitherway-elements-textPrimary)
+  );
+
+  --cm-search-button-borderColor: var(--eitherway-elements-editor-search-button-borderColor, transparent);
+  --cm-search-button-borderColorHover: var(--eitherway-elements-editor-search-button-borderColorHover, transparent);
+
+  --cm-search-button-borderColorFocused: var(
+    --eitherway-elements-editor-search-button-borderColorFocused,
+    var(--eitherway-elements-borderColorActive)
+  );
+
+  --cm-search-input-backgroundColor: var(--eitherway-elements-editor-search-input-backgroundColor, transparent);
+  --cm-search-input-textColor: var(--eitherway-elements-editor-search-input-textColor, var(--eitherway-elements-textPrimary));
+  --cm-search-input-borderColor: var(--eitherway-elements-editor-search-input-borderColor, var(--eitherway-elements-borderColor));
+
+  --cm-search-input-borderColorFocused: var(
+    --eitherway-elements-editor-search-input-borderColorFocused,
+    var(--eitherway-elements-borderColorActive)
+  );
+
+  /* Tooltip */
+
+  --cm-tooltip-backgroundColor: var(--eitherway-elements-editor-tooltip-backgroundColor, var(--cm-backgroundColor));
+  --cm-tooltip-textColor: var(--eitherway-elements-editor-tooltip-textColor, var(--eitherway-elements-textPrimary));
+
+  --cm-tooltip-backgroundColorSelected: var(
+    --eitherway-elements-editor-tooltip-backgroundColorSelected,
+    theme('colors.alpha.accent.30')
+  );
+
+  --cm-tooltip-textColorSelected: var(
+    --eitherway-elements-editor-tooltip-textColorSelected,
+    var(--eitherway-elements-textPrimary)
+  );
+
+  --cm-tooltip-borderColor: var(--eitherway-elements-editor-tooltip-borderColor, var(--eitherway-elements-borderColor));
+
+  --cm-searchMatch-backgroundColor: var(--eitherway-elements-editor-searchMatch-backgroundColor, rgba(234, 92, 0, 0.33));
+}
+
+html[data-theme='light'] {
+  --eitherway-elements-editor-gutter-textColor: #237893;
+  --eitherway-elements-editor-gutter-activeLineTextColor: var(--eitherway-elements-textPrimary);
+  --eitherway-elements-editor-foldGutter-textColorHover: var(--eitherway-elements-textPrimary);
+  --eitherway-elements-editor-activeLineBackgroundColor: rgb(50 53 63 / 5%);
+  --eitherway-elements-editor-tooltip-backgroundColorSelected: theme('colors.alpha.accent.20');
+  --eitherway-elements-editor-search-button-backgroundColor: theme('colors.gray.100');
+  --eitherway-elements-editor-search-button-backgroundColorHover: theme('colors.alpha.gray.10');
+}
+
+html[data-theme='dark'] {
+  --cm-backgroundColor: var(--eitherway-elements-bg-depth-2);
+  --eitherway-elements-editor-gutter-textColor: var(--eitherway-elements-textTertiary);
+  --eitherway-elements-editor-gutter-activeLineTextColor: var(--eitherway-elements-textSecondary);
+  --eitherway-elements-editor-selection-inactiveBackgroundOpacity: 0.3;
+  --eitherway-elements-editor-activeLineBackgroundColor: rgb(50 53 63 / 50%);
+  --eitherway-elements-editor-foldGutter-textColorHover: var(--eitherway-elements-textPrimary);
+  --eitherway-elements-editor-matchingBracketBackgroundColor: rgba(66, 180, 255, 0.3);
+  --eitherway-elements-editor-search-button-backgroundColor: theme('colors.gray.800');
+  --eitherway-elements-editor-search-button-backgroundColorHover: theme('colors.alpha.white.10');
+}

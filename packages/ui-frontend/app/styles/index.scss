@@ -1,0 +1,133 @@
+@import './variables.scss';
+@import './z-index.scss';
+@import './animations.scss';
+@import './components/terminal.scss';
+@import './components/resize-handle.scss';
+@import './components/code.scss';
+@import './components/editor.scss';
+@import './components/toast.scss';
+
+html {
+  height: 100%;
+  width: 100%;
+  font-family: var(--font-mono); /* Azeret Mono за замовчуванням для всього тексту */
+  background-color: #000000;
+  color: #ffffff;
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+  scroll-behavior: smooth; /* Плавний скрол для якорних посилань */
+}
+
+body {
+  height: 100%;
+  width: 100%;
+  position: relative;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+}
+
+/* Font loading optimization */
+.fonts-loading * {
+  visibility: hidden;
+}
+
+.fonts-loaded * {
+  visibility: visible;
+  transition: visibility 0.1s ease-in-out;
+}
+
+/* Prevent header flickering during hydration */
+.header-transition {
+  transition: transform 0.5s ease-in-out;
+}
+
+/* Smooth mounting transition */
+.mounting {
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.mounted {
+  opacity: 1;
+}
+
+.font-syne {
+  font-family:
+    'Syne',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-display: block;
+}
+
+.font-montserrat {
+  font-family:
+    'Montserrat',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-display: block;
+}
+
+.font-righteous {
+  font-family:
+    'Righteous',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-display: block;
+}
+
+.font-mono {
+  font-family: 'Azeret Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  font-display: block;
+}
+
+/* Prevent FOUT (Flash of Unstyled Text) */
+.fonts-loading .font-syne,
+.fonts-loading .font-montserrat,
+.fonts-loading .font-righteous {
+  visibility: hidden;
+}
+
+.fonts-loaded .font-syne,
+.fonts-loaded .font-montserrat,
+.fonts-loaded .font-righteous {
+  visibility: visible;
+}
+
+/* Connect Wallet Button - адаптована під хедер чату */
+.connect-wallet {
+  padding: 0 20px;
+  height: 32px; /* Менша висота щоб вміщалась в хедер */
+  border: 1px solid #333333;
+  border-radius: 12px;
+  background: transparent;
+  font-family: 'Azeret Mono', monospace;
+  font-size: 12px;
+  line-height: 14px;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+}

@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fastify Streaming Test</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .header p {
+      opacity: 0.9;
+      font-size: 0.95rem;
+    }
+
+    .content {
+      padding: 2rem;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    label {
+      font-weight: 600;
+      color: #374151;
+      font-size: 0.875rem;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="range"] {
+      padding: 0.75rem;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus,
+    input[type="number"]:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    input[type="range"] {
+      padding: 0;
+      cursor: pointer;
+    }
+
+    .range-value {
+      display: inline-block;
+      background: #667eea;
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    button {
+      padding: 1rem;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+    }
+
+    .btn-success:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    }
+
+    .btn-warning {
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      color: white;
+    }
+
+    .btn-warning:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      color: white;
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+    }
+
+    .output-section {
+      margin-top: 2rem;
+    }
+
+    .output-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .output-header h3 {
+      font-size: 1.25rem;
+      color: #1f2937;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+
+    .status.idle {
+      background: #f3f4f6;
+      color: #6b7280;
+    }
+
+    .status.streaming {
+      background: #dbeafe;
+      color: #2563eb;
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .output {
+      background: #1f2937;
+      color: #f9fafb;
+      padding: 1.5rem;
+      border-radius: 8px;
+      min-height: 300px;
+      max-height: 500px;
+      overflow-y: auto;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 0.875rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    .output::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .output::-webkit-scrollbar-track {
+      background: #374151;
+      border-radius: 4px;
+    }
+
+    .output::-webkit-scrollbar-thumb {
+      background: #667eea;
+      border-radius: 4px;
+    }
+
+    .output::-webkit-scrollbar-thumb:hover {
+      background: #5568d3;
+    }
+
+    .output.empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #9ca3af;
+      font-style: italic;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+      padding: 1rem;
+      background: #f9fafb;
+      border-radius: 8px;
+    }
+
+    .stat {
+      text-align: center;
+    }
+
+    .stat-value {
+      display: block;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #667eea;
+      margin-bottom: 0.25rem;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🚀 Fastify Streaming Test</h1>
+      <p>Test SSE (Server-Sent Events) streaming endpoints</p>
+    </div>
+
+    <div class="content">
+      <!-- Controls -->
+      <div class="controls">
+        <div class="control-group">
+          <label for="prompt">Prompt (for POST/Wizard):</label>
+          <input type="text" id="prompt" value="Build a todo app" placeholder="Enter your prompt...">
+        </div>
+
+        <div class="control-group">
+          <label for="chunkSize">
+            Chunk Size: <span class="range-value" id="chunkSizeValue">20</span>
+          </label>
+          <input type="range" id="chunkSize" min="5" max="50" value="20">
+        </div>
+
+        <div class="control-group">
+          <label for="delayMs">
+            Delay (ms): <span class="range-value" id="delayMsValue">200</span>
+          </label>
+          <input type="range" id="delayMs" min="50" max="1000" step="50" value="200">
+        </div>
+      </div>
+
+      <!-- Buttons -->
+      <div class="buttons">
+        <button class="btn-primary" id="btnGet">
+          <span>📡</span> GET Stream
+        </button>
+        <button class="btn-success" id="btnPost">
+          <span>🤖</span> POST Agent
+        </button>
+        <button class="btn-warning" id="btnWizard">
+          <span>🧙</span> Wizard Stream
+        </button>
+        <button class="btn-danger" id="btnStop" disabled>
+          <span>⏹️</span> Stop
+        </button>
+      </div>
+
+      <!-- Output -->
+      <div class="output-section">
+        <div class="output-header">
+          <h3>Output</h3>
+          <div class="status idle" id="status">
+            <span class="status-dot"></span>
+            <span id="statusText">Idle</span>
+          </div>
+        </div>
+        <div class="output empty" id="output">(Click a button above to start streaming...)</div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats">
+        <div class="stat">
+          <span class="stat-value" id="statChunks">0</span>
+          <span class="stat-label">Chunks</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="statBytes">0</span>
+          <span class="stat-label">Bytes</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="statDuration">0s</span>
+          <span class="stat-label">Duration</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const BACKEND_URL = 'http://localhost:4000';
+    let eventSource = null;
+    let startTime = null;
+    let chunkCount = 0;
+    let byteCount = 0;
+
+    // Elements
+    const promptInput = document.getElementById('prompt');
+    const chunkSizeInput = document.getElementById('chunkSize');
+    const chunkSizeValue = document.getElementById('chunkSizeValue');
+    const delayMsInput = document.getElementById('delayMs');
+    const delayMsValue = document.getElementById('delayMsValue');
+    const output = document.getElementById('output');
+    const status = document.getElementById('status');
+    const statusText = document.getElementById('statusText');
+    const btnGet = document.getElementById('btnGet');
+    const btnPost = document.getElementById('btnPost');
+    const btnWizard = document.getElementById('btnWizard');
+    const btnStop = document.getElementById('btnStop');
+    const statChunks = document.getElementById('statChunks');
+    const statBytes = document.getElementById('statBytes');
+    const statDuration = document.getElementById('statDuration');
+
+    // Update range values
+    chunkSizeInput.addEventListener('input', (e) => {
+      chunkSizeValue.textContent = e.target.value;
+    });
+
+    delayMsInput.addEventListener('input', (e) => {
+      delayMsValue.textContent = e.target.value;
+    });
+
+    // Reset stats
+    function resetStats() {
+      chunkCount = 0;
+      byteCount = 0;
+      startTime = Date.now();
+      statChunks.textContent = '0';
+      statBytes.textContent = '0';
+      statDuration.textContent = '0s';
+      output.classList.remove('empty');
+      output.textContent = '';
+    }
+
+    // Update stats
+    function updateStats(text) {
+      chunkCount++;
+      byteCount += new Blob([text]).size;
+      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+
+      statChunks.textContent = chunkCount;
+      statBytes.textContent = byteCount;
+      statDuration.textContent = duration + 's';
+    }
+
+    // Set streaming state
+    function setStreaming(isStreaming) {
+      if (isStreaming) {
+        status.classList.remove('idle');
+        status.classList.add('streaming');
+        statusText.textContent = 'Streaming...';
+        btnGet.disabled = true;
+        btnPost.disabled = true;
+        btnWizard.disabled = true;
+        btnStop.disabled = false;
+      } else {
+        status.classList.remove('streaming');
+        status.classList.add('idle');
+        statusText.textContent = 'Idle';
+        btnGet.disabled = false;
+        btnPost.disabled = false;
+        btnWizard.disabled = false;
+        btnStop.disabled = true;
+      }
+    }
+
+    // Stop streaming
+    function stopStreaming() {
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
+      setStreaming(false);
+      output.textContent += '\n\n[Stream stopped by user]';
+    }
+
+    // GET Stream
+    btnGet.addEventListener('click', () => {
+      resetStats();
+      setStreaming(true);
+
+      const url = `${BACKEND_URL}/api/stream-test?chunkSize=${chunkSizeInput.value}&delayMs=${delayMsInput.value}`;
+
+      eventSource = new EventSource(url);
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          if (data.type === 'chunk') {
+            output.textContent += data.data;
+            updateStats(data.data);
+          } else if (data.type === 'complete') {
+            output.textContent += '\n\n✅ Stream complete!';
+            stopStreaming();
+          } else if (data.type === 'error') {
+            output.textContent += `\n\n❌ Error: ${data.error}`;
+            stopStreaming();
+          }
+        } catch (e) {
+          console.error('Parse error:', e);
+        }
+      };
+
+      eventSource.onerror = () => {
+        output.textContent += '\n\n❌ Connection error';
+        stopStreaming();
+      };
+    });
+
+    // POST Agent Stream
+    btnPost.addEventListener('click', async () => {
+      resetStats();
+      setStreaming(true);
+
+      const body = {
+        prompt: promptInput.value,
+        chunkSize: parseInt(chunkSizeInput.value),
+        delayMs: parseInt(delayMsInput.value)
+      };
+
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/stream-test`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.substring(6));
+
+                if (data.type === 'start') {
+                  output.textContent += `🤖 Agent started for: "${data.prompt}"\n\n`;
+                } else if (data.type === 'chunk') {
+                  output.textContent += data.data;
+                  updateStats(data.data);
+                } else if (data.type === 'complete') {
+                  output.textContent += '\n\n✅ Agent complete!';
+                  setStreaming(false);
+                }
+              } catch (e) {
+                console.error('Parse error:', e);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        output.textContent += `\n\n❌ Error: ${error.message}`;
+        setStreaming(false);
+      }
+    });
+
+    // Wizard Stream
+    btnWizard.addEventListener('click', () => {
+      resetStats();
+      setStreaming(true);
+
+      const url = `${BACKEND_URL}/api/wizard/stream?brief=${encodeURIComponent(promptInput.value)}&chunkSize=${chunkSizeInput.value}&delayMs=${delayMsInput.value}`;
+
+      eventSource = new EventSource(url);
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          if (data.type === 'suggestion') {
+            output.textContent += data.data;
+            updateStats(data.data);
+          } else if (data.type === 'complete') {
+            output.textContent += `\n\n✅ Wizard complete! (${data.duration}ms)`;
+            stopStreaming();
+          } else if (data.type === 'error') {
+            output.textContent += `\n\n❌ Error: ${data.error}`;
+            stopStreaming();
+          }
+        } catch (e) {
+          console.error('Parse error:', e);
+        }
+      };
+
+      eventSource.onerror = () => {
+        output.textContent += '\n\n❌ Connection error';
+        stopStreaming();
+      };
+    });
+
+    // Stop button
+    btnStop.addEventListener('click', stopStreaming);
+  </script>
+</body>
+</html>

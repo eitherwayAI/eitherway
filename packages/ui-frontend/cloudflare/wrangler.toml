@@ -1,0 +1,10 @@
+name = "eitherway-proxy"
+main = "src/worker.ts"
+compatibility_date = "2024-11-01"
+account_id = "18a6d34511186eed9ebc4a93a46a1f7f"
+
+routes = [
+  { pattern = "eitherway.ai/*", zone_id = "9f95dbfa3ac569902533b7a38a5a319b" },
+  { pattern = "preview.eitherway.ai/*", zone_id = "9f95dbfa3ac569902533b7a38a5a319b" }
+]
+
