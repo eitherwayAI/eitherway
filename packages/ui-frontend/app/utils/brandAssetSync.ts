@@ -5,9 +5,9 @@
 
 import type { WebContainer } from '@webcontainer/api';
 import { createScopedLogger } from './logger';
+import { BACKEND_URL } from '~/config/api';
 
 const logger = createScopedLogger('BrandAssetSync');
-const BACKEND_URL = typeof window !== 'undefined' ? 'https://localhost:3001' : 'https://localhost:3001';
 
 interface BrandAsset {
   id: string;

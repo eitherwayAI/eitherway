@@ -22,8 +22,9 @@ export interface StreamController {
   send: (message: any) => void;
 }
 
-const BACKEND_URL =
-  typeof window !== 'undefined' ? 'wss://localhost:3001' : 'wss://localhost:3001';
+import { WEBSOCKET_URL } from '~/config/api';
+
+const BACKEND_URL = WEBSOCKET_URL;
 
 /**
  * Stream from WebSocket backend

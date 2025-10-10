@@ -39,12 +39,12 @@ print_info "Starting PostgreSQL with Docker..."
 # Stop existing container if running
 if docker ps -a --format '{{.Names}}' | grep -q "^eitherway-postgres$"; then
     print_info "Stopping existing PostgreSQL container..."
-    docker-compose down
+    docker compose down
 fi
 
 # Start PostgreSQL
 print_info "Starting PostgreSQL container..."
-docker-compose up -d postgres
+docker compose up -d postgres
 
 # Wait for PostgreSQL to be ready
 print_info "Waiting for PostgreSQL to be ready..."

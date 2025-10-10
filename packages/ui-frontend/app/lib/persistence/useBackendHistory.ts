@@ -3,9 +3,9 @@ import { useState, useEffect } from 'react';
 import type { Message } from 'ai';
 import { toast } from 'react-toastify';
 import { createScopedLogger } from '~/utils/logger';
+import { BACKEND_URL } from '~/config/api';
 
 const logger = createScopedLogger('BackendHistory');
-const BACKEND_URL = typeof window !== 'undefined' ? 'https://localhost:3001' : 'https://localhost:3001';
 
 export interface BackendMessage {
   id: string;

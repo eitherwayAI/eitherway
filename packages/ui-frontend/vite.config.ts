@@ -10,6 +10,7 @@ export default defineConfig((config) => {
     server: {
       port: parseInt(process.env.PORT || '5173'),
       host: '0.0.0.0',
+      allowedHosts: ['dev.eitherway.ai', 'localhost', '127.0.0.1'],
       proxy: {
         '/api': {
           target: 'https://localhost:3001',
@@ -21,6 +22,7 @@ export default defineConfig((config) => {
     preview: {
       port: parseInt(process.env.PORT || '5173'),
       host: '0.0.0.0',
+      allowedHosts: ['dev.eitherway.ai', 'localhost', '127.0.0.1'],
       proxy: {
         '/api': {
           target: 'https://localhost:3001',

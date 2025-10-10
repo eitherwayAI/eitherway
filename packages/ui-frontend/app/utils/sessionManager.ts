@@ -4,8 +4,7 @@
  */
 
 import { brandKitStore } from '~/lib/stores/brandKit';
-
-const BACKEND_URL = typeof window !== 'undefined' ? 'https://localhost:3001' : 'https://localhost:3001';
+import { BACKEND_URL } from '~/config/api';
 
 interface Session {
   id: string;

@@ -19,6 +19,7 @@ import { syncBrandAssetsToWebContainer } from '~/utils/brandAssetSync';
 import { webcontainer } from '~/lib/webcontainer/index';
 import { runDevServer } from '~/utils/webcontainerRunner';
 import { BaseChat } from './BaseChat';
+import { BACKEND_URL } from '~/config/api';
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
@@ -184,7 +185,6 @@ async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: st
     // 3) Push to the server session workspace
     let serverSynced = 0;
     const serverFailed: string[] = [];
-    const BACKEND_URL = 'https://localhost:3001';
 
     for (const asset of assets) {
       try {

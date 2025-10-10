@@ -11,6 +11,7 @@ import { binDates } from './date-binning';
 import { useStore } from '@nanostores/react';
 import { sidebarStore, openSidebar, closeSidebar } from '~/lib/stores/sidebar';
 import { clearSession } from '~/utils/sessionManager';
+import { BACKEND_URL } from '~/config/api';
 
 const menuVariants = {
   closed: {
@@ -44,8 +45,6 @@ export function Menu() {
 
   const loadEntries = useCallback(async () => {
     try {
-      const BACKEND_URL = 'https://localhost:3001';
-
       // First get user ID from email
       const userResponse = await fetch(`${BACKEND_URL}/api/users?email=user@eitherway.app`);
       if (!userResponse.ok) {
@@ -79,7 +78,6 @@ export function Menu() {
     event.preventDefault();
 
     try {
-      const BACKEND_URL = 'https://localhost:3001';
       const response = await fetch(`${BACKEND_URL}/api/sessions/${item.id}`, {
         method: 'DELETE',
       });

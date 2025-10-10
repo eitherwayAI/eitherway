@@ -64,15 +64,15 @@ const fastify = Fastify({
 });
 
 // Enable CORS
-await fastify.register(cors, {
+await fastify.register(cors as any, {
   origin: true
 });
 
 // Enable WebSocket
-await fastify.register(websocket);
+await fastify.register(websocket as any);
 
 // Enable Multipart (for file uploads)
-await fastify.register(multipart, {
+await fastify.register(multipart as any, {
   limits: {
     fileSize: 200 * 1024 * 1024 // 200MB max (for ZIP brand packages)
   }
@@ -482,7 +482,7 @@ fastify.post<{
 fastify.register(async (fastify) => {
   fastify.get<{
     Querystring: { sessionId?: string };
-  }>('/api/agent', { websocket: true }, async (connection, request) => {
+  }>('/api/agent', { websocket: true } as any, async (connection: any, request: any) => {
     const { sessionId } = request.query;
 
     // Create event sender for this connection
@@ -618,7 +618,7 @@ fastify.register(async (fastify) => {
                 // Get content as string (handle both Buffer and string)
                 const contentStr = typeof brandKitFile.content === 'string'
                   ? brandKitFile.content
-                  : brandKitFile.content.toString('utf-8');
+                  : (brandKitFile.content as any).toString('utf-8');
 
                 const brandKit = JSON.parse(contentStr);
                 console.log('[Brand Kit] Parsed brand kit:', JSON.stringify(brandKit).substring(0, 200));

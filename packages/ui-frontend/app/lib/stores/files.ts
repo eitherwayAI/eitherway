@@ -17,6 +17,7 @@ import { WORK_DIR } from '~/utils/constants';
 import { computeFileModifications } from '~/utils/diff';
 import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
+import { BACKEND_URL } from '~/config/api';
 
 const logger = createScopedLogger('FilesStore');
 
@@ -169,7 +170,6 @@ export class FilesStore {
       throw new Error(error);
     }
 
-    const BACKEND_URL = typeof window !== 'undefined' ? 'https://localhost:3001' : 'https://localhost:3001';
     const url = `${BACKEND_URL}/api/sessions/${sessionId}/files/write`;
 
     console.log('[FilesStore] 📡 POST', url);
