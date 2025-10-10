@@ -605,8 +605,64 @@ fastify.register(async (fastify) => {
               }
             };
 
-            // Process request with streaming
-            response = await dbAgent.processRequest(data.prompt, streamingCallbacks);
+            // Check for brand kit and enhance prompt if available
+            let enhancedPrompt = data.prompt;
+            console.log('[Brand Kit] Checking for brand-kit.json in app:', appId);
+            try {
+              const brandKitFile = await fileStore.read(appId, 'brand-kit.json');
+              if (brandKitFile && brandKitFile.content) {
+                // Get content as string (handle both Buffer and string)
+                const contentStr = typeof brandKitFile.content === 'string'
+                  ? brandKitFile.content
+                  : brandKitFile.content.toString('utf-8');
+
+                const brandKit = JSON.parse(contentStr);
+                console.log('[Brand Kit] Parsed brand kit:', JSON.stringify(brandKit).substring(0, 200));
+
+                if (brandKit.brandKit) {
+                  const { colors, assets } = brandKit.brandKit;
+
+                  // Build brand kit context
+                  let brandContext = '\n\n🎨 BRAND KIT AVAILABLE:\n';
+
+                  if (colors && colors.length > 0) {
+                    brandContext += '\nColor Palette:\n';
+                    colors.forEach((color: any) => {
+                      brandContext += `- ${color.hex}`;
+                      if (color.name) brandContext += ` (${color.name})`;
+                      if (color.role) brandContext += ` - ${color.role}`;
+                      if (color.prominence) brandContext += ` [${Math.round(color.prominence * 100)}% prominence]`;
+                      brandContext += '\n';
+                    });
+                  }
+
+                  if (assets && assets.length > 0) {
+                    brandContext += '\nBrand Assets:\n';
+                    assets.forEach((asset: any) => {
+                      if (asset.path) {
+                        brandContext += `- ${asset.fileName} (${asset.type}) at ${asset.path}\n`;
+                      }
+                    });
+                  }
+
+                  brandContext += '\n⚠️ IMPORTANT: Use these brand colors and assets in your design. The color palette should be your primary color scheme, and brand assets should be integrated where appropriate.\n';
+
+                  // Prepend brand context to the user's prompt
+                  enhancedPrompt = brandContext + data.prompt;
+                  console.log('[Brand Kit] ✅ Injected brand kit context into prompt!');
+                  console.log('[Brand Kit] Enhanced prompt preview:', enhancedPrompt.substring(0, 300));
+                }
+              } else {
+                console.log('[Brand Kit] No brand-kit.json found in workspace');
+              }
+            } catch (error) {
+              // Brand kit not found or error reading it - continue without it
+              console.log('[Brand Kit] Error reading brand kit:', error instanceof Error ? error.message : 'Unknown error');
+              console.error('[Brand Kit] Full error:', error);
+            }
+
+            // Process request with streaming (using enhanced prompt if brand kit exists)
+            response = await dbAgent.processRequest(enhancedPrompt, streamingCallbacks);
 
             // Send stream_end event with token usage
             sender.send(StreamEvents.streamEnd(messageId, tokenUsage));

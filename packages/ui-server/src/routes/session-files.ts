@@ -187,6 +187,84 @@ export async function registerSessionFileRoutes(
     }
   });
 
+  // New: write-binary route for brand assets and other binary files
+  // Set higher body limit for large brand assets (50MB base64 encoded = ~37MB actual file)
+  fastify.post<{
+    Params: { sessionId: string };
+    Body: { path: string; contentBase64: string; mimeType?: string };
+  }>('/api/sessions/:sessionId/files/write-binary', {
+    bodyLimit: 50 * 1024 * 1024 // 50MB limit for base64-encoded files
+  }, async (request, reply) => {
+    const { sessionId } = request.params;
+    const { path, contentBase64, mimeType } = request.body;
+
+    console.log('[Session Files] POST /files/write-binary - Session:', sessionId, 'Path:', path);
+
+    if (!path) {
+      return reply.code(400).send({ error: 'path is required' });
+    }
+
+    if (!contentBase64) {
+      return reply.code(400).send({ error: 'contentBase64 is required' });
+    }
+
+    const session = await sessionsRepo.findById(sessionId);
+
+    if (!session) {
+      console.error('[Session Files] Session not found:', sessionId);
+      return reply.code(404).send({ error: 'Session not found' });
+    }
+
+    // Auto-create app_id if it doesn't exist
+    let appId = session.app_id;
+    if (!appId) {
+      console.log('[Session Files] ⚠️  Session has no app_id, creating one...');
+
+      try {
+        const { AppsRepository } = await import('@eitherway/database');
+        const appsRepo = new AppsRepository(db);
+
+        const appTitle = session.title || 'Generated App';
+        const app = await appsRepo.create(session.user_id, appTitle, 'private');
+        appId = app.id;
+
+        await sessionsRepo.update(sessionId, { app_id: appId } as any);
+
+        console.log('[Session Files] ✅ Created app:', appId, 'for session:', sessionId);
+      } catch (error: any) {
+        console.error('[Session Files] ❌ Failed to create app:', error);
+        return reply.code(500).send({ error: `Failed to create application workspace: ${error.message}` });
+      }
+    } else {
+      console.log('[Session Files] Using existing app_id:', appId);
+    }
+
+    try {
+      // Decode base64 to Buffer
+      const bytes = Buffer.from(contentBase64, 'base64');
+      console.log('[Session Files] Writing binary file to database...', path, 'Size:', bytes.length, 'bytes');
+
+      await fileStore.write(appId, path, bytes, mimeType);
+      console.log('[Session Files] ✅ Binary file written successfully');
+
+      await eventsRepo.log('file.upserted', { path }, {
+        sessionId,
+        appId,
+        actor: 'user'
+      });
+
+      return {
+        success: true,
+        path,
+        size: bytes.length,
+        message: 'Binary file saved successfully'
+      };
+    } catch (error: any) {
+      console.error('[Session Files] ❌ Error writing binary file:', error);
+      return reply.code(500).send({ error: error.message });
+    }
+  });
+
   fastify.post<{
     Params: { sessionId: string };
     Body: { oldPath: string; newPath: string };

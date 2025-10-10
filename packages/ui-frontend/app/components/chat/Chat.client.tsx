@@ -6,12 +6,14 @@ import { cssTransition, toast, ToastContainer } from 'react-toastify';
 import { useShortcuts, useSnapScroll } from '~/lib/hooks';
 import { useBackendHistory } from '~/lib/persistence/useBackendHistory';
 import { chatStore } from '~/lib/stores/chat';
+import { brandKitStore } from '~/lib/stores/brandKit';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger } from '~/utils/logger';
 import { streamFromWebSocket, type StreamController } from '~/utils/websocketClient';
 import { getOrCreateSession, clearSession } from '~/utils/sessionManager';
 import { syncFilesToWebContainer } from '~/utils/fileSync';
+import { syncBrandAssetsToWebContainer } from '~/utils/brandAssetSync';
 import { webcontainer } from '~/lib/webcontainer/index';
 import { runDevServer } from '~/utils/webcontainerRunner';
 import { BaseChat } from './BaseChat';
@@ -22,6 +24,198 @@ const toastAnimation = cssTransition({
 });
 
 const logger = createScopedLogger('Chat');
+
+/**
+ * Helper: Determine destination path for a brand asset based on its type
+ */
+function getAssetDestinationPath(asset: any): string {
+  const kind = asset.metadata?.kind || asset.assetType;
+  const fileName = asset.fileName;
+
+  switch (kind) {
+    case 'icon':
+      return `public/${fileName}`;
+    case 'logo':
+    case 'image':
+      return `public/assets/${fileName}`;
+    case 'font':
+      return `public/fonts/${fileName}`;
+    case 'video':
+      return `public/videos/${fileName}`;
+    case 'brand_zip':
+      return ''; // Skip ZIPs
+    default:
+      return `public/brand/${fileName}`;
+  }
+}
+
+/**
+ * Helper: Convert ArrayBuffer to base64 string
+ */
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+/**
+ * Ensure brand assets are synced to both client WebContainer and server session workspace
+ * before starting a new streaming request
+ */
+async function ensureBrandAssetsSyncedBeforeStream(sessionId: string) {
+  // Get brand kit ID from store (persisted in localStorage)
+  let { pendingBrandKitId } = brandKitStore.get();
+
+  // If no brand kit in store, try to fetch user's active brand kit
+  if (!pendingBrandKitId) {
+    try {
+      // Try wallet address first, fallback to default user
+      const walletAddress = localStorage.getItem('walletAddress');
+      const userId = walletAddress || 'user@eitherway.app';
+
+      logger.debug('Fetching active brand kit for user:', userId);
+      const response = await fetch(`/api/brand-kits/user/${encodeURIComponent(userId)}/active`);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.brandKit) {
+          pendingBrandKitId = data.brandKit.id;
+          brandKitStore.setKey('pendingBrandKitId', pendingBrandKitId);
+          logger.info('Fetched and set user active brand kit:', pendingBrandKitId);
+        }
+      } else if (response.status !== 404) {
+        logger.debug('No active brand kit found for user');
+      }
+    } catch (error) {
+      logger.debug('Error fetching active brand kit:', error);
+    }
+  }
+
+  // If still no brand kit, nothing to sync
+  if (!pendingBrandKitId) {
+    logger.debug('No brand kit to sync');
+    return;
+  }
+
+  try {
+    // 1) Fetch the latest kit with assets (from UI server)
+    logger.info('Syncing brand kit assets before stream:', pendingBrandKitId);
+    const res = await fetch(`/api/brand-kits/${pendingBrandKitId}`);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch brand kit: ${res.statusText}`);
+    }
+    const data = await res.json();
+    const assets = data?.brandKit?.assets ?? [];
+
+    if (assets.length === 0) {
+      logger.info('No assets to sync');
+      brandKitStore.setKey('dirty', false);
+      return;
+    }
+
+    // 2) Sync into client WebContainer
+    const wc = await webcontainer;
+    const result = await syncBrandAssetsToWebContainer(wc, assets);
+    logger.info(`✓ Synced ${result.synced} assets to client WebContainer`);
+
+    // 3) Push to the server session workspace
+    let serverSynced = 0;
+    const BACKEND_URL = 'https://localhost:3001';
+
+    for (const asset of assets) {
+      try {
+        const destPath = getAssetDestinationPath(asset);
+        if (!destPath) {
+          logger.debug(`Skipping asset (no destination): ${asset.fileName}`);
+          continue;
+        }
+
+        // Fetch asset bytes from storage
+        const assetRes = await fetch(`${BACKEND_URL}/api/brand-assets/download/${encodeURIComponent(asset.storageKey)}`);
+        if (!assetRes.ok) {
+          throw new Error(`Failed to fetch asset: ${assetRes.statusText}`);
+        }
+        const assetBuffer = await assetRes.arrayBuffer();
+
+        // Convert to base64
+        const base64Content = arrayBufferToBase64(assetBuffer);
+
+        // POST to server write-binary endpoint
+        const writeRes = await fetch(`/api/sessions/${sessionId}/files/write-binary`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            path: destPath,
+            contentBase64: base64Content,
+            mimeType: asset.mimeType
+          })
+        });
+
+        if (!writeRes.ok) {
+          const errorData = await writeRes.json().catch(() => ({ error: writeRes.statusText }));
+          throw new Error(`Failed to write to server: ${errorData.error || writeRes.statusText}`);
+        }
+
+        logger.debug(`✓ Server synced: ${destPath}`);
+        serverSynced++;
+      } catch (error) {
+        logger.error(`Failed to sync asset ${asset.fileName} to server:`, error);
+        // Continue with other assets
+      }
+    }
+
+    logger.info(`✓ Synced ${serverSynced} assets to server workspace`);
+
+    // 4) Create brand kit manifest with color palette for the agent
+    const colors = data?.brandKit?.colors ?? [];
+    if (colors.length > 0) {
+      const manifest = {
+        brandKit: {
+          id: pendingBrandKitId,
+          colors: colors.map((c: any) => ({
+            hex: c.hex,
+            name: c.name,
+            role: c.role,
+            prominence: c.prominence
+          })),
+          assets: assets.map((a: any) => ({
+            fileName: a.fileName,
+            type: a.assetType,
+            path: getAssetDestinationPath(a)
+          }))
+        }
+      };
+
+      const manifestJson = JSON.stringify(manifest, null, 2);
+
+      try {
+        const manifestRes = await fetch(`/api/sessions/${sessionId}/files/write`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            path: 'brand-kit.json',
+            content: manifestJson,
+            mimeType: 'application/json'
+          })
+        });
+
+        if (manifestRes.ok) {
+          logger.info('✓ Brand kit manifest created with color palette');
+        }
+      } catch (error) {
+        logger.error('Failed to write brand kit manifest:', error);
+      }
+    }
+
+    brandKitStore.setKey('dirty', false);
+  } catch (error) {
+    logger.error('Failed to sync brand assets:', error);
+    toast.error('Failed to sync brand assets. They may not be available in the workspace.');
+  }
+}
 
 export function Chat() {
 
@@ -330,6 +524,9 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
 
       // Store session ID in chat store for export/deployment
       chatStore.setKey('sessionId', session.id);
+
+      // Ensure brand assets are synced before starting stream
+      await ensureBrandAssetsSyncedBeforeStream(session.id);
 
       const controller = await streamFromWebSocket({
         prompt: _input,

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useStore } from '@nanostores/react';
 import { authStore } from '~/lib/stores/auth';
+import { chatStore } from '~/lib/stores/chat';
+import { brandKitStore } from '~/lib/stores/brandKit';
 import { useWalletConnection } from '~/lib/web3/hooks';
 import { webcontainer } from '~/lib/webcontainer/index';
 import { syncBrandAssetsToWebContainer } from '~/utils/brandAssetSync';
@@ -42,8 +44,11 @@ interface BrandKitData {
 
 export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
   const user = useStore(authStore.user);
+  const chat = useStore(chatStore);
+  const agentWorking = !!chat.currentPhase && chat.currentPhase !== 'completed';
   const { isConnected, address } = useWalletConnection();
   const [isUploading, setIsUploading] = useState(false);
+  const [isLoadingExisting, setIsLoadingExisting] = useState(true);
   const [uploadProgress, setUploadProgress] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [brandKitData, setBrandKitData] = useState<BrandKitData | null>(null);
@@ -51,6 +56,45 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
 
   // Use email if authenticated, otherwise use wallet address
   const userId = user?.email || (isConnected && address ? address : null);
+
+  // Load existing brand kit on mount
+  useEffect(() => {
+    const loadExistingBrandKit = async () => {
+      if (!userId) {
+        setIsLoadingExisting(false);
+        return;
+      }
+
+      try {
+        // Try to fetch user's active brand kit
+        const response = await fetch(`/api/brand-kits/user/${encodeURIComponent(userId)}/active`);
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.brandKit) {
+            setBrandKitData(data.brandKit);
+            setCurrentBrandKitId(data.brandKit.id);
+
+            // Update brandKitStore
+            brandKitStore.setKey('pendingBrandKitId', data.brandKit.id);
+
+            logger.info('Loaded existing brand kit:', data.brandKit.id);
+          }
+        } else if (response.status === 404) {
+          // No existing brand kit - this is fine
+          logger.info('No existing brand kit found for user');
+        } else {
+          logger.error('Failed to load existing brand kit:', response.statusText);
+        }
+      } catch (err: any) {
+        logger.error('Error loading existing brand kit:', err);
+      } finally {
+        setIsLoadingExisting(false);
+      }
+    };
+
+    loadExistingBrandKit();
+  }, [userId]);
 
   // Fetch brand kit data with assets and colors
   const fetchBrandKitData = async (brandKitId: string) => {
@@ -83,38 +127,46 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
     setUploadProgress([]);
 
     try {
-      // Step 1: Create or get a brand kit
-      const brandKitName = `Brand Kit - ${new Date().toLocaleDateString()}`;
-      console.log('[BrandKitPanel] Creating brand kit with userId:', userId);
+      // Step 1: Get or create a brand kit
+      let brandKitId = currentBrandKitId;
 
-      const createResponse = await fetch('/api/brand-kits', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: userId,
-          name: brandKitName,
-          description: 'Auto-generated brand kit from upload'
-        })
-      });
+      // If no existing brand kit, create one
+      if (!brandKitId) {
+        const brandKitName = `Brand Kit - ${new Date().toLocaleDateString()}`;
+        console.log('[BrandKitPanel] Creating new brand kit with userId:', userId);
 
-      console.log('[BrandKitPanel] Create response status:', createResponse.status);
+        const createResponse = await fetch('/api/brand-kits', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: userId,
+            name: brandKitName,
+            description: 'Auto-generated brand kit from upload'
+          })
+        });
 
-      if (!createResponse.ok) {
-        const contentType = createResponse.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const errorData = await createResponse.json();
-          const errorMsg = errorData.error || 'Failed to create brand kit';
-          const errorDetails = errorData.details || errorData.message || '';
-          throw new Error(`${errorMsg}${errorDetails ? `: ${errorDetails}` : ''}`);
-        } else {
-          const text = await createResponse.text();
-          throw new Error(`Failed to create brand kit: ${text || `HTTP ${createResponse.status}`}`);
+        console.log('[BrandKitPanel] Create response status:', createResponse.status);
+
+        if (!createResponse.ok) {
+          const contentType = createResponse.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const errorData = await createResponse.json();
+            const errorMsg = errorData.error || 'Failed to create brand kit';
+            const errorDetails = errorData.details || errorData.message || '';
+            throw new Error(`${errorMsg}${errorDetails ? `: ${errorDetails}` : ''}`);
+          } else {
+            const text = await createResponse.text();
+            throw new Error(`Failed to create brand kit: ${text || `HTTP ${createResponse.status}`}`);
+          }
         }
-      }
 
-      const { brandKit } = await createResponse.json();
-      const brandKitId = brandKit.id;
-      setCurrentBrandKitId(brandKitId);
+        const { brandKit } = await createResponse.json();
+        brandKitId = brandKit.id;
+        setCurrentBrandKitId(brandKitId);
+        console.log('[BrandKitPanel] New brand kit created:', brandKitId);
+      } else {
+        console.log('[BrandKitPanel] Reusing existing brand kit:', brandKitId);
+      }
 
       // Step 2: Upload each file
       const uploadPromises = Array.from(files).map(async (file) => {
@@ -160,19 +212,9 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
 
       setUploadProgress(prev => [...prev, '✓ Brand kit created successfully!']);
 
-      // Sync assets to WebContainer
-      if (kitData && kitData.assets && kitData.assets.length > 0) {
-        try {
-          setUploadProgress(prev => [...prev, 'Syncing assets to WebContainer...']);
-          const wc = await webcontainer;
-          const result = await syncBrandAssetsToWebContainer(wc, kitData.assets as any);
-          setUploadProgress(prev => [...prev, `✓ Synced ${result.synced} assets to WebContainer`]);
-          logger.info('Brand assets synced to WebContainer:', result);
-        } catch (err: any) {
-          logger.error('Failed to sync assets to WebContainer:', err);
-          setUploadProgress(prev => [...prev, `⚠ Warning: Could not sync assets to WebContainer`]);
-        }
-      }
+      // Mark assets pending for sync. We'll materialize them at the next prompt.
+      brandKitStore.setKey('pendingBrandKitId', brandKitId);
+      brandKitStore.setKey('dirty', true);
 
     } catch (err: any) {
       console.error('Brand kit upload error:', err);
@@ -211,12 +253,13 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
                 accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/x-icon,.ico,.ttf,.otf,.woff,.woff2,.zip,.mp4,video/mp4"
                 multiple
                 onChange={(e) => handleFileUpload(e.target.files)}
-                disabled={isUploading}
+                disabled={isUploading || agentWorking}
               />
               <label
                 htmlFor="brand-kit-upload"
+                title={agentWorking ? 'Wait for the agent to finish before uploading' : 'Choose files'}
                 className={`inline-block px-6 py-3 rounded-lg cursor-pointer transition-colors ${
-                  isUploading
+                  (isUploading || agentWorking)
                     ? 'bg-gray-600 cursor-not-allowed'
                     : 'bg-blue-600 hover:bg-blue-700'
                 } text-white`}

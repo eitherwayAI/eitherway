@@ -267,10 +267,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     <div className="flex justify-between text-sm p-4 pt-2">
                       <div className="flex gap-1 items-center">
                         <IconButton
-                          title="Upload brand assets"
+                          title={isStreaming ? 'Brand kit disabled while agent is working' : 'Upload brand assets'}
+                          disabled={isStreaming}
                           className="text-eitherway-elements-textTertiary hover:text-eitherway-elements-textPrimary"
                           onClick={() => {
-                            // Trigger brand kit upload modal
                             window.dispatchEvent(new CustomEvent('open-brand-kit'));
                           }}
                         >

@@ -156,6 +156,88 @@ export async function registerBrandKitRoutes(
   });
 
   /**
+   * GET /api/brand-kits/user/:userId/active
+   * Get user's most recent active brand kit
+   */
+  fastify.get<{
+    Params: { userId: string };
+  }>('/api/brand-kits/user/:userId/active', async (request, reply) => {
+    const { userId } = request.params;
+
+    try {
+      // Convert wallet address to email format if needed
+      const emailToUse = userId.startsWith('0x') ? `${userId}@wallet.local` : userId;
+
+      // Find user
+      const userRecord = await usersRepo.findByEmail(emailToUse);
+      if (!userRecord) {
+        return reply.code(404).send({
+          error: 'User not found',
+          userId
+        });
+      }
+
+      // Get all active brand kits for user, sorted by creation date (newest first)
+      const brandKits = await brandKitsRepo.findByUserId(userRecord.id, 'active');
+
+      if (brandKits.length === 0) {
+        return reply.code(404).send({
+          error: 'No active brand kit found',
+          userId
+        });
+      }
+
+      // Return most recent brand kit with full details
+      const latestKit = brandKits[0];
+      const assets = await assetsRepo.findByBrandKitId(latestKit.id);
+      const colors = await colorsRepo.findByBrandKitId(latestKit.id);
+
+      return {
+        success: true,
+        brandKit: {
+          id: latestKit.id,
+          name: latestKit.name,
+          description: latestKit.description,
+          status: latestKit.status,
+          createdAt: latestKit.created_at,
+          updatedAt: latestKit.updated_at,
+          assets: assets.map(asset => ({
+            id: asset.id,
+            assetType: asset.asset_type,
+            fileName: asset.file_name,
+            storageKey: asset.storage_key,
+            mimeType: asset.mime_type,
+            fileSizeBytes: asset.file_size_bytes,
+            dimensions: asset.width_px && asset.height_px
+              ? { width: asset.width_px, height: asset.height_px }
+              : null,
+            processingStatus: asset.processing_status,
+            uploadedAt: asset.uploaded_at,
+            metadata: { kind: (asset.metadata as any)?.kind }
+          })),
+          colors: colors.map(color => ({
+            id: color.id,
+            hex: color.color_hex,
+            rgb: color.color_rgb,
+            hsl: color.color_hsl,
+            name: color.color_name,
+            role: color.color_role,
+            prominence: color.prominence_score,
+            pixelPercentage: color.pixel_percentage,
+            displayOrder: color.display_order
+          }))
+        }
+      };
+    } catch (error: any) {
+      console.error('[Brand Kits API] Failed to get user active brand kit:', error);
+      return reply.code(500).send({
+        error: 'Failed to get active brand kit',
+        message: error.message
+      });
+    }
+  });
+
+  /**
    * GET /api/brand-kits
    * List all brand kits for a user
    */
@@ -727,21 +809,27 @@ export async function registerBrandKitRoutes(
   });
 
   /**
-   * GET /api/brand-assets/download/:storageKey
+   * GET /api/brand-assets/download/*
    * Download brand asset file (for WebContainer mirroring)
+   * Uses wildcard to capture full storage key path with slashes
    */
-  fastify.get<{
-    Params: { storageKey: string };
-  }>('/api/brand-assets/download/:storageKey', async (request, reply) => {
-    const { storageKey } = request.params;
+  fastify.get('/api/brand-assets/download/*', async (request, reply) => {
+    // Extract storage key from URL path after /download/
+    const fullPath = (request.url || '').split('/api/brand-assets/download/')[1];
+
+    if (!fullPath) {
+      return reply.code(400).send({
+        error: 'Missing storage key in URL'
+      });
+    }
 
     try {
       // Decode storage key from URL
-      const decodedKey = decodeURIComponent(storageKey);
+      const decodedKey = decodeURIComponent(fullPath);
 
       // Read file from local storage
-      const fullPath = join(UPLOAD_DIR, decodedKey);
-      const fileBuffer = await readFile(fullPath);
+      const diskPath = join(UPLOAD_DIR, decodedKey);
+      const fileBuffer = await readFile(diskPath);
 
       // Determine MIME type from file extension
       const ext = decodedKey.split('.').pop()?.toLowerCase();
