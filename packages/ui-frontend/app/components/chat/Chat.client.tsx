@@ -90,13 +90,24 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
 
   const [animationScope, animate] = useAnimate();
 
+  // Extended Message type with metadata
+  interface ExtendedMessage extends Message {
+    metadata?: {
+      reasoningText?: string;
+      thinkingDuration?: number | null;
+      fileOperations?: Array<{ operation: string; filePath: string }>;
+      tokenUsage?: { inputTokens: number; outputTokens: number } | null;
+      phase?: 'pending' | 'thinking' | 'reasoning' | 'code-writing' | 'building' | 'completed' | null;
+    };
+  }
+
   // Local state for messages (replaces useChat)
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [messages, setMessages] = useState<ExtendedMessage[]>(initialMessages);
   const [isLoading, setIsLoading] = useState(false);
   const [input, setInput] = useState('');
   const streamControllerRef = useRef<StreamController | null>(null);
 
-  // Phase 2: Enhanced streaming state
+  // Phase 2: Enhanced streaming state (for current message only)
   const [currentPhase, setCurrentPhase] = useState<'pending' | 'thinking' | 'reasoning' | 'code-writing' | 'building' | 'completed' | null>(null);
   const [reasoningText, setReasoningText] = useState('');
   const [thinkingDuration, setThinkingDuration] = useState<number | null>(null);
@@ -165,6 +176,26 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
       streamControllerRef.current.abort();
       streamControllerRef.current = null;
     }
+
+    // Save metadata to current message before aborting (create new object!)
+    setMessages((prev) => {
+      return prev.map((msg, idx) => {
+        if (idx === prev.length - 1 && msg.role === 'assistant') {
+          return {
+            ...msg,
+            metadata: {
+              reasoningText,
+              thinkingDuration,
+              fileOperations,
+              tokenUsage,
+              phase: currentPhase,
+            },
+          };
+        }
+        return msg;
+      });
+    });
+
     setIsLoading(false);
     chatStore.setKey('aborted', true);
   };
@@ -214,6 +245,14 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
     runAnimation();
 
     // Reset Phase 2 state for new message
+    console.log('🔄 [New Message] Resetting streaming state. Current messages count:', messages.length);
+    console.log('🔄 [New Message] Previous messages metadata:', messages.map((m, i) => ({
+      index: i,
+      role: m.role,
+      hasMetadata: !!(m as ExtendedMessage).metadata,
+      reasoningLength: ((m as ExtendedMessage).metadata?.reasoningText?.length || 0)
+    })));
+
     setCurrentPhase(null);
     chatStore.setKey('currentPhase', null); // Also reset global store
     setReasoningText('');
@@ -228,12 +267,19 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
       content: _input,
     };
 
-    // Add empty assistant message placeholder
+    // Add empty assistant message placeholder with empty metadata
     const assistantMessageId = `assistant-${Date.now()}`;
-    const assistantMessage: Message = {
+    const assistantMessage: ExtendedMessage = {
       id: assistantMessageId,
       role: 'assistant',
       content: '',
+      metadata: {
+        reasoningText: '',
+        thinkingDuration: null,
+        fileOperations: [],
+        tokenUsage: null,
+        phase: null,
+      },
     };
 
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
@@ -241,6 +287,29 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
     setIsLoading(true);
 
     textareaRef.current?.blur();
+
+    // Helper function to update current message metadata in real-time
+    // IMPORTANT: Create new objects instead of mutating for React to detect changes
+    const updateMessageMetadata = (updates: Partial<ExtendedMessage['metadata']>) => {
+      setMessages((prev) => {
+        const updated = prev.map((msg) => {
+          // Find message by ID (not position) so it works even if new messages are added
+          if (msg.id === assistantMessageId) {
+            const newMetadata = {
+              ...msg.metadata,
+              ...updates,
+            };
+            console.log('✅ [Metadata Saved] Msg ID:', assistantMessageId.substring(0, 20), 'Reasoning length:', newMetadata.reasoningText?.length || 0);
+            return {
+              ...msg,
+              metadata: newMetadata,
+            };
+          }
+          return msg;
+        });
+        return updated;
+      });
+    };
 
     // Stream response from WebSocket backend
     try {
@@ -261,27 +330,45 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
         sessionId: session.id, // Use session ID from database
         onChunk: (chunk) => {
           setMessages((prev) => {
-            const updated = [...prev];
-            const lastMessage = updated[updated.length - 1];
-            if (lastMessage && lastMessage.id === assistantMessageId) {
-              lastMessage.content += chunk;
-            }
-            return updated;
+            return prev.map((msg) => {
+              if (msg.id === assistantMessageId) {
+                return {
+                  ...msg,
+                  content: msg.content + chunk,
+                };
+              }
+              return msg;
+            });
           });
         },
         onComplete: () => {
+          // Metadata is already saved in real-time by updateMessageMetadata in each callback
+          // No need to save here - closures would capture empty state values anyway
+          console.log('✅ [onComplete] Streaming finished - metadata already persisted via updateMessageMetadata');
+
           setIsLoading(false);
           streamControllerRef.current = null;
           logger.debug('Streaming complete');
         },
         onError: (error) => {
+          // Save metadata even on error (create new object!)
           setMessages((prev) => {
-            const updated = [...prev];
-            const lastMessage = updated[updated.length - 1];
-            if (lastMessage && lastMessage.id === assistantMessageId) {
-              lastMessage.content = `[Error: ${error}]`;
-            }
-            return updated;
+            return prev.map((msg) => {
+              if (msg.id === assistantMessageId) {
+                return {
+                  ...msg,
+                  content: `[Error: ${error}]`,
+                  metadata: {
+                    reasoningText,
+                    thinkingDuration,
+                    fileOperations,
+                    tokenUsage,
+                    phase: currentPhase,
+                  },
+                };
+              }
+              return msg;
+            });
           });
           setIsLoading(false);
           streamControllerRef.current = null;
@@ -297,6 +384,9 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
           chatStore.setKey('currentPhase', phase);
           console.log('📍 [chatStore updated] currentPhase:', chatStore.get().currentPhase);
 
+          // Update metadata immediately
+          updateMessageMetadata({ phase });
+
           // Auto-show workbench when agent starts writing code
           if (phase === 'code-writing') {
             workbenchStore.showWorkbench.set(true);
@@ -305,15 +395,28 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
         },
         onReasoning: (text) => {
           logger.debug('Reasoning:', text);
-          setReasoningText((prev) => prev + text);
+          setReasoningText((prev) => {
+            const newText = prev + text;
+            console.log('🧠 [Reasoning] Updating metadata with:', newText.substring(0, 50) + '...');
+            // Update metadata immediately with accumulated reasoning
+            updateMessageMetadata({ reasoningText: newText });
+            return newText;
+          });
         },
         onThinkingComplete: (duration) => {
           logger.debug('Thinking complete in', duration, 'seconds');
           setThinkingDuration(duration);
+          // Update metadata immediately
+          updateMessageMetadata({ thinkingDuration: duration });
         },
         onFileOperation: (operation, filePath) => {
           logger.debug('File operation:', operation, filePath);
-          setFileOperations((prev) => [...prev, { operation, filePath }]);
+          setFileOperations((prev) => {
+            const newOps = [...prev, { operation, filePath }];
+            // Update metadata immediately with accumulated operations
+            updateMessageMetadata({ fileOperations: newOps });
+            return newOps;
+          });
         },
         onFilesUpdated: async (files, sessionIdFromEvent) => {
           logger.debug('Files updated:', files.length, 'files', sessionIdFromEvent);
@@ -334,19 +437,25 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
         },
         onTokenUsage: (inputTokens, outputTokens) => {
           logger.debug('Token usage:', inputTokens, 'input,', outputTokens, 'output');
-          setTokenUsage({ inputTokens, outputTokens });
+          const usage = { inputTokens, outputTokens };
+          setTokenUsage(usage);
+          // Update metadata immediately
+          updateMessageMetadata({ tokenUsage: usage });
         },
       });
 
       streamControllerRef.current = controller;
     } catch (error) {
       setMessages((prev) => {
-        const updated = [...prev];
-        const lastMessage = updated[updated.length - 1];
-        if (lastMessage && lastMessage.id === assistantMessageId) {
-          lastMessage.content = `[Error: ${error instanceof Error ? error.message : 'Unknown error'}]`;
-        }
-        return updated;
+        return prev.map((msg) => {
+          if (msg.id === assistantMessageId) {
+            return {
+              ...msg,
+              content: `[Error: ${error instanceof Error ? error.message : 'Unknown error'}]`,
+            };
+          }
+          return msg;
+        });
       });
       setIsLoading(false);
       toast.error('Failed to start streaming');

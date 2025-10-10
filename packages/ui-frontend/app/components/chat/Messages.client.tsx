@@ -18,6 +18,16 @@ interface MessagesProps {
   tokenUsage?: { inputTokens: number; outputTokens: number } | null;
 }
 
+interface ExtendedMessage extends Message {
+  metadata?: {
+    reasoningText?: string;
+    thinkingDuration?: number | null;
+    fileOperations?: Array<{ operation: string; filePath: string }>;
+    tokenUsage?: { inputTokens: number; outputTokens: number } | null;
+    phase?: 'pending' | 'thinking' | 'reasoning' | 'code-writing' | 'building' | 'completed' | null;
+  };
+}
+
 export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: MessagesProps, ref) => {
   const {
     id,
@@ -55,10 +65,51 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
     >
       {messages.length > 0
         ? messages.map((message, index) => {
-            const { role, content } = message;
+            const { role, content } = message as ExtendedMessage;
             const isUserMessage = role === 'user';
             const isFirst = index === 0;
             const isLast = index === messages.length - 1;
+
+            // For assistant messages, use saved metadata or current streaming state
+            const extendedMessage = message as ExtendedMessage;
+            const messageMetadata = extendedMessage.metadata || {};
+
+            // Determine what to display based on whether this is the last (streaming) message or old message
+            const displayReasoningText = isLast
+              ? (messageMetadata.reasoningText || reasoningText)  // Last message: prefer saved, fallback to streaming state
+              : (messageMetadata.reasoningText || '');            // Old message: only use saved
+
+            const displayPhase = isLast
+              ? (currentPhase || messageMetadata.phase || null)
+              : (messageMetadata.phase || null);
+
+            const displayThinkingDuration = isLast
+              ? (messageMetadata.thinkingDuration ?? thinkingDuration)
+              : (messageMetadata.thinkingDuration ?? null);
+
+            const displayFileOperations = isLast
+              ? (messageMetadata.fileOperations || fileOperations)
+              : (messageMetadata.fileOperations || []);
+
+            const displayTokenUsage = isLast
+              ? (messageMetadata.tokenUsage || tokenUsage)
+              : (messageMetadata.tokenUsage || null);
+
+            // Debug: Log what we're displaying for each message
+            if (!isUserMessage) {
+              console.log(`📖 [Render Message ${index}]`, {
+                isLast,
+                messageId: (message as any).id,
+                hasMetadata: !!extendedMessage.metadata,
+                metadataKeys: extendedMessage.metadata ? Object.keys(extendedMessage.metadata) : [],
+                savedReasoning: messageMetadata.reasoningText?.length || 0,
+                displayReasoning: displayReasoningText?.length || 0,
+                streamingReasoning: reasoningText?.length || 0,
+                // Show first 100 chars of reasoning
+                savedReasoningPreview: messageMetadata.reasoningText?.substring(0, 100) || 'NONE',
+                displayReasoningPreview: displayReasoningText?.substring(0, 100) || 'NONE',
+              });
+            }
 
             return (
               <div
@@ -81,11 +132,11 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
                     <AssistantMessage
                       content={content}
                       isStreaming={isStreaming && isLast}
-                      phase={isLast ? currentPhase : null}
-                      reasoningText={isLast ? reasoningText : ''}
-                      thinkingDuration={isLast ? thinkingDuration : null}
-                      fileOperations={isLast ? fileOperations : []}
-                      tokenUsage={isLast ? tokenUsage : null}
+                      phase={displayPhase}
+                      reasoningText={displayReasoningText}
+                      thinkingDuration={displayThinkingDuration}
+                      fileOperations={displayFileOperations}
+                      tokenUsage={displayTokenUsage}
                     />
                   )}
                 </div>
