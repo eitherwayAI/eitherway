@@ -184,14 +184,14 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
                         className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#00c7b7] focus:border-transparent"
                       />
                       <p className="mt-1.5 text-xs text-gray-500">
-                        Generate a token at{' '}
+                        Generate a token{' '}
                         <a
-                          href="https://app.netlify.com/user/applications#personal-access-tokens"
+                          href="https://docs.netlify.com/api-and-cli-guides/api-guides/get-started-with-api/#authentication"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-[#00c7b7] hover:underline"
                         >
-                          app.netlify.com
+                          here
                         </a>
                       </p>
                     </div>
