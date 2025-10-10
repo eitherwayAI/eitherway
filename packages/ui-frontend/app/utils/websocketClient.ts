@@ -23,7 +23,7 @@ export interface StreamController {
 }
 
 const BACKEND_URL =
-  typeof window !== 'undefined' ? 'ws://localhost:3001' : 'ws://localhost:3001';
+  typeof window !== 'undefined' ? 'wss://localhost:3001' : 'wss://localhost:3001';
 
 /**
  * Stream from WebSocket backend

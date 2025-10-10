@@ -44,7 +44,7 @@ export function Menu() {
 
   const loadEntries = useCallback(async () => {
     try {
-      const BACKEND_URL = 'http://localhost:3001';
+      const BACKEND_URL = 'https://localhost:3001';
 
       // First get user ID from email
       const userResponse = await fetch(`${BACKEND_URL}/api/users?email=user@eitherway.app`);
@@ -79,7 +79,7 @@ export function Menu() {
     event.preventDefault();
 
     try {
-      const BACKEND_URL = 'http://localhost:3001';
+      const BACKEND_URL = 'https://localhost:3001';
       const response = await fetch(`${BACKEND_URL}/api/sessions/${item.id}`, {
         method: 'DELETE',
       });

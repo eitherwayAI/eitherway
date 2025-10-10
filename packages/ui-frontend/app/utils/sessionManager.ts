@@ -3,7 +3,7 @@
  * Handles creating and managing chat sessions with the backend
  */
 
-const BACKEND_URL = typeof window !== 'undefined' ? 'http://localhost:3001' : 'http://localhost:3001';
+const BACKEND_URL = typeof window !== 'undefined' ? 'https://localhost:3001' : 'https://localhost:3001';
 
 interface Session {
   id: string;

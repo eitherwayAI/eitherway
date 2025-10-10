@@ -7,7 +7,7 @@ import type { WebContainer } from '@webcontainer/api';
 import { createScopedLogger } from './logger';
 
 const logger = createScopedLogger('FileSync');
-const BACKEND_URL = typeof window !== 'undefined' ? 'http://localhost:3001' : 'http://localhost:3001';
+const BACKEND_URL = typeof window !== 'undefined' ? 'https://localhost:3001' : 'https://localhost:3001';
 
 interface FileNode {
   name: string;

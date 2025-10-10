@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import { createScopedLogger } from '~/utils/logger';
 
 const logger = createScopedLogger('BackendHistory');
-const BACKEND_URL = typeof window !== 'undefined' ? 'http://localhost:3001' : 'http://localhost:3001';
+const BACKEND_URL = typeof window !== 'undefined' ? 'https://localhost:3001' : 'https://localhost:3001';
 
 export interface BackendMessage {
   id: string;
