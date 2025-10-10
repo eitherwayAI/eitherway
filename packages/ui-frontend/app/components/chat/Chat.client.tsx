@@ -118,7 +118,10 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
 
   useEffect(() => {
     chatStore.setKey('started', initialMessages.length > 0);
-  }, []);
+    if (sessionId) {
+      chatStore.setKey('sessionId', sessionId);
+    }
+  }, [sessionId]);
 
   // Keep messages in sync with initialMessages when loading from backend
   useEffect(() => {
@@ -324,6 +327,9 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
       logger.debug('Using session:', session.id);
       console.log('💬 [Chat Message] Session ID for this message:', session.id);
       console.log('💬 [Chat Message] localStorage currentSessionId:', localStorage.getItem('currentSessionId'));
+
+      // Store session ID in chat store for export/deployment
+      chatStore.setKey('sessionId', session.id);
 
       const controller = await streamFromWebSocket({
         prompt: _input,

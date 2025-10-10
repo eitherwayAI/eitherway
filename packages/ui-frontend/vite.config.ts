@@ -10,10 +10,24 @@ export default defineConfig((config) => {
     server: {
       port: parseInt(process.env.PORT || '5173'),
       host: '0.0.0.0',
+      proxy: {
+        '/api': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+          secure: false,
+        },
+      },
     },
     preview: {
       port: parseInt(process.env.PORT || '5173'),
       host: '0.0.0.0',
+      proxy: {
+        '/api': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+          secure: false,
+        },
+      },
     },
     build: {
       target: 'esnext',

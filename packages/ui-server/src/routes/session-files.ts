@@ -154,7 +154,7 @@ export async function registerSessionFileRoutes(
         appId = app.id;
 
         // Update session with app_id
-        await sessionsRepo.update(sessionId, { app_id: appId });
+        await sessionsRepo.update(sessionId, { app_id: appId } as any);
 
         console.log('[Session Files] ✅ Created app:', appId, 'for session:', sessionId);
       } catch (error: any) {

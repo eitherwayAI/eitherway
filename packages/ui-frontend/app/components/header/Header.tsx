@@ -1,20 +1,44 @@
 import { useStore } from '@nanostores/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ClientOnly } from 'remix-utils/client-only';
 import { chatStore } from '~/lib/stores/chat';
 import { workbenchStore } from '~/lib/stores/workbench';
+import { authStore } from '~/lib/stores/auth';
 import { classNames } from '~/utils/classNames';
 import { HeaderActionButtons } from './HeaderActionButtons.client';
 import { useWalletConnection } from '~/lib/web3/hooks';
 import { Dialog, DialogRoot } from '~/components/ui/Dialog';
+import { DeploymentPanel } from '~/components/deployment/DeploymentPanel';
+import { BrandKitPanel } from '~/components/brand-kit/BrandKitPanel';
 
 export function Header() {
   const chat = useStore(chatStore);
   const { connectWallet, isConnected, address, formatAddress, disconnectWallet } = useWalletConnection();
   const isAppReady = useStore(workbenchStore.isAppReadyForDeploy);
+  const previews = useStore(workbenchStore.previews);
+  const user = useStore(authStore.user);
   const [isBurgerOpen, setIsBurgerOpen] = useState(false);
+  const [showDeployPanel, setShowDeployPanel] = useState(false);
+  const [showBrandKitPanel, setShowBrandKitPanel] = useState(false);
+  const [deployPanelTab, setDeployPanelTab] = useState<'deploy' | 'export' | 'history'>('deploy');
+
+  // Use actual session ID from chat store (fallback to demo for compatibility)
+  const sessionId = chat.sessionId || user?.email || 'demo-session';
+  const userId = user?.email || 'demo-user';
+  const appId = chat.sessionId || 'demo-app-' + Date.now();
 
   console.log('Header - chat.started:', chat.started);
+
+  // Listen for brand kit upload event from chat clip button
+  useEffect(() => {
+    const handleOpenBrandKit = () => {
+      setShowBrandKitPanel(true);
+    };
+
+    window.addEventListener('open-brand-kit', handleOpenBrandKit);
+    return () => window.removeEventListener('open-brand-kit', handleOpenBrandKit);
+  }, []);
 
   return (
     <header
@@ -113,28 +137,40 @@ export function Header() {
                     )}
                   </ClientOnly>
                   <button
-                    disabled={true}
-                    className="w-full flex items-center justify-center gap-3 px-6 py-3 rounded-2xl text-sm border bg-black border-eitherway-elements-borderColor text-white/50 cursor-not-allowed"
+                    onClick={() => {
+                      setDeployPanelTab('export');
+                      setShowDeployPanel(true);
+                      setIsBurgerOpen(false);
+                    }}
+                    className="w-full flex items-center justify-center gap-3 px-6 py-3 rounded-2xl text-sm border bg-black border-eitherway-elements-borderColor text-white hover:bg-eitherway-elements-item-backgroundActive transition-colors"
                   >
-                    <img src="/icons/chat/download.svg" alt="Download" className="opacity-50 w-4 h-4" />
+                    <img src="/icons/chat/download.svg" alt="Download" className="w-4 h-4" />
                     <span>DOWNLOAD</span>
                   </button>
 
                   <button
-                    disabled={true}
-                    className={classNames(
-                      'w-full flex items-center justify-center gap-3 px-6 py-3 rounded-2xl text-sm border bg-eitherway-elements-background-depth-1 border-eitherway-elements-borderColor',
-                      'text-alpha-gray-20 cursor-not-allowed'
-                    )}
+                    onClick={() => {
+                      setDeployPanelTab('deploy');
+                      setShowDeployPanel(true);
+                      setIsBurgerOpen(false);
+                    }}
+                    className="w-full flex items-center justify-center gap-3 px-6 py-3 rounded-2xl text-sm border bg-eitherway-elements-background-depth-1 border-eitherway-elements-borderColor text-white hover:bg-eitherway-elements-item-backgroundActive transition-colors"
                   >
-                    <img
-                      src="/icons/chat/deploy.svg"
-                      alt="Deploy"
-                      className={classNames('w-4 h-4', {
-                        'opacity-50': !isAppReady,
-                      })}
-                    />
+                    <img src="/icons/chat/deploy.svg" alt="Deploy" className="w-4 h-4" />
                     <span>DEPLOY</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowBrandKitPanel(true);
+                      setIsBurgerOpen(false);
+                    }}
+                    className="w-full flex items-center justify-center gap-3 px-6 py-3 rounded-2xl text-sm border bg-eitherway-elements-background-depth-1 border-eitherway-elements-borderColor text-white hover:bg-eitherway-elements-item-backgroundActive transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                    </svg>
+                    <span>BRAND KIT</span>
                   </button>
                 </div>
                 <button
@@ -152,6 +188,24 @@ export function Header() {
           </div>
         </Dialog>
       </DialogRoot>
+
+      {/* Deployment Panel Modal - Rendered via Portal to document.body */}
+      {typeof document !== 'undefined' && showDeployPanel && createPortal(
+        <DeploymentPanel
+          appId={appId}
+          sessionId={sessionId}
+          userId={userId}
+          initialTab={deployPanelTab}
+          onClose={() => setShowDeployPanel(false)}
+        />,
+        document.body
+      )}
+
+      {/* Brand Kit Panel Modal - Rendered via Portal to document.body */}
+      {typeof document !== 'undefined' && showBrandKitPanel && createPortal(
+        <BrandKitPanel onClose={() => setShowBrandKitPanel(false)} />,
+        document.body
+      )}
     </header>
   );
 }

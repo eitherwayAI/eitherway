@@ -7,6 +7,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
+import multipart from '@fastify/multipart';
 import { Agent, DatabaseAgent, ConfigLoader, StreamingCallbacks } from '@eitherway/runtime';
 import { getAllExecutors } from '@eitherway/tools-impl';
 import { createDatabaseClient, FilesRepository, SessionsRepository, PostgresFileStore } from '@eitherway/database';
@@ -16,6 +17,11 @@ import { fileURLToPath } from 'url';
 import { maybeRewriteFile } from './cdn-rewriter.js';
 import { registerSessionRoutes } from './routes/sessions.js';
 import { registerSessionFileRoutes } from './routes/session-files.js';
+import { registerPlanRoutes } from './routes/plans.js';
+import { registerBrandKitRoutes } from './routes/brand-kits.js';
+import { registerPreviewRoutes } from './routes/preview.js';
+import { registerDeploymentRoutes } from './routes/deployments.js';
+import { registerSecurityMiddleware } from './middleware/index.js';
 import { constants } from 'fs';
 import { randomUUID } from 'crypto';
 import { StreamEvents, createEventSender } from './events/index.js';
@@ -63,6 +69,13 @@ await fastify.register(cors, {
 // Enable WebSocket
 await fastify.register(websocket);
 
+// Enable Multipart (for file uploads)
+await fastify.register(multipart, {
+  limits: {
+    fileSize: 200 * 1024 * 1024 // 200MB max (for ZIP brand packages)
+  }
+});
+
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || join(PROJECT_ROOT, 'workspace');
 const USE_LOCAL_FS = process.env.USE_LOCAL_FS === 'true';
 
@@ -78,8 +91,24 @@ try {
   dbConnected = await db.healthCheck();
   if (dbConnected) {
     console.log('✓ Database connected - using DB-backed VFS');
+
+    // Register security middleware (IP blocking, rate limiting, request validation, security headers)
+    await registerSecurityMiddleware(fastify, {
+      db,
+      enableRequestValidation: true,
+      enableRateLimiting: true,
+      enableSecurityHeaders: true,
+      enableIpRiskBlocking: process.env.NODE_ENV === 'production',
+      isDevelopment: process.env.NODE_ENV === 'development'
+    });
+
+    // Register API routes
     await registerSessionRoutes(fastify, db);
     await registerSessionFileRoutes(fastify, db);
+    await registerPlanRoutes(fastify, db);
+    await registerBrandKitRoutes(fastify, db);
+    await registerPreviewRoutes(fastify, db);
+    await registerDeploymentRoutes(fastify, db, WORKSPACE_DIR);
   } else {
     console.log('⚠ Database not available - files will only be saved to filesystem');
   }
@@ -508,7 +537,7 @@ fastify.register(async (fastify) => {
                 appId = app.id;
 
                 // Update session with app_id
-                await sessionsRepo.update(sessionId, { app_id: appId });
+                await sessionsRepo.update(sessionId, { app_id: appId } as any);
 
                 console.log('[WebSocket Agent] ✅ Created app:', appId, 'for session:', sessionId);
               } catch (error: any) {

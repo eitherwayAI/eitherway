@@ -267,6 +267,16 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     <div className="flex justify-between text-sm p-4 pt-2">
                       <div className="flex gap-1 items-center">
                         <IconButton
+                          title="Upload brand assets"
+                          className="text-eitherway-elements-textTertiary hover:text-eitherway-elements-textPrimary"
+                          onClick={() => {
+                            // Trigger brand kit upload modal
+                            window.dispatchEvent(new CustomEvent('open-brand-kit'));
+                          }}
+                        >
+                          <div className="i-ph:paperclip text-xl"></div>
+                        </IconButton>
+                        <IconButton
                           title="Enhance prompt"
                           disabled={input.length === 0 || enhancingPrompt}
                           className={classNames({

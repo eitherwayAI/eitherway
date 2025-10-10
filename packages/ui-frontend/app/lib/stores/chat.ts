@@ -7,9 +7,11 @@ export const chatStore = map<{
   aborted: boolean;
   showChat: boolean;
   currentPhase: StreamingPhase;
+  sessionId: string | null;
 }>({
   started: false,
   aborted: false,
   showChat: true,
   currentPhase: null,
+  sessionId: null,
 });

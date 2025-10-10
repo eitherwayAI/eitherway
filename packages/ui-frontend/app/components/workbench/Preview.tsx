@@ -3,6 +3,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { IconButton } from '~/components/ui/IconButton';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { chatStore } from '~/lib/stores/chat';
+import { previewModeStore } from '~/lib/stores/preview-mode';
 import { PortDropdown } from './PortDropdown';
 import { createScopedLogger } from '~/utils/logger';
 
@@ -13,6 +14,7 @@ export const Preview = memo(() => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [activePreviewIndex, setActivePreviewIndex] = useState(0);
   const [isPortDropdownOpen, setIsPortDropdownOpen] = useState(false);
+  const previewMode = useStore(previewModeStore);
 
   // Subscribe to streaming phase for building overlay
   const { currentPhase } = useStore(chatStore);
@@ -327,6 +329,11 @@ export const Preview = memo(() => {
       )}
       <div className="bg-eitherway-elements-background-depth-2 p-2 flex items-center gap-1.5">
         <IconButton icon="i-ph:arrow-clockwise" onClick={reloadPreview} />
+        <IconButton
+          icon={previewMode === 'mobile' ? 'i-ph:device-mobile' : 'i-ph:desktop'}
+          onClick={() => previewModeStore.set(previewMode === 'mobile' ? 'desktop' : 'mobile')}
+          title={previewMode === 'mobile' ? 'Switch to Desktop View' : 'Switch to Mobile View'}
+        />
         <div
           className="flex items-center gap-1 flex-grow bg-eitherway-elements-preview-addressBar-background border border-eitherway-elements-borderColor text-eitherway-elements-preview-addressBar-text rounded-full px-3 py-1 text-sm hover:bg-eitherway-elements-preview-addressBar-backgroundHover hover:focus-within:bg-eitherway-elements-preview-addressBar-backgroundActive focus-within:bg-eitherway-elements-preview-addressBar-backgroundActive
         focus-within-border-eitherway-elements-borderColorActive focus-within:text-eitherway-elements-preview-addressBar-textActive"
@@ -364,14 +371,48 @@ export const Preview = memo(() => {
       <div className="flex-1 border-t border-eitherway-elements-borderColor relative">
         {activePreview && iframeUrl ? (
           <>
-            <iframe
-              ref={iframeRef}
-              className="border-none w-full h-full"
-              src={iframeUrl}
-              title="App Preview"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads allow-presentation allow-popups-to-escape-sandbox"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share"
-            />
+            {previewMode === 'mobile' ? (
+              /* Mobile View - iPhone 17 Pro Max Frame */
+              <div className="w-full h-full flex items-center justify-center bg-gray-900 overflow-auto">
+                <div className="flex items-center justify-center p-4 min-h-full">
+                  <div
+                    className="relative bg-black rounded-[3rem] shadow-2xl border-[14px] border-gray-800 flex-shrink-0"
+                    style={{
+                      width: 'min(430px, calc(100vw - 2rem))',
+                      height: 'min(932px, calc(100vh - 200px))',
+                    }}
+                  >
+                    {/* Notch */}
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-7 bg-black rounded-b-3xl z-10"></div>
+
+                    {/* Screen */}
+                    <div className="absolute inset-0 overflow-hidden rounded-[2.5rem]">
+                      <iframe
+                        ref={iframeRef}
+                        className="border-none w-full h-full"
+                        src={iframeUrl}
+                        title="App Preview"
+                        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads allow-presentation allow-popups-to-escape-sandbox"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share"
+                      />
+                    </div>
+
+                    {/* Home Indicator */}
+                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-1 bg-white/30 rounded-full"></div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Desktop View */
+              <iframe
+                ref={iframeRef}
+                className="border-none w-full h-full"
+                src={iframeUrl}
+                title="App Preview"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads allow-presentation allow-popups-to-escape-sandbox"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share"
+              />
+            )}
             {/* Building overlay when AI is generating code */}
             {(() => {
               const shouldShow = currentPhase === 'code-writing' || currentPhase === 'building';
