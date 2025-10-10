@@ -396,13 +396,26 @@ server.listen(PORT, () => {
 export async function runDevServer(webcontainer: WebContainer, files: any[]): Promise<void> {
   logger.info('Running dev server setup...');
 
-  // If server is already running, skip restart - files are already synced
-  if (serverRunning) {
+  const hasPackageJson = findPackageJson(files);
+  const isStaticServer = !hasPackageJson;
+
+  // For npm-based apps with HMR, skip restart if already running
+  // For static servers, we need to trigger a preview reload since they don't have HMR
+  if (serverRunning && !isStaticServer) {
     logger.info('Server already running - skipping restart, files will hot-reload automatically');
     return;
   }
 
-  const hasPackageJson = findPackageJson(files);
+  // For static servers, trigger preview reload after files sync
+  if (serverRunning && isStaticServer) {
+    logger.info('Static server running - files synced, triggering preview reload');
+    // Dispatch event to trigger iframe reload
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('webcontainer:static-reload'));
+    }
+    return;
+  }
+
   const hasIndexHtml = findIndexHtml(files);
   const anyHtmlFile = !hasIndexHtml ? findAnyHtmlFile(files) : null;
 

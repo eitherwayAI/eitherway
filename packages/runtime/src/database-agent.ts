@@ -73,8 +73,15 @@ export class DatabaseAgent {
           content = [{ type: 'text', text: content }];
         } else if (typeof content === 'object' && content !== null) {
           if (Array.isArray(content)) {
-            // Already an array - keep as-is
-            content = content;
+            // CRITICAL FIX: Filter out tool_use and tool_result blocks from assistant messages
+            // Only keep text blocks to avoid confusing Claude about past tool executions
+            if (msg.role === 'assistant') {
+              content = content.filter((block: any) => block.type === 'text');
+              // If no text blocks remain, add placeholder to maintain conversation flow
+              if (content.length === 0) {
+                content = [{ type: 'text', text: '[Tool execution completed]' }];
+              }
+            }
           } else if ('text' in content && content.text) {
             // Object with text property - wrap in array
             content = [{ type: 'text', text: content.text }];
@@ -96,6 +103,41 @@ export class DatabaseAgent {
     // Load conversation history into agent
     this.agent.loadConversationHistory(conversationHistory);
 
+    // CRITICAL FIX: Provide file context to AI when reloading from history
+    // This ensures the AI knows what files exist in the project after stripping tool_use blocks
+    console.log('[DatabaseAgent] 🔍 Debug - appId:', this.appId, 'historyLength:', conversationHistory.length);
+    let enhancedPrompt = prompt;
+    if (this.appId && conversationHistory.length > 0) {
+      console.log('[DatabaseAgent] ✅ Condition met, loading file context...');
+      try {
+        // Import PostgresFileStore dynamically
+        const { PostgresFileStore } = await import('@eitherway/database');
+        console.log('[DatabaseAgent] ✅ PostgresFileStore imported successfully');
+        const fileStore = new PostgresFileStore(this.db);
+        console.log('[DatabaseAgent] ✅ FileStore instance created');
+
+        const files = await fileStore.list(this.appId, 100);
+        console.log('[DatabaseAgent] ✅ Got', files.length, 'files from database');
+
+        if (files.length > 0) {
+          const fileList = files.map(f => f.path).join(', ');
+          console.log(`[DatabaseAgent] 📂 Providing file context to AI: ${files.length} files (${fileList})`);
+
+          // Prepend file context to user prompt with clear instruction to use tools
+          enhancedPrompt = `[SYSTEM CONTEXT: This is a continuation of an existing project. The following files currently exist: ${fileList}. To view or modify these files, you MUST use the either-view and either-line-replace tools as normal. Do not describe changes - actually execute them using tools.]\n\nUser request: ${prompt}`;
+          console.log('[DatabaseAgent] 📝 Enhanced prompt created');
+        } else {
+          console.log('[DatabaseAgent] 📂 No files found in project yet');
+        }
+      } catch (error: any) {
+        console.error('[DatabaseAgent] ⚠️  Failed to load file context:', error);
+        console.error('[DatabaseAgent] Error stack:', error.stack);
+        // Continue without file context rather than failing
+      }
+    } else {
+      console.log('[DatabaseAgent] ❌ Condition NOT met - appId:', this.appId, 'historyLength:', conversationHistory.length);
+    }
+
     const userMessage = await this.messagesRepo.create(
       this.sessionId,
       'user' as const,
@@ -110,7 +152,9 @@ export class DatabaseAgent {
     let tokenCount = 0;
 
     try {
-      response = await this.agent.processRequest(prompt, callbacks);
+      // Log the final prompt being sent to AI for debugging
+      console.log('[DatabaseAgent] 📤 Sending to AI (first 200 chars):', enhancedPrompt.substring(0, 200));
+      response = await this.agent.processRequest(enhancedPrompt, callbacks);
 
       const estimatedTokens = Math.ceil(response.length / 4);
       tokenCount = estimatedTokens;

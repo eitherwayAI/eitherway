@@ -121,6 +121,8 @@ export async function registerSessionFileRoutes(
     const { sessionId } = request.params;
     const { path, content, mimeType } = request.body;
 
+    console.log('[Session Files] POST /files/write - Session:', sessionId, 'Path:', path);
+
     if (!path) {
       return reply.code(400).send({ error: 'path is required' });
     }
@@ -132,19 +134,45 @@ export async function registerSessionFileRoutes(
     const session = await sessionsRepo.findById(sessionId);
 
     if (!session) {
+      console.error('[Session Files] Session not found:', sessionId);
       return reply.code(404).send({ error: 'Session not found' });
     }
 
-    if (!session.app_id) {
-      return reply.code(400).send({ error: 'No app associated with session' });
+    // CRITICAL FIX: Auto-create app_id if it doesn't exist
+    let appId = session.app_id;
+    if (!appId) {
+      console.log('[Session Files] ⚠️  Session has no app_id, creating one...');
+
+      try {
+        // Import AppsRepository
+        const { AppsRepository } = await import('@eitherway/database');
+        const appsRepo = new AppsRepository(db);
+
+        // Create app with session title or default
+        const appTitle = session.title || 'Generated App';
+        const app = await appsRepo.create(session.user_id, appTitle, 'private');
+        appId = app.id;
+
+        // Update session with app_id
+        await sessionsRepo.update(sessionId, { app_id: appId });
+
+        console.log('[Session Files] ✅ Created app:', appId, 'for session:', sessionId);
+      } catch (error: any) {
+        console.error('[Session Files] ❌ Failed to create app:', error);
+        return reply.code(500).send({ error: `Failed to create application workspace: ${error.message}` });
+      }
+    } else {
+      console.log('[Session Files] Using existing app_id:', appId);
     }
 
     try {
-      await fileStore.write(session.app_id, path, content, mimeType);
+      console.log('[Session Files] Writing file to database...', path);
+      await fileStore.write(appId, path, content, mimeType);
+      console.log('[Session Files] ✅ File written successfully');
 
       await eventsRepo.log('file.updated', { path }, {
         sessionId,
-        appId: session.app_id,
+        appId,
         actor: 'user'
       });
 
@@ -154,7 +182,7 @@ export async function registerSessionFileRoutes(
         message: 'File saved successfully'
       };
     } catch (error: any) {
-      console.error('Error writing file:', error);
+      console.error('[Session Files] ❌ Error writing file:', error);
       return reply.code(500).send({ error: error.message });
     }
   });

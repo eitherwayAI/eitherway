@@ -90,10 +90,12 @@ export class FilesStore {
   }
 
   async saveFile(filePath: string, content: string) {
+    console.log('[FilesStore] 💾 Starting file save:', filePath);
     const webcontainer = await this.#webcontainer;
 
     try {
       const relativePath = nodePath.relative(webcontainer.workdir, filePath);
+      console.log('[FilesStore] 📂 Relative path:', relativePath);
 
       if (!relativePath) {
         throw new Error(`EINVAL: invalid file path, write '${relativePath}'`);
@@ -105,7 +107,9 @@ export class FilesStore {
         unreachable('Expected content to be defined');
       }
 
+      console.log('[FilesStore] ✍️  Writing to WebContainer...', relativePath);
       await webcontainer.fs.writeFile(relativePath, content);
+      console.log('[FilesStore] ✅ WebContainer write complete');
 
       if (!this.#modifiedFiles.has(filePath)) {
         this.#modifiedFiles.set(filePath, oldContent);
@@ -114,52 +118,122 @@ export class FilesStore {
       // we immediately update the file and don't rely on the `change` event coming from the watcher
       this.files.setKey(filePath, { type: 'file', content, isBinary: false });
 
-      // Sync to backend for persistence (fire-and-forget to avoid blocking UI)
-      this.#syncToBackend(relativePath, content).catch((error) => {
-        logger.warn('Background sync to backend failed (non-critical):', error);
-      });
+      // CRITICAL FIX: Make backend sync BLOCKING to catch errors and provide feedback
+      console.log('[FilesStore] 🔄 Starting backend sync...');
+      try {
+        await this.#syncToBackend(relativePath, content);
+        console.log('[FilesStore] ✅ Backend sync successful');
+        logger.info('File saved successfully to backend:', relativePath);
+      } catch (error: any) {
+        console.error('[FilesStore] ❌ Backend sync FAILED:', error);
+        logger.error('Failed to sync file to backend:', error);
 
-      logger.info('File updated in WebContainer, syncing to backend in background');
+        // Show error toast to user
+        if (typeof window !== 'undefined') {
+          import('react-toastify').then(({ toast }) => {
+            toast.error(`Failed to save ${filePath.split('/').pop()} to server: ${error.message}`, {
+              autoClose: 5000,
+              position: 'bottom-right'
+            });
+          }).catch(() => {
+            console.error('[FilesStore] Could not import toast library');
+          });
+        }
+
+        // Still throw so caller knows it failed
+        throw new Error(`Backend sync failed: ${error.message}`);
+      }
+
+      // Trigger preview reload after file save
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('webcontainer:file-updated', {
+          detail: { filePath: relativePath }
+        }));
+      }
     } catch (error) {
+      console.error('[FilesStore] ❌ File save failed:', error);
       logger.error('Failed to update file content\n\n', error);
 
       throw error;
     }
   }
 
-  async #syncToBackend(filePath: string, content: string) {
-    try {
-      // Get current session ID from localStorage
-      const sessionId = localStorage.getItem('currentSessionId');
+  async #syncToBackend(filePath: string, content: string, retries = 3) {
+    // Get current session ID from localStorage
+    const sessionId = localStorage.getItem('currentSessionId');
+    console.log('[FilesStore] Session ID:', sessionId);
 
-      if (!sessionId) {
-        logger.warn('No session ID found, skipping backend sync');
-        return;
-      }
-
-      const BACKEND_URL = typeof window !== 'undefined' ? 'http://localhost:3001' : 'http://localhost:3001';
-
-      const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}/files/write`, {
-        method: 'POST', // Backend uses POST, not PUT
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          path: filePath,
-          content: content,
-        }),
-      });
-
-      if (!response.ok) {
-        logger.error(`❌ Backend sync failed: ${response.statusText}`);
-      } else {
-        const result = await response.json();
-        logger.info(`✅ File ${filePath} synced to backend:`, result.message);
-      }
-    } catch (error) {
-      // Don't throw - backend sync is optional for user experience
-      logger.error('Backend sync error:', error);
+    if (!sessionId) {
+      const error = 'No active session found - cannot sync to backend. Please refresh the page.';
+      console.error('[FilesStore]', error);
+      throw new Error(error);
     }
+
+    const BACKEND_URL = typeof window !== 'undefined' ? 'http://localhost:3001' : 'http://localhost:3001';
+    const url = `${BACKEND_URL}/api/sessions/${sessionId}/files/write`;
+
+    console.log('[FilesStore] 📡 POST', url);
+    console.log('[FilesStore] 📄 File:', filePath, '| Size:', content.length, 'chars');
+
+    // Retry logic for transient network failures
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            path: filePath,
+            content: content,
+          }),
+        });
+
+        console.log('[FilesStore] 📬 Response status:', response.status, response.statusText);
+
+        if (!response.ok) {
+          // Try to get error details from response
+          let errorMessage = response.statusText;
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+            console.error('[FilesStore] Error details:', errorData);
+          } catch (e) {
+            // Response wasn't JSON, use statusText
+          }
+
+          // For 5xx errors, retry
+          if (response.status >= 500 && attempt < retries) {
+            console.warn(`[FilesStore] ⚠️  Server error (attempt ${attempt}/${retries}), retrying in ${attempt}s...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+            continue;
+          }
+
+          throw new Error(`Server returned ${response.status}: ${errorMessage}`);
+        }
+
+        const result = await response.json();
+        console.log('[FilesStore] ✅ Success:', result.message);
+        logger.info(`File ${filePath} synced to backend successfully`);
+        return result;
+
+      } catch (error: any) {
+        console.error(`[FilesStore] ❌ Attempt ${attempt}/${retries} failed:`, error.message);
+
+        // If it's a network error and we have retries left, try again
+        if (attempt < retries && (error.name === 'TypeError' || error.message.includes('fetch'))) {
+          console.warn(`[FilesStore] ⚠️  Network error, retrying in ${attempt}s...`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+          continue;
+        }
+
+        // Last attempt or non-retryable error - throw it
+        throw error;
+      }
+    }
+
+    // Should never reach here, but just in case
+    throw new Error('Max retries exceeded');
   }
 
   async #init() {

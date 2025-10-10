@@ -492,10 +492,38 @@ fastify.register(async (fastify) => {
             //   }
             // }
 
+            // CRITICAL FIX: Auto-create app_id if it doesn't exist
+            let appId = session.app_id;
+            if (!appId) {
+              console.log('[WebSocket Agent] ⚠️  Session has no app_id, creating one...');
+
+              try {
+                // Import AppsRepository
+                const { AppsRepository } = await import('@eitherway/database');
+                const appsRepo = new AppsRepository(db);
+
+                // Create app with session title or default
+                const appTitle = session.title || 'Generated App';
+                const app = await appsRepo.create(session.user_id, appTitle, 'private');
+                appId = app.id;
+
+                // Update session with app_id
+                await sessionsRepo.update(sessionId, { app_id: appId });
+
+                console.log('[WebSocket Agent] ✅ Created app:', appId, 'for session:', sessionId);
+              } catch (error: any) {
+                console.error('[WebSocket Agent] ❌ Failed to create app:', error);
+                sender.send(StreamEvents.error(`Failed to create application workspace: ${error.message}`));
+                return;
+              }
+            } else {
+              console.log('[WebSocket Agent] Using existing app_id:', appId);
+            }
+
             const dbAgent = new DatabaseAgent({
               db,
               sessionId,
-              appId: session.app_id || undefined,
+              appId: appId,
               workingDir: WORKSPACE_DIR,
               claudeConfig,
               agentConfig,
@@ -504,10 +532,8 @@ fastify.register(async (fastify) => {
               webSearch: agentConfig.tools.webSearch
             });
 
-            // Set database context for file operations
-            if (session.app_id) {
-              dbAgent.setDatabaseContext(fileStore, session.app_id, sessionId);
-            }
+            // Set database context for file operations (always, now that we have app_id)
+            dbAgent.setDatabaseContext(fileStore, appId, sessionId);
 
             // Use the messageId declared above
             let accumulatedText = '';

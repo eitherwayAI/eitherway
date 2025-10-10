@@ -4,6 +4,9 @@ import { IconButton } from '~/components/ui/IconButton';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { chatStore } from '~/lib/stores/chat';
 import { PortDropdown } from './PortDropdown';
+import { createScopedLogger } from '~/utils/logger';
+
+const logger = createScopedLogger('Preview');
 
 export const Preview = memo(() => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -280,11 +283,35 @@ export const Preview = memo(() => {
     }
   }, [previews]);
 
-  const reloadPreview = () => {
+  const reloadPreview = useCallback(() => {
     if (iframeRef.current) {
       iframeRef.current.src = iframeRef.current.src;
     }
-  };
+  }, []);
+
+  // Auto-reload preview when files are edited and saved
+  useEffect(() => {
+    const handleFileUpdate = () => {
+      // Add small delay to let dev server detect changes and rebuild
+      setTimeout(() => {
+        reloadPreview();
+      }, 500);
+    };
+
+    const handleStaticReload = () => {
+      // Static servers need immediate reload after file sync from AI
+      logger.info('Static reload triggered - reloading preview');
+      reloadPreview();
+    };
+
+    window.addEventListener('webcontainer:file-updated', handleFileUpdate);
+    window.addEventListener('webcontainer:static-reload', handleStaticReload);
+
+    return () => {
+      window.removeEventListener('webcontainer:file-updated', handleFileUpdate);
+      window.removeEventListener('webcontainer:static-reload', handleStaticReload);
+    };
+  }, [reloadPreview]);
 
   return (
     <div className="w-full h-full flex flex-col">

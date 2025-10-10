@@ -102,6 +102,9 @@ export async function syncFilesToWebContainer(
       // Fetch file content
       const fileData = await fetchFileContent(sessionId, filePath);
 
+      // DEBUG: Log first 100 chars of content to verify it's changing
+      logger.debug(`📥 Fetched ${filePath}: ${fileData.content.substring(0, 100)}...`);
+
       // Handle binary vs text files
       let fileContents: string;
       if (fileData.isBinary && fileData.content) {

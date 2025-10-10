@@ -109,11 +109,16 @@ export function Menu() {
     setDialogContent(null);
   };
 
+  // Load sessions on mount AND when sidebar opens
+  useEffect(() => {
+    loadEntries();
+  }, [loadEntries]);
+
   useEffect(() => {
     if (open) {
       loadEntries();
     }
-  }, [open]);
+  }, [open, loadEntries]);
 
   useEffect(() => {
     const enterThreshold = 40;

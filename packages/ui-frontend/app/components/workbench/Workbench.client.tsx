@@ -90,9 +90,29 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
   }, []);
 
   const onFileSave = useCallback(() => {
-    workbenchStore.saveCurrentDocument().catch(() => {
-      toast.error('Failed to update file content');
-    });
+    const currentDoc = workbenchStore.currentDocument.get();
+    const fileName = currentDoc?.filePath.split('/').pop() || 'file';
+
+    console.log('[Workbench] Saving file:', currentDoc?.filePath);
+
+    workbenchStore.saveCurrentDocument()
+      .then(() => {
+        console.log('[Workbench] ✅ File saved successfully');
+        toast.success(`Saved ${fileName}`, {
+          position: 'bottom-right',
+          autoClose: 2000
+        });
+      })
+      .catch((error) => {
+        console.error('[Workbench] ❌ Save failed:', error);
+        // Error toast is already shown by FilesStore, but we can add a fallback
+        if (!error.message.includes('Backend sync failed')) {
+          toast.error(`Failed to save ${fileName}: ${error.message}`, {
+            position: 'bottom-right',
+            autoClose: 5000
+          });
+        }
+      });
   }, []);
 
   const onFileReset = useCallback(() => {

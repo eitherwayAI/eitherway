@@ -239,8 +239,13 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
 
     // Stream response from WebSocket backend
     try {
-      // Get or create a session - reuses existing session for conversation continuity
-      // Session will only be cleared when user explicitly starts a new conversation
+      // MATCH MAIN BRANCH BEHAVIOR: Clear session for first message to start fresh
+      // This ensures each new app request gets a clean workspace
+      if (messages.length === 0 || !chatStarted) {
+        clearSession();
+        console.log('🆕 [Chat] Starting fresh session for new conversation');
+      }
+
       const session = await getOrCreateSession('user@eitherway.app', 'EitherWay Chat');
       logger.debug('Using session:', session.id);
       console.log('💬 [Chat Message] Session ID for this message:', session.id);

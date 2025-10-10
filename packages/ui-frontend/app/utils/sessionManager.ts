@@ -72,7 +72,7 @@ export async function getOrCreateSession(email: string, title: string = 'New Cha
 
 /**
  * Clear the current session from localStorage
- * Also resets server state and tears down WebContainer to ensure clean start for new conversation
+ * Also resets server state and clears WebContainer files (without teardown to preserve port listeners)
  */
 export function clearSession() {
   const currentSessionId = localStorage.getItem('currentSessionId');
@@ -89,19 +89,31 @@ export function clearSession() {
     console.warn('❌ [Session Persistence] Could not reset server state:', error);
   });
 
-  // Tear down WebContainer to clear all files from previous conversation
-  console.log('🔄 [Session Persistence] Tearing down WebContainer...');
-  import('~/lib/webcontainer').then(({ tearDownWebContainer, rebootWebContainer }) => {
-    tearDownWebContainer().then(() => {
-      console.log('✅ [Session Persistence] WebContainer torn down');
-      // Immediately reboot for next conversation
-      console.log('🔄 [Session Persistence] Rebooting WebContainer...');
-      return rebootWebContainer();
-    }).then(() => {
-      console.log('✅ [Session Persistence] WebContainer reboot complete');
-    }).catch((error) => {
-      console.warn('❌ [Session Persistence] Could not reset WebContainer:', error);
-    });
+  // Clear WebContainer files without tearing down (matches main branch behavior)
+  // This preserves PreviewsStore port listeners while clearing workspace
+  console.log('🔄 [Session Persistence] Clearing WebContainer files...');
+  import('~/lib/webcontainer').then(async ({ webcontainer }) => {
+    try {
+      const wc = await webcontainer;
+      const files = await wc.fs.readdir('.', { withFileTypes: true });
+
+      // Delete all files and directories in workspace
+      for (const file of files) {
+        try {
+          if (file.isDirectory()) {
+            await wc.fs.rm(file.name, { recursive: true, force: true });
+          } else {
+            await wc.fs.rm(file.name, { force: true });
+          }
+          console.log('🗑️ [Session Persistence] Deleted:', file.name);
+        } catch (err) {
+          console.warn('⚠️ [Session Persistence] Could not delete:', file.name, err);
+        }
+      }
+      console.log('✅ [Session Persistence] WebContainer files cleared');
+    } catch (error) {
+      console.warn('❌ [Session Persistence] Could not clear WebContainer files:', error);
+    }
   }).catch((error) => {
     console.warn('❌ [Session Persistence] Could not import WebContainer module:', error);
   });
