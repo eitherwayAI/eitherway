@@ -12,7 +12,6 @@
  */
 
 import archiver from 'archiver';
-import type { Readable } from 'stream';
 import type { DatabaseClient } from '../client.js';
 import type { PostgresFileStore } from './file-store.js';
 
@@ -59,9 +58,9 @@ export class ExportService {
   }
 
   /**
-   * Create ZIP export and return stream
+   * Create ZIP export and return buffer
    */
-  async createZipExport(config: ExportConfig): Promise<{ stream: Readable; exportId: string; stats: ExportStats }> {
+  async createZipExport(config: ExportConfig): Promise<{ buffer: Buffer; exportId: string; stats: ExportStats }> {
     const startTime = Date.now();
 
     // Default exclude patterns
@@ -108,12 +107,38 @@ export class ExportService {
       await this.updateExportStatus(exportId, 'processing');
 
       // Get all files from file store
-      const files = await this.fileStore.list(config.appId);
+      const fileTree = await this.fileStore.list(config.appId);
+
+      // Flatten tree structure and extract only actual files (not directories)
+      const flattenFiles = (nodes: any[]): any[] => {
+        const result: any[] = [];
+        for (const node of nodes) {
+          if (node.type === 'file' && !node.isDirectory) {
+            result.push(node);
+          }
+          if (node.children && node.children.length > 0) {
+            result.push(...flattenFiles(node.children));
+          }
+        }
+        return result;
+      };
+
+      const files = flattenFiles(fileTree);
+
+      // Check if there are any files
+      if (!files || files.length === 0) {
+        throw new Error('No files found in the application workspace. Please create some files before exporting.');
+      }
 
       // Filter files based on exclude patterns
       const filteredFiles = files.filter(file => {
         return !this.shouldExclude(file.path, excludePatterns);
       });
+
+      // Check if any files remain after filtering
+      if (filteredFiles.length === 0) {
+        throw new Error('All files were excluded by filters. Try including more files or adjusting exclude patterns.');
+      }
 
       // Calculate stats
       const stats: ExportStats = {
@@ -126,57 +151,71 @@ export class ExportService {
         zlib: { level: 9 } // Maximum compression
       });
 
-      // Track archive size
+      // Collect all chunks into a buffer to prevent data loss
+      const chunks: Buffer[] = [];
       let compressedSize = 0;
-      archive.on('data', (chunk: any) => {
+
+      archive.on('data', (chunk: Buffer) => {
+        chunks.push(chunk);
         compressedSize += chunk.length;
-      });
-
-      // Handle archive finalization
-      archive.on('end', async () => {
-        const duration = Date.now() - startTime;
-
-        // Update export record
-        await this.updateExport(exportId, {
-          status: 'success',
-          file_count: stats.fileCount,
-          total_size_bytes: stats.totalSizeBytes,
-          compressed_size_bytes: compressedSize,
-          started_at: new Date(startTime),
-          completed_at: new Date(),
-          duration_ms: duration
-        });
-      });
-
-      // Handle errors
-      archive.on('error', async (err: any) => {
-        await this.updateExport(exportId, {
-          status: 'failed',
-          error_message: err.message
-        });
       });
 
       // Add files to archive
       for (const file of filteredFiles) {
-        const fileContent = await this.fileStore.read(config.appId, file.path);
-        if (fileContent && fileContent.content) {
-          const content = typeof fileContent.content === 'string'
-            ? Buffer.from(fileContent.content)
-            : Buffer.from(fileContent.content);
-          archive.append(content, { name: file.path });
-          stats.totalSizeBytes += content.length;
+        try {
+          const fileContent = await this.fileStore.read(config.appId, file.path);
+          if (fileContent && fileContent.content) {
+            let content: Buffer;
+
+            if (typeof fileContent.content === 'string') {
+              // Handle string content (text files)
+              content = Buffer.from(fileContent.content, 'utf-8');
+            } else if (fileContent.content instanceof Uint8Array) {
+              // Handle Uint8Array (binary files from Postgres)
+              content = Buffer.from(fileContent.content);
+            } else {
+              // Fallback: assume it's already a Buffer or can be converted
+              content = Buffer.from(fileContent.content as any);
+            }
+
+            archive.append(content, { name: file.path });
+            stats.totalSizeBytes += content.length;
+          }
+        } catch (error) {
+          console.error(`[Export] Failed to add file ${file.path}:`, error);
+          // Continue with other files
         }
       }
 
-      // Add README
-      const readme = this.generateReadme(config.appId, stats);
-      archive.append(readme, { name: 'README.md' });
+      // Finalize archive and wait for completion
+      const finalizePromise = new Promise<void>((resolve, reject) => {
+        archive.on('end', () => resolve());
+        archive.on('error', (err: Error) => reject(err));
+      });
 
-      // Finalize archive
-      archive.finalize();
+      // Start finalization process
+      await archive.finalize();
+
+      // Wait for archive to finish writing all data
+      await finalizePromise;
+
+      // Combine all chunks into a single buffer
+      const zipBuffer = Buffer.concat(chunks);
+
+      // Calculate duration and update export record
+      const duration = Date.now() - startTime;
+      await this.updateExport(exportId, {
+        status: 'success',
+        file_count: stats.fileCount,
+        total_size_bytes: stats.totalSizeBytes,
+        compressed_size_bytes: compressedSize,
+        started_at: new Date(startTime),
+        completed_at: new Date(),
+        duration_ms: duration
+      });
 
       return {
-        stream: archive,
+        buffer: zipBuffer,
         exportId,
         stats
       };
@@ -284,62 +323,6 @@ export class ExportService {
     }
 
     return false;
-  }
-
-  /**
-   * Generate README for export
-   */
-  private generateReadme(appId: string, stats: ExportStats): string {
-    return `# Exported Application
-
-This archive contains your application files exported from EitherWay.
-
-## Export Information
-
-- **App ID**: ${appId}
-- **Export Date**: ${new Date().toISOString()}
-- **Total Files**: ${stats.fileCount}
-- **Total Size**: ${this.formatBytes(stats.totalSizeBytes)}
-
-## Getting Started
-
-1. Extract this archive to a directory
-2. Install dependencies: \`npm install\`
-3. Start development server: \`npm run dev\`
-4. Build for production: \`npm run build\`
-
-## Project Structure
-
-All application files are included in this archive. The structure matches your
-original project layout.
-
-## Notes
-
-- Node modules are excluded by default (run \`npm install\` to restore)
-- Git history is excluded by default
-- Environment files (.env) are excluded for security
-
-## Support
-
-For support or questions, visit: https://eitherway.ai
-
----
-
-Generated by EitherWay Export Service
-`;
-  }
-
-  /**
-   * Format bytes to human-readable size
-   */
-  private formatBytes(bytes: number): string {
-    if (bytes === 0) return '0 Bytes';
-
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 
   /**

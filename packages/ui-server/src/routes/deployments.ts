@@ -300,8 +300,14 @@ export async function registerDeploymentRoutes(
       const sessionToUse = sessionId || appId;
       const session = await sessionsRepo.findById(sessionToUse);
 
+      let actualUserId = userId;
+
       if (session && session.app_id) {
         appId = session.app_id;
+        // Use the session's user_id if available (it's a proper UUID)
+        if (session.user_id) {
+          actualUserId = session.user_id;
+        }
         console.log(`[Export] Using app_id ${appId} from session ${sessionToUse}`);
       } else if (!session) {
         // Try to use appId directly if it's an actual app ID
@@ -316,7 +322,7 @@ export async function registerDeploymentRoutes(
 
       const config: ExportConfig = {
         appId,
-        userId,
+        userId: actualUserId,
         sessionId: sessionToUse,
         exportType: 'zip',
         includeNodeModules,
@@ -324,11 +330,12 @@ export async function registerDeploymentRoutes(
         excludePatterns
       };
 
-      const { stream, exportId, stats } = await exportService.createZipExport(config);
+      const { buffer, exportId, stats } = await exportService.createZipExport(config);
 
       // Set headers for ZIP download
       reply.header('Content-Type', 'application/zip');
       reply.header('Content-Disposition', `attachment; filename="app-${appId}-${Date.now()}.zip"`);
+      reply.header('Content-Length', buffer.length.toString());
       reply.header('X-Export-Id', exportId);
       reply.header('X-File-Count', stats.fileCount.toString());
       reply.header('X-Total-Size', stats.totalSizeBytes.toString());
@@ -336,8 +343,8 @@ export async function registerDeploymentRoutes(
       // Track download
       await exportsRepo.trackDownload(exportId);
 
-      // Stream ZIP to client
-      return reply.send(stream);
+      // Send complete buffer
+      return reply.send(buffer);
 
     } catch (error: any) {
       console.error('[Export] Error creating export:', error);
