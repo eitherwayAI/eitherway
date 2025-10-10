@@ -21,6 +21,7 @@ import { registerPlanRoutes } from './routes/plans.js';
 import { registerBrandKitRoutes } from './routes/brand-kits.js';
 import { registerPreviewRoutes } from './routes/preview.js';
 import { registerDeploymentRoutes } from './routes/deployments.js';
+import { registerNetlifyRoutes } from './routes/netlify.js';
 import { registerImageRoutes } from './routes/images.js';
 import { registerSecurityMiddleware } from './middleware/index.js';
 import { constants } from 'fs';
@@ -110,6 +111,7 @@ try {
     await registerBrandKitRoutes(fastify, db);
     await registerPreviewRoutes(fastify, db);
     await registerDeploymentRoutes(fastify, db, WORKSPACE_DIR);
+    await registerNetlifyRoutes(fastify, db, WORKSPACE_DIR);
     await registerImageRoutes(fastify, db);
   } else {
     console.log('⚠ Database not available - files will only be saved to filesystem');

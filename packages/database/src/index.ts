@@ -57,11 +57,17 @@ export type { PWAValidationResult, ManifestData, IconInfo } from './services/pwa
 export { DeploymentsRepository, ExportsRepository } from './repositories/deployments.js';
 export type { Deployment, Export, DeploymentLog } from './repositories/deployments.js';
 
+export { UserIntegrationsRepository, NetlifySitesRepository } from './repositories/netlify.js';
+export type { UserIntegration, NetlifySite, CreateIntegrationData, CreateNetlifySiteData } from './repositories/netlify.js';
+
 export { DeploymentService } from './services/deployment-service.js';
 export type { DeploymentConfig, DeploymentResult, DeploymentLogEntry, DeploymentStatus } from './services/deployment-service.js';
 
 export { ExportService } from './services/export-service.js';
 export type { ExportConfig, ExportResult, ExportStats } from './services/export-service.js';
+
+export { NetlifyService } from './services/netlify-service.js';
+export type { NetlifyDeployConfig, NetlifyDeployResult, NetlifyTokenValidationResult, NetlifyLogsAccessToken } from './services/netlify-service.js';
 
 export { TelemetryService } from './services/telemetry-service.js';
 export type {

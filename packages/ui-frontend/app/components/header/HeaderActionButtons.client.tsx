@@ -22,7 +22,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
   // Panel visibility state
   const [showDeployPanel, setShowDeployPanel] = useState(false);
   const [showBrandKitPanel, setShowBrandKitPanel] = useState(false);
-  const [deployPanelTab, setDeployPanelTab] = useState<'deploy' | 'export' | 'history'>('deploy');
+  const [deployPanelTab, setDeployPanelTab] = useState<'deploy' | 'download'>('deploy');
 
   const canHideChat = showWorkbench || !showChat;
 
@@ -64,7 +64,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
           <Button
             className="rounded-l-2xl px-5!"
             onClick={() => {
-              setDeployPanelTab('export');
+              setDeployPanelTab('download');
               setShowDeployPanel(true);
             }}
           >

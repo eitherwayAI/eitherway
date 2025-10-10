@@ -21,7 +21,7 @@ export function Header() {
   const [isBurgerOpen, setIsBurgerOpen] = useState(false);
   const [showDeployPanel, setShowDeployPanel] = useState(false);
   const [showBrandKitPanel, setShowBrandKitPanel] = useState(false);
-  const [deployPanelTab, setDeployPanelTab] = useState<'deploy' | 'export' | 'history'>('deploy');
+  const [deployPanelTab, setDeployPanelTab] = useState<'deploy' | 'download'>('deploy');
 
   // Use actual session ID from chat store (fallback to demo for compatibility)
   const sessionId = chat.sessionId || user?.email || 'demo-session';
@@ -138,7 +138,7 @@ export function Header() {
                   </ClientOnly>
                   <button
                     onClick={() => {
-                      setDeployPanelTab('export');
+                      setDeployPanelTab('download');
                       setShowDeployPanel(true);
                       setIsBurgerOpen(false);
                     }}
