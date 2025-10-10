@@ -28,6 +28,35 @@ const toastAnimation = cssTransition({
 const logger = createScopedLogger('Chat');
 
 /**
+ * Helper: Generate session title from the user's full prompt
+ * Uses the entire user message as the title, with smart truncation for long prompts
+ */
+function generateTitleFromPrompt(prompt: string): string {
+  // Normalize whitespace: trim and collapse multiple spaces/newlines into single spaces
+  let title = prompt
+    .trim()
+    .replace(/\s+/g, ' ');
+
+  // Truncate at 100 characters with ellipsis for readability
+  if (title.length > 100) {
+    // Try to break at a word boundary near the limit
+    const truncated = title.substring(0, 100);
+    const lastSpace = truncated.lastIndexOf(' ');
+
+    if (lastSpace > 80) {
+      // Break at word boundary if it's reasonably close to the limit
+      title = truncated.substring(0, lastSpace) + '...';
+    } else {
+      // Otherwise just hard truncate
+      title = truncated + '...';
+    }
+  }
+
+  // Fallback if empty after processing
+  return title.length > 0 ? title : 'New Chat';
+}
+
+/**
  * Helper: Sanitize filename by replacing spaces with hyphens and removing special characters
  */
 function sanitizeFilename(filename: string): string {
@@ -608,6 +637,24 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
 
       // Store session ID in chat store for export/deployment
       chatStore.setKey('sessionId', session.id);
+
+      // Generate and update session title from first user message
+      if (messages.length === 0) {
+        const generatedTitle = generateTitleFromPrompt(_input);
+        logger.info(`📝 Generated session title: "${generatedTitle}"`);
+
+        try {
+          await fetch(`/api/sessions/${session.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: generatedTitle })
+          });
+          logger.info('✅ Session title updated');
+        } catch (error) {
+          logger.warn('Failed to update session title:', error);
+          // Non-critical, continue with streaming
+        }
+      }
 
       // CRITICAL: Ensure brand assets are synced to THIS session (the one we're about to use)
       // This must happen AFTER session is determined, not during upload
