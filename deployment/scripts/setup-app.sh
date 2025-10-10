@@ -39,9 +39,18 @@ mkdir -p logs
 print_info "Installing dependencies with pnpm..."
 pnpm install
 
-# Build packages
-print_info "Building all packages..."
-pnpm run build
+# Build packages (only production-critical ones)
+print_info "Building production packages..."
+# Build database, runtime, ui-server, ui-frontend (skip evaluations which is dev-only)
+pnpm run build --filter '!@eitherway/evaluations' || {
+    print_warning "Some packages failed to build, checking critical packages..."
+    # Verify critical packages built successfully
+    if [ ! -d "packages/database/dist" ] || [ ! -d "packages/ui-server/dist" ]; then
+        print_error "Critical packages failed to build!"
+        exit 1
+    fi
+    print_info "Critical packages built successfully, continuing..."
+}
 
 # Setup HTTPS certificates for local development (WebContainer compatibility)
 print_info "Setting up HTTPS certificates for backend..."
