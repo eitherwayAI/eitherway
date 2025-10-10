@@ -105,7 +105,7 @@ export function useBackendHistory() {
   const storeMessageHistory = async (messages: Message[]) => {
     // Messages are already being stored by the backend during streaming
     // This is kept for compatibility but is now a no-op
-    logger.debug('storeMessageHistory called (no-op, backend handles persistence)');
+    // Removed noisy debug log - this fires on every message change
   };
 
   return {

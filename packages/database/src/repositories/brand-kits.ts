@@ -467,4 +467,16 @@ export class BrandColorsRepository {
 
     return result.rowCount || 0;
   }
+
+  /**
+   * Delete all colors for a brand kit
+   */
+  async deleteByBrandKitId(brandKitId: string): Promise<number> {
+    const result = await this.db.query(
+      `DELETE FROM core.brand_colors WHERE brand_kit_id = $1`,
+      [brandKitId]
+    );
+
+    return result.rowCount || 0;
+  }
 }

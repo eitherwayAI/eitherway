@@ -156,6 +156,56 @@ export async function registerBrandKitRoutes(
   });
 
   /**
+   * POST /api/brand-kits/user/:userId/archive-active
+   * Archive all active brand kits for a user (for session clearing)
+   * Body is optional (can be empty)
+   */
+  fastify.post<{
+    Params: { userId: string };
+    Body?: any;
+  }>('/api/brand-kits/user/:userId/archive-active', async (request, reply) => {
+    const { userId } = request.params;
+
+    try {
+      // Convert wallet address to email format if needed
+      const emailToUse = userId.startsWith('0x') ? `${userId}@wallet.local` : userId;
+
+      // Find user
+      const userRecord = await usersRepo.findByEmail(emailToUse);
+      if (!userRecord) {
+        return reply.code(404).send({
+          error: 'User not found',
+          userId
+        });
+      }
+
+      // Get all active brand kits for user
+      const activeBrandKits = await brandKitsRepo.findByUserId(userRecord.id, 'active');
+
+      // Archive each one
+      let archivedCount = 0;
+      for (const kit of activeBrandKits) {
+        await brandKitsRepo.update(kit.id, { status: 'archived' });
+        archivedCount++;
+      }
+
+      console.log(`[Brand Kits API] Archived ${archivedCount} active brand kits for user ${userId}`);
+
+      return {
+        success: true,
+        archivedCount
+      };
+
+    } catch (error: any) {
+      console.error('[Brand Kits API] Failed to archive active brand kits:', error);
+      return reply.code(500).send({
+        error: 'Failed to archive active brand kits',
+        message: error.message
+      });
+    }
+  });
+
+  /**
    * GET /api/brand-kits/user/:userId/active
    * Get user's most recent active brand kit
    */
@@ -526,44 +576,21 @@ export async function registerBrandKitRoutes(
         metadata: { kind: assetKind } // Store detailed kind in metadata
       });
 
-      // Extract color palette (async processing)
+      // Process asset metadata (dimensions) asynchronously
+      // NOTE: Color extraction is now done in aggregate-colors endpoint
       (async () => {
         try {
           await assetsRepo.updateProcessingStatus(asset.id, 'processing');
 
-          // Extract colors only for raster images (skip for SVG, fonts, videos, ZIPs)
-          const shouldExtractColors = ['image', 'logo', 'icon'].includes(assetKind) && mimeType !== 'image/svg+xml';
-          if (shouldExtractColors) {
+          // Extract dimensions for raster images
+          const shouldProcessImage = ['image', 'logo', 'icon'].includes(assetKind) && mimeType !== 'image/svg+xml';
+          if (shouldProcessImage) {
             const sharp = (await import('sharp')).default;
             const metadata = await sharp(buffer).metadata();
 
             if (metadata.width && metadata.height) {
               await assetsRepo.updateDimensions(asset.id, metadata.width, metadata.height);
             }
-
-            // Extract palette
-            const palette = await paletteExtractor.extract(buffer, {
-              maxColors: 5,
-              minProminence: 0.05
-            });
-
-            // Save extracted colors
-            const colorRecords = palette.colors.map((color, idx) => ({
-              brandKitId,
-              assetId: asset.id,
-              colorHex: color.hex,
-              colorRgb: color.rgb,
-              colorHsl: color.hsl,
-              colorName: PaletteExtractor.suggestColorName(color.hsl),
-              colorRole: 'extracted' as const,
-              prominenceScore: color.prominence,
-              pixelPercentage: color.pixelPercentage,
-              displayOrder: idx
-            }));
-
-            await colorsRepo.bulkCreate(colorRecords);
-
-            console.log(`[Brand Kits API] Extracted ${palette.colors.length} colors from asset ${asset.id}`);
           }
 
           await assetsRepo.updateProcessingStatus(asset.id, 'completed');
@@ -571,12 +598,11 @@ export async function registerBrandKitRoutes(
           await eventsRepo.log('brand_kit.asset_processed', {
             brandKitId,
             assetId: asset.id,
-            assetKind,
-            colorsExtracted: shouldExtractColors
+            assetKind
           }, { sessionId: undefined, appId: undefined, actor: 'system' });
 
         } catch (error: any) {
-          console.error('[Brand Kits API] Palette extraction failed:', error);
+          console.error('[Brand Kits API] Asset processing failed:', error);
           await assetsRepo.updateProcessingStatus(asset.id, 'failed', error.message);
         }
       })();
@@ -596,6 +622,195 @@ export async function registerBrandKitRoutes(
       console.error('[Brand Kits API] Asset upload failed:', error);
       return reply.code(500).send({
         error: 'Asset upload failed',
+        message: error.message
+      });
+    }
+  });
+
+  /**
+   * POST /api/brand-kits/:id/aggregate-colors
+   * Aggregate color palette across ALL assets in the brand kit
+   * This calculates global color prominence across all uploaded images
+   */
+  fastify.post<{
+    Params: { id: string };
+  }>('/api/brand-kits/:id/aggregate-colors', async (request, reply) => {
+    const { id: brandKitId } = request.params;
+
+    console.log('[Brand Kits API] Starting color aggregation for brand kit:', brandKitId);
+
+    try {
+      // Verify brand kit exists
+      const brandKit = await brandKitsRepo.findById(brandKitId);
+      if (!brandKit) {
+        return reply.code(404).send({ error: 'Brand kit not found' });
+      }
+
+      // Get all assets for this brand kit
+      const assets = await assetsRepo.findByBrandKitId(brandKitId);
+
+      // Filter for processable image assets
+      const imageAssets = assets.filter(asset => {
+        const kind = (asset.metadata as any)?.kind || asset.asset_type;
+        return ['image', 'logo', 'icon'].includes(kind) &&
+               asset.mime_type !== 'image/svg+xml' &&
+               asset.processing_status === 'completed';
+      });
+
+      // Delete existing colors FIRST (whether we have assets or not)
+      await colorsRepo.deleteByBrandKitId(brandKitId);
+
+      if (imageAssets.length === 0) {
+        console.log('[Brand Kits API] No image assets to process - colors cleared');
+        return {
+          success: true,
+          message: 'No image assets available for color extraction',
+          colorsExtracted: 0,
+          assetsProcessed: 0,
+          colors: []
+        };
+      }
+
+      console.log(`[Brand Kits API] Processing ${imageAssets.length} image assets for color aggregation`);
+
+      // Aggregate color data across all images
+      const colorMap = new Map<string, { rgb: any; hsl: any; count: number }>();
+      let totalPixels = 0;
+
+      for (const asset of imageAssets) {
+        try {
+          // Load asset file
+          const assetPath = join(UPLOAD_DIR, asset.storage_key);
+          const assetBuffer = await readFile(assetPath);
+
+          // Extract colors from this asset
+          const palette = await paletteExtractor.extract(assetBuffer, {
+            maxColors: 10, // Extract more colors per image for better aggregation
+            minProminence: 0.01
+          });
+
+          // Get image dimensions for pixel count
+          const sharp = (await import('sharp')).default;
+          const metadata = await sharp(assetBuffer).metadata();
+          const imagePixels = (metadata.width || 0) * (metadata.height || 0);
+
+          // Aggregate color counts
+          for (const color of palette.colors) {
+            const pixelCount = Math.round((color.pixelPercentage || 0) * imagePixels);
+            totalPixels += pixelCount;
+
+            if (colorMap.has(color.hex)) {
+              const existing = colorMap.get(color.hex)!;
+              existing.count += pixelCount;
+            } else {
+              colorMap.set(color.hex, {
+                rgb: color.rgb,
+                hsl: color.hsl,
+                count: pixelCount
+              });
+            }
+          }
+
+          console.log(`[Brand Kits API] Processed asset ${asset.file_name}: ${palette.colors.length} colors`);
+
+        } catch (error: any) {
+          console.error(`[Brand Kits API] Failed to process asset ${asset.file_name}:`, error);
+          // Continue with other assets
+        }
+      }
+
+      // Calculate global prominence and sort
+      const aggregatedColors = Array.from(colorMap.entries())
+        .map(([hex, data]) => ({
+          hex,
+          rgb: data.rgb,
+          hsl: data.hsl,
+          prominence: data.count / totalPixels,
+          pixelPercentage: (data.count / totalPixels) * 100
+        }))
+        .sort((a, b) => b.prominence - a.prominence)
+        .slice(0, 5); // Take top 5 colors
+
+      console.log(`[Brand Kits API] Aggregated ${aggregatedColors.length} colors from ${colorMap.size} unique colors`);
+
+      // Save aggregated colors (existing colors already deleted at the start)
+      if (aggregatedColors.length > 0) {
+        const colorRecords = aggregatedColors
+          .map((color, idx) => {
+            try {
+              // Clamp RGB values to 0-255 range to prevent database constraint violations
+              const clampedRgb = {
+                r: Math.min(255, Math.max(0, Math.round(color.rgb.r))),
+                g: Math.min(255, Math.max(0, Math.round(color.rgb.g))),
+                b: Math.min(255, Math.max(0, Math.round(color.rgb.b)))
+              };
+
+              // Clamp HSL values to valid ranges
+              const clampedHsl = {
+                h: Math.min(360, Math.max(0, Math.round(color.hsl.h))),
+                s: Math.min(100, Math.max(0, Math.round(color.hsl.s))),
+                l: Math.min(100, Math.max(0, Math.round(color.hsl.l)))
+              };
+
+              // Regenerate hex from clamped RGB to ensure validity
+              // This fixes malformed hex codes from the palette extractor
+              const validHex = '#' +
+                clampedRgb.r.toString(16).padStart(2, '0') +
+                clampedRgb.g.toString(16).padStart(2, '0') +
+                clampedRgb.b.toString(16).padStart(2, '0');
+
+              // Validate hex format (must be exactly 7 characters: # + 6 hex digits)
+              if (!/^#[0-9A-Fa-f]{6}$/.test(validHex)) {
+                console.warn(`[Brand Kits API] Skipping invalid color hex: ${validHex} (original: ${color.hex})`);
+                return null;
+              }
+
+              return {
+                brandKitId,
+                assetId: null, // Aggregated colors don't belong to a single asset
+                colorHex: validHex.toUpperCase(),
+                colorRgb: clampedRgb,
+                colorHsl: clampedHsl,
+                colorName: PaletteExtractor.suggestColorName(clampedHsl),
+                colorRole: 'extracted' as const,
+                prominenceScore: color.prominence,
+                pixelPercentage: color.pixelPercentage,
+                displayOrder: idx
+              };
+            } catch (error: any) {
+              console.error(`[Brand Kits API] Failed to process color ${color.hex}:`, error.message);
+              return null;
+            }
+          })
+          .filter((record): record is NonNullable<typeof record> => record !== null);
+
+        if (colorRecords.length > 0) {
+          await colorsRepo.bulkCreate(colorRecords);
+        }
+
+        console.log(`[Brand Kits API] Saved ${colorRecords.length} aggregated colors`);
+      }
+
+      await eventsRepo.log('brand_kit.colors_aggregated', {
+        brandKitId,
+        assetsProcessed: imageAssets.length,
+        colorsExtracted: aggregatedColors.length
+      }, { sessionId: undefined, appId: undefined, actor: 'system' });
+
+      return {
+        success: true,
+        colorsExtracted: aggregatedColors.length,
+        assetsProcessed: imageAssets.length,
+        colors: aggregatedColors.map(c => ({
+          hex: c.hex,
+          prominence: Math.round(c.prominence * 100) + '%'
+        }))
+      };
+
+    } catch (error: any) {
+      console.error('[Brand Kits API] Color aggregation failed:', error);
+      return reply.code(500).send({
+        error: 'Color aggregation failed',
         message: error.message
       });
     }
@@ -817,7 +1032,10 @@ export async function registerBrandKitRoutes(
     // Extract storage key from URL path after /download/
     const fullPath = (request.url || '').split('/api/brand-assets/download/')[1];
 
+    console.log('[Brand Assets API] GET /download/* - Full path:', fullPath);
+
     if (!fullPath) {
+      console.error('[Brand Assets API] Missing storage key in URL');
       return reply.code(400).send({
         error: 'Missing storage key in URL'
       });
@@ -826,10 +1044,26 @@ export async function registerBrandKitRoutes(
     try {
       // Decode storage key from URL
       const decodedKey = decodeURIComponent(fullPath);
+      console.log('[Brand Assets API] Decoded storage key:', decodedKey);
 
       // Read file from local storage
       const diskPath = join(UPLOAD_DIR, decodedKey);
+      console.log('[Brand Assets API] Reading from disk:', diskPath);
+
+      // Check if file exists first
+      const { stat } = await import('fs/promises');
+      try {
+        const stats = await stat(diskPath);
+        console.log('[Brand Assets API] File found - Size:', stats.size, 'bytes');
+      } catch (statError: any) {
+        console.error('[Brand Assets API] File not found on disk:', diskPath);
+        console.error('[Brand Assets API] Upload directory:', UPLOAD_DIR);
+        console.error('[Brand Assets API] Storage key:', decodedKey);
+        throw new Error(`File not found: ${decodedKey}`);
+      }
+
       const fileBuffer = await readFile(diskPath);
+      console.log('[Brand Assets API] ✓ File read successfully:', fileBuffer.length, 'bytes');
 
       // Determine MIME type from file extension
       const ext = decodedKey.split('.').pop()?.toLowerCase();
@@ -851,13 +1085,21 @@ export async function registerBrandKitRoutes(
       // Send file
       reply.header('Content-Type', mimeType);
       reply.header('Content-Disposition', `inline`);
+      reply.header('Content-Length', fileBuffer.length.toString());
+      console.log('[Brand Assets API] ✓ Sending file with Content-Type:', mimeType);
       reply.send(fileBuffer);
 
     } catch (error: any) {
-      console.error('[Brand Kits API] Asset download failed:', error);
+      console.error('[Brand Assets API] ❌ Asset download failed:', error);
+      console.error('[Brand Assets API] Error details:', {
+        message: error.message,
+        code: error.code,
+        path: error.path
+      });
       return reply.code(404).send({
         error: 'Asset not found',
-        message: error.message
+        message: error.message,
+        details: `Upload directory: ${UPLOAD_DIR}`
       });
     }
   });

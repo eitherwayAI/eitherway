@@ -57,44 +57,41 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
   // Use email if authenticated, otherwise use wallet address
   const userId = user?.email || (isConnected && address ? address : null);
 
-  // Load existing brand kit on mount
+  // Load brand kit from localStorage (session-scoped) on mount
+  // Do NOT fetch from server automatically - brand kits are per-session, not per-user
+  // Note: Page refresh clearing is handled in brandKitStore initialization
   useEffect(() => {
-    const loadExistingBrandKit = async () => {
-      if (!userId) {
-        setIsLoadingExisting(false);
+    const loadSessionBrandKit = async () => {
+      setIsLoadingExisting(false);
+
+      // Check if there's a brand kit ID in localStorage for current session
+      const { pendingBrandKitId } = brandKitStore.get();
+
+      if (!pendingBrandKitId) {
+        logger.info('No brand kit in current session');
         return;
       }
 
       try {
-        // Try to fetch user's active brand kit
-        const response = await fetch(`/api/brand-kits/user/${encodeURIComponent(userId)}/active`);
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.brandKit) {
-            setBrandKitData(data.brandKit);
-            setCurrentBrandKitId(data.brandKit.id);
-
-            // Update brandKitStore
-            brandKitStore.setKey('pendingBrandKitId', data.brandKit.id);
-
-            logger.info('Loaded existing brand kit:', data.brandKit.id);
-          }
-        } else if (response.status === 404) {
-          // No existing brand kit - this is fine
-          logger.info('No existing brand kit found for user');
+        // Fetch the specific brand kit by ID (not user's active brand kit)
+        const kitData = await fetchBrandKitData(pendingBrandKitId);
+        if (kitData) {
+          setCurrentBrandKitId(pendingBrandKitId);
+          logger.info('Loaded brand kit from current session:', pendingBrandKitId);
         } else {
-          logger.error('Failed to load existing brand kit:', response.statusText);
+          // Brand kit ID in localStorage is invalid/deleted, clear it
+          logger.warn('Brand kit ID in localStorage not found, clearing');
+          brandKitStore.set({ pendingBrandKitId: null, dirty: false });
         }
       } catch (err: any) {
-        logger.error('Error loading existing brand kit:', err);
-      } finally {
-        setIsLoadingExisting(false);
+        logger.error('Error loading session brand kit:', err);
+        // Clear invalid brand kit ID
+        brandKitStore.set({ pendingBrandKitId: null, dirty: false });
       }
     };
 
-    loadExistingBrandKit();
-  }, [userId]);
+    loadSessionBrandKit();
+  }, [chat.sessionId]);
 
   // Fetch brand kit data with assets and colors
   const fetchBrandKitData = async (brandKitId: string) => {
@@ -112,6 +109,57 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
     } catch (err: any) {
       console.error('Failed to fetch brand kit data:', err);
       return null;
+    }
+  };
+
+  const handleDeleteAsset = async (assetId: string, fileName: string) => {
+    if (!currentBrandKitId) return;
+
+    if (!confirm(`Delete ${fileName}? This will also update your color palette.`)) {
+      return;
+    }
+
+    try {
+      setUploadProgress([`Deleting ${fileName}...`]);
+
+      const deleteResponse = await fetch(`/api/brand-kits/${currentBrandKitId}/assets/${assetId}`, {
+        method: 'DELETE'
+      });
+
+      if (!deleteResponse.ok) {
+        throw new Error(`Failed to delete asset: ${deleteResponse.statusText}`);
+      }
+
+      setUploadProgress(prev => [...prev, `✓ ${fileName} deleted`]);
+
+      // Re-aggregate colors after deletion
+      setUploadProgress(prev => [...prev, 'Updating color palette...']);
+      const aggregateResponse = await fetch(`/api/brand-kits/${currentBrandKitId}/aggregate-colors`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+
+      if (aggregateResponse.ok) {
+        const aggregateData = await aggregateResponse.json();
+        setUploadProgress(prev => [...prev, `✓ Palette updated: ${aggregateData.colorsExtracted || 0} colors`]);
+      } else {
+        setUploadProgress(prev => [...prev, '⚠️ Color update failed']);
+      }
+
+      // Refresh brand kit data
+      const kitData = await fetchBrandKitData(currentBrandKitId);
+      setBrandKitData(kitData);
+
+      setUploadProgress(prev => [...prev, '✓ Complete!']);
+
+      // Clear progress after 2 seconds
+      setTimeout(() => setUploadProgress([]), 2000);
+
+    } catch (err: any) {
+      console.error('[BrandKitPanel] Delete failed:', err);
+      setError(err.message || 'Failed to delete asset');
+      setUploadProgress([]);
     }
   };
 
@@ -204,13 +252,29 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
 
       await Promise.all(uploadPromises);
 
-      setUploadProgress(prev => [...prev, '✓ All files uploaded! Extracting color palettes...']);
+      setUploadProgress(prev => [...prev, '✓ All files uploaded!']);
 
-      // Fetch brand kit data to show assets and colors
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for async processing
+      // Aggregate colors across all assets
+      setUploadProgress(prev => [...prev, 'Extracting brand color palette...']);
+      const aggregateResponse = await fetch(`/api/brand-kits/${brandKitId}/aggregate-colors`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+
+      if (!aggregateResponse.ok) {
+        console.error('[BrandKitPanel] Color aggregation failed:', aggregateResponse.statusText);
+        setUploadProgress(prev => [...prev, '⚠️ Color extraction failed, but assets uploaded successfully']);
+      } else {
+        const aggregateData = await aggregateResponse.json();
+        console.log('[BrandKitPanel] Color aggregation complete:', aggregateData);
+        setUploadProgress(prev => [...prev, `✓ Extracted ${aggregateData.colorsExtracted || 0} colors from ${aggregateData.assetsProcessed || 0} assets`]);
+      }
+
+      // Fetch updated brand kit data to show assets and colors
       const kitData = await fetchBrandKitData(brandKitId);
 
-      setUploadProgress(prev => [...prev, '✓ Brand kit created successfully!']);
+      setUploadProgress(prev => [...prev, '✓ Brand kit ready!']);
 
       // Mark assets pending for sync. We'll materialize them at the next prompt.
       brandKitStore.setKey('pendingBrandKitId', brandKitId);
@@ -310,7 +374,7 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
                 <h4 className="text-sm font-semibold text-gray-300 mb-3">Uploaded Assets</h4>
                 <div className="space-y-2">
                   {brandKitData.assets.map((asset) => (
-                    <div key={asset.id} className="flex items-center justify-between p-2 bg-gray-700 rounded">
+                    <div key={asset.id} className="flex items-center justify-between p-2 bg-gray-700 rounded group">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <div className="text-gray-400">
                           {asset.mimeType.startsWith('image/') && <div className="i-ph:image text-lg" />}
@@ -325,16 +389,26 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
                           </p>
                         </div>
                       </div>
-                      <div className="text-xs">
-                        {asset.processingStatus === 'completed' && (
-                          <span className="text-green-400">✓</span>
-                        )}
-                        {asset.processingStatus === 'processing' && (
-                          <span className="text-yellow-400">...</span>
-                        )}
-                        {asset.processingStatus === 'failed' && (
-                          <span className="text-red-400">✗</span>
-                        )}
+                      <div className="flex items-center gap-2">
+                        <div className="text-xs">
+                          {asset.processingStatus === 'completed' && (
+                            <span className="text-green-400">✓</span>
+                          )}
+                          {asset.processingStatus === 'processing' && (
+                            <span className="text-yellow-400">...</span>
+                          )}
+                          {asset.processingStatus === 'failed' && (
+                            <span className="text-red-400">✗</span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleDeleteAsset(asset.id, asset.fileName)}
+                          disabled={isUploading}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-600 rounded text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Delete asset"
+                        >
+                          <div className="i-ph:x text-sm" />
+                        </button>
                       </div>
                     </div>
                   ))}

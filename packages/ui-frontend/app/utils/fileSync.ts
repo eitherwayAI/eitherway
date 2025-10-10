@@ -128,8 +128,20 @@ export async function syncFilesToWebContainer(
       await webcontainer.fs.writeFile(filePath, fileContents);
 
       logger.debug(`Synced file: ${filePath} (binary: ${fileData.isBinary || false})`);
-    } catch (error) {
+    } catch (error: any) {
       logger.error(`Failed to sync file ${filePath}:`, error);
+
+      // Provide more detailed error information
+      if (error.message?.includes('404') || error.message?.includes('Not Found')) {
+        logger.error(`❌ File not found in session workspace: ${filePath}`);
+        logger.error(`This usually means the file was not properly saved to the session's file system.`);
+        logger.error(`Check that the file was written via /api/sessions/${sessionId}/files/write or write-binary`);
+      } else if (error.message?.includes('Failed to fetch')) {
+        logger.error(`❌ Network error fetching file: ${filePath}`);
+        logger.error(`Backend server may be unreachable or file endpoint may be down`);
+      } else {
+        logger.error(`❌ Unknown error syncing file: ${error.message || error}`);
+      }
     }
   }
 

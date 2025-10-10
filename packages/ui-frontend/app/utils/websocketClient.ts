@@ -91,7 +91,10 @@ export async function streamFromWebSocket(options: StreamOptions): Promise<Strea
 
       try {
         const data = JSON.parse(event.data);
-        console.log('[WebSocket] Received:', data.kind);
+        // Only log important events, not every chunk/reasoning delta
+        if (!['delta', 'reasoning'].includes(data.kind)) {
+          console.log('[WebSocket] Received:', data.kind);
+        }
 
         switch (data.kind) {
           case 'stream_start':

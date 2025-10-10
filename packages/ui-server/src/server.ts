@@ -21,6 +21,7 @@ import { registerPlanRoutes } from './routes/plans.js';
 import { registerBrandKitRoutes } from './routes/brand-kits.js';
 import { registerPreviewRoutes } from './routes/preview.js';
 import { registerDeploymentRoutes } from './routes/deployments.js';
+import { registerImageRoutes } from './routes/images.js';
 import { registerSecurityMiddleware } from './middleware/index.js';
 import { constants } from 'fs';
 import { randomUUID } from 'crypto';
@@ -96,7 +97,7 @@ try {
     await registerSecurityMiddleware(fastify, {
       db,
       enableRequestValidation: true,
-      enableRateLimiting: true,
+      enableRateLimiting: false, // Disabled for local development
       enableSecurityHeaders: true,
       enableIpRiskBlocking: process.env.NODE_ENV === 'production',
       isDevelopment: process.env.NODE_ENV === 'development'
@@ -109,6 +110,7 @@ try {
     await registerBrandKitRoutes(fastify, db);
     await registerPreviewRoutes(fastify, db);
     await registerDeploymentRoutes(fastify, db, WORKSPACE_DIR);
+    await registerImageRoutes(fastify, db);
   } else {
     console.log('⚠ Database not available - files will only be saved to filesystem');
   }

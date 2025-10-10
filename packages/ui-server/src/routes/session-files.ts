@@ -22,17 +22,49 @@ export async function registerSessionFileRoutes(
     const { sessionId } = request.params;
     const limit = parseInt(request.query.limit || '1000', 10);
 
+    console.log(`[Session Files] GET /files/tree - Session: ${sessionId}, Limit: ${limit}`);
+
     const session = await sessionsRepo.findById(sessionId);
 
     if (!session) {
+      console.error(`[Session Files] Session not found: ${sessionId}`);
       return reply.code(404).send({ error: 'Session not found' });
     }
 
     if (!session.app_id) {
+      console.log(`[Session Files] No app_id for session: ${sessionId}`);
       return reply.send({ files: [] });
     }
 
+    console.log(`[Session Files] Fetching file list for app: ${session.app_id}`);
     const files = await fileStore.list(session.app_id, limit);
+    console.log(`[Session Files] ✓ File list returned: ${files.length} files`);
+
+    // Debug: Log all file paths
+    const flattenFiles = (nodes: any[], prefix = ''): string[] => {
+      const paths: string[] = [];
+      for (const node of nodes) {
+        const fullPath = prefix ? `${prefix}/${node.name}` : node.name;
+        if (node.type === 'file') {
+          paths.push(fullPath);
+        }
+        if (node.type === 'directory' && node.children) {
+          paths.push(...flattenFiles(node.children, fullPath));
+        }
+      }
+      return paths;
+    };
+
+    const allPaths = flattenFiles(files);
+    console.log(`[Session Files] Files in tree: ${allPaths.join(', ')}`);
+
+    // Check for brand assets
+    const hasBrandAsset = allPaths.some(p => p.includes('public/assets/') && (p.endsWith('.png') || p.endsWith('.jpg')));
+    if (!hasBrandAsset) {
+      console.warn(`[Session Files] ⚠️  No brand assets found in file tree!`);
+    } else {
+      console.log(`[Session Files] ✓ Brand assets present in file tree`);
+    }
 
     return { files };
   });
@@ -44,6 +76,8 @@ export async function registerSessionFileRoutes(
     const { sessionId } = request.params;
     const { path } = request.query;
 
+    console.log(`[Session Files] GET /files/read - Session: ${sessionId}, Path: ${path}`);
+
     if (!path) {
       return reply.code(400).send({ error: 'path query parameter is required' });
     }
@@ -51,15 +85,20 @@ export async function registerSessionFileRoutes(
     const session = await sessionsRepo.findById(sessionId);
 
     if (!session) {
+      console.error(`[Session Files] Session not found: ${sessionId}`);
       return reply.code(404).send({ error: 'Session not found' });
     }
 
     if (!session.app_id) {
+      console.error(`[Session Files] No app_id for session: ${sessionId}`);
       return reply.code(404).send({ error: 'No app associated with session' });
     }
 
+    console.log(`[Session Files] Reading file from app: ${session.app_id}, path: ${path}`);
+
     try {
       const fileContent = await fileStore.read(session.app_id, path);
+      console.log(`[Session Files] ✓ File read successfully: ${path} (${fileContent.mimeType}, ${typeof fileContent.content === 'string' ? fileContent.content.length : Buffer.byteLength(fileContent.content)} bytes)`);
 
       const protocol = request.headers['x-forwarded-proto'] || 'http';
       const host = request.headers.host || 'localhost:3001';
@@ -110,6 +149,13 @@ export async function registerSessionFileRoutes(
         version: fileContent.version
       };
     } catch (error: any) {
+      console.error(`[Session Files] ❌ Error reading file: ${path}`, error);
+      console.error(`[Session Files] App ID: ${session.app_id}, Session: ${sessionId}`);
+      console.error(`[Session Files] Error details:`, {
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+      });
       return reply.code(404).send({ error: error.message });
     }
   });

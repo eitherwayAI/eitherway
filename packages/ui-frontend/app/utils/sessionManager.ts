@@ -3,6 +3,8 @@
  * Handles creating and managing chat sessions with the backend
  */
 
+import { brandKitStore } from '~/lib/stores/brandKit';
+
 const BACKEND_URL = typeof window !== 'undefined' ? 'https://localhost:3001' : 'https://localhost:3001';
 
 interface Session {
@@ -79,6 +81,37 @@ export function clearSession() {
   console.log('🧹 [Session Persistence] Clearing session:', currentSessionId || '(no session)');
   localStorage.removeItem('currentSessionId');
   console.log('🧹 [Session Persistence] Session cleared from localStorage');
+
+  // Archive active brand kits on backend to prevent old assets from appearing in new session
+  console.log('🧹 [Session Persistence] Archiving active brand kits...');
+  // Get user ID from wallet address (primary auth method) or fallback to standard user email
+  const walletAddress = typeof window !== 'undefined' ? localStorage.getItem('walletAddress') : null;
+  const userId = walletAddress || 'user@eitherway.app';
+
+  if (userId) {
+    fetch(`${BACKEND_URL}/api/brand-kits/user/${encodeURIComponent(userId)}/archive-active`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    })
+      .then(response => {
+        if (response.ok) {
+          console.log('✅ [Session Persistence] Active brand kits archived for:', userId);
+        } else {
+          console.warn('⚠️ [Session Persistence] Failed to archive brand kits:', response.statusText);
+        }
+      })
+      .catch(error => {
+        console.warn('⚠️ [Session Persistence] Error archiving brand kits:', error);
+      });
+  } else {
+    console.warn('⚠️ [Session Persistence] No userId found (wallet or email), skipping brand kit archival');
+  }
+
+  // Clear brand kit state to prevent old assets from appearing in new session
+  console.log('🧹 [Session Persistence] Clearing brand kit state...');
+  brandKitStore.set({ pendingBrandKitId: null, dirty: false });
+  console.log('✅ [Session Persistence] Brand kit state cleared');
 
   // Reset server state so new conversation can start fresh server
   console.log('🔄 [Session Persistence] Resetting server state...');
