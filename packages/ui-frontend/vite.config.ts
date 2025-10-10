@@ -12,7 +12,7 @@ export default defineConfig((config) => {
       host: '0.0.0.0',
       proxy: {
         '/api': {
-          target: 'http://localhost:3001',
+          target: 'https://localhost:3001',
           changeOrigin: true,
           secure: false,
         },
@@ -23,7 +23,7 @@ export default defineConfig((config) => {
       host: '0.0.0.0',
       proxy: {
         '/api': {
-          target: 'http://localhost:3001',
+          target: 'https://localhost:3001',
           changeOrigin: true,
           secure: false,
         },
