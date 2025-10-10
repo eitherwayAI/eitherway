@@ -59,12 +59,12 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
             }
           }}
         >
-          <div className="i-eitherway:chat text-sm" />
+          <div className="i-eitherway:chat h-3.5 w-3.5" />
         </Button>
         <div className="w-[1px] bg-eitherway-elements-borderColor" />
         <Button
           active={showWorkbench}
-          className="rounded-r-md"
+          className="i-rounded-r-md"
           onClick={() => {
             if (showWorkbench && !showChat) {
               chatStore.setKey('showChat', true);

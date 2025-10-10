@@ -6,6 +6,7 @@ import { cssTransition, toast, ToastContainer } from 'react-toastify';
 import { useShortcuts, useSnapScroll } from '~/lib/hooks';
 import { useBackendHistory } from '~/lib/persistence/useBackendHistory';
 import { chatStore } from '~/lib/stores/chat';
+import { workbenchStore } from '~/lib/stores/workbench';
 import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger } from '~/utils/logger';
 import { streamFromWebSocket, type StreamController } from '~/utils/websocketClient';
@@ -121,6 +122,10 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
   useEffect(() => {
     if (files.length > 0 && sessionId) {
       console.log('📁 [Chat] Syncing', files.length, 'files to WebContainer for session:', sessionId);
+
+      // Auto-show workbench when loading from history
+      workbenchStore.showWorkbench.set(true);
+      logger.info('✨ Auto-showing workbench for historical session');
 
       // Async function to sync files and start dev server
       (async () => {
@@ -291,6 +296,12 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
           // Update global chat store so Preview can access it
           chatStore.setKey('currentPhase', phase);
           console.log('📍 [chatStore updated] currentPhase:', chatStore.get().currentPhase);
+
+          // Auto-show workbench when agent starts writing code
+          if (phase === 'code-writing') {
+            workbenchStore.showWorkbench.set(true);
+            logger.info('✨ Auto-showing workbench preview - agent started writing code');
+          }
         },
         onReasoning: (text) => {
           logger.debug('Reasoning:', text);

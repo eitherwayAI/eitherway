@@ -17,9 +17,16 @@ export const Preview = memo(() => {
   // Subscribe to streaming phase for building overlay
   const { currentPhase } = useStore(chatStore);
 
-  // Debug logging for phase changes
+  // Debug logging for phase changes and reset timer when code-writing starts
   useEffect(() => {
     console.log('🎯 [Preview] currentPhase changed to:', currentPhase);
+
+    // Reset build timer when agent starts writing code
+    if (currentPhase === 'code-writing') {
+      setBuildStartTime(Date.now());
+      setElapsedSeconds(0);
+      logger.info('⏱️  Build timer reset - code-writing phase started');
+    }
   }, [currentPhase]);
 
   // always start with building status when Preview component mounts

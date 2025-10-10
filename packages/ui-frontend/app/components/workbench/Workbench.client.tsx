@@ -157,6 +157,14 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
                   </PanelHeaderButton>
                 )}
                 <IconButton
+                  icon="i-eitherway:chat"
+                  className="mr-1"
+                  size="sm"
+                  onClick={() => {
+                    chatStore.setKey('showChat', !showChat);
+                  }}
+                />
+                <IconButton
                   icon="i-ph:x-circle"
                   className="-mr-1"
                   size="xl"
