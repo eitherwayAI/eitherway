@@ -785,7 +785,7 @@ fastify.register(async (fastify) => {
     });
 
     connection.socket.on('close', () => {
-      console.log('Client disconnected');
+      console.log('[WebSocket] Client disconnected');
     });
   });
 });

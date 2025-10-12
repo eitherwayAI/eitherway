@@ -27,7 +27,7 @@ import { WEBSOCKET_URL } from '~/config/api';
 const BACKEND_URL = WEBSOCKET_URL;
 
 /**
- * Stream from WebSocket backend
+ * Stream from WebSocket backend with automatic reconnection
  * Connects to /api/agent?sessionId=xxx with WebSocket
  */
 export async function streamFromWebSocket(options: StreamOptions): Promise<StreamController> {
@@ -47,6 +47,10 @@ export async function streamFromWebSocket(options: StreamOptions): Promise<Strea
 
   let ws: WebSocket | null = null;
   let aborted = false;
+  let reconnectAttempts = 0;
+  let isCompleted = false;
+  const MAX_RECONNECT_ATTEMPTS = 5;
+  const BASE_RECONNECT_DELAY = 1000; // Start with 1 second
 
   const abort = () => {
     aborted = true;
@@ -61,8 +65,38 @@ export async function streamFromWebSocket(options: StreamOptions): Promise<Strea
     }
   };
 
-  try {
-    // Connect to WebSocket with sessionId
+  // Reconnection logic with exponential backoff
+  const attemptReconnect = async (): Promise<boolean> => {
+    if (aborted || isCompleted) {
+      console.log('[WebSocket] Skipping reconnect - stream aborted or completed');
+      return false;
+    }
+
+    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      console.error('[WebSocket] Max reconnection attempts reached');
+      onError('Connection lost - maximum retry attempts exceeded');
+      return false;
+    }
+
+    reconnectAttempts++;
+    const delay = BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttempts - 1);
+    console.log(`[WebSocket] Reconnection attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms...`);
+
+    await new Promise(resolve => setTimeout(resolve, delay));
+
+    try {
+      await connectWebSocket();
+      console.log('[WebSocket] Reconnected successfully');
+      reconnectAttempts = 0; // Reset on successful reconnect
+      return true;
+    } catch (error) {
+      console.error('[WebSocket] Reconnection failed:', error);
+      return attemptReconnect(); // Try again
+    }
+  };
+
+  // WebSocket connection setup
+  const connectWebSocket = async (): Promise<void> => {
     const wsUrl = `${BACKEND_URL}/api/agent?sessionId=${sessionId}`;
     console.log('[WebSocket] Connecting to:', wsUrl);
 
@@ -157,6 +191,7 @@ export async function streamFromWebSocket(options: StreamOptions): Promise<Strea
           case 'stream_end':
             // Stream completed
             console.log('[WebSocket] Stream ended, usage:', data.usage);
+            isCompleted = true;
             if (onTokenUsage && data.usage) {
               onTokenUsage(data.usage.inputTokens, data.usage.outputTokens);
             }
@@ -185,26 +220,37 @@ export async function streamFromWebSocket(options: StreamOptions): Promise<Strea
     ws.onerror = (event) => {
       if (!aborted) {
         console.error('[WebSocket] Error:', event);
-        onError('WebSocket error occurred');
+        // Don't call onError here - let onclose handle reconnection
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = async () => {
       console.log('[WebSocket] Connection closed');
-      if (!aborted) {
-        // Connection closed unexpectedly
-        onError('Connection closed');
+      if (!aborted && !isCompleted) {
+        // Connection closed unexpectedly - attempt reconnection
+        console.log('[WebSocket] Unexpected close - attempting reconnection...');
+        const reconnected = await attemptReconnect();
+        if (!reconnected) {
+          onError('Connection lost - unable to reconnect');
+        }
       }
     };
+  };
+
+  try {
+    // Initial connection
+    await connectWebSocket();
 
     // Send the prompt to start streaming
     console.log('[WebSocket] Sending prompt:', prompt);
-    ws.send(
-      JSON.stringify({
-        type: 'prompt',
-        prompt: prompt,
-      }),
-    );
+    if (ws) {
+      ws.send(
+        JSON.stringify({
+          type: 'prompt',
+          prompt: prompt,
+        }),
+      );
+    }
 
     return { abort, send };
   } catch (error) {
