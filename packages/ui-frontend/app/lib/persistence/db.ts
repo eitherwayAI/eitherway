@@ -8,7 +8,6 @@ const logger = createScopedLogger('ChatHistory');
 export async function openDatabase(): Promise<IDBDatabase | undefined> {
   return new Promise((resolve) => {
     try {
-      // Check if IndexedDB is available
       if (!window.indexedDB) {
         logger.warn('IndexedDB not available in this browser');
         resolve(undefined);
@@ -22,7 +21,6 @@ export async function openDatabase(): Promise<IDBDatabase | undefined> {
         try {
           const db = (event.target as IDBOpenDBRequest).result;
 
-          // Delete old object stores if they exist with wrong structure
           if (db.objectStoreNames.contains('chats')) {
             try {
               db.deleteObjectStore('chats');
@@ -31,7 +29,6 @@ export async function openDatabase(): Promise<IDBDatabase | undefined> {
             }
           }
 
-          // Create new object store with proper structure
           const store = db.createObjectStore('chats', { keyPath: 'id' });
           store.createIndex('id', 'id', { unique: true });
           store.createIndex('urlId', 'urlId', { unique: false });

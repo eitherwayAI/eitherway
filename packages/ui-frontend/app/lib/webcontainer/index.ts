@@ -20,7 +20,6 @@ export let webcontainer: Promise<WebContainer> = new Promise(() => {
   // noop for ssr
 });
 
-// Track the resolved WebContainer instance for teardown
 let webcontainerInstance: WebContainer | null = null;
 
 if (!import.meta.env.SSR) {
@@ -34,7 +33,6 @@ if (!import.meta.env.SSR) {
         webcontainerContext.loaded = true;
         webcontainerInstance = wc;
 
-        // Log when WebContainer is ready
         logger.info('✅ WebContainer booted successfully');
 
         return wc;

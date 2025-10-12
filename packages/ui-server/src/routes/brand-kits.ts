@@ -47,10 +47,6 @@ export async function registerBrandKitRoutes(
   console.log('[Brand Kits] Upload directory:', UPLOAD_DIR);
   console.log('[Brand Kits] Repositories initialized');
 
-  /**
-   * GET /api/brand-kits/health
-   * Health check endpoint
-   */
   fastify.get('/api/brand-kits/health', async (request, reply) => {
     console.log('[Brand Kits API] Health check called');
     try {
@@ -103,7 +99,6 @@ export async function registerBrandKitRoutes(
       console.log('[Brand Kits API] Existing user found?', !!userRecord);
 
       if (!userRecord) {
-        // Create user with wallet address or email
         console.log('[Brand Kits API] Creating new user:', emailToUse);
         const displayName = userId.startsWith('0x')
           ? `Wallet ${userId.substring(0, 8)}...`
@@ -179,7 +174,6 @@ export async function registerBrandKitRoutes(
         });
       }
 
-      // Get all active brand kits for user
       const activeBrandKits = await brandKitsRepo.findByUserId(userRecord.id, 'active');
 
       // Archive each one
@@ -205,10 +199,6 @@ export async function registerBrandKitRoutes(
     }
   });
 
-  /**
-   * GET /api/brand-kits/user/:userId/active
-   * Get user's most recent active brand kit
-   */
   fastify.get<{
     Params: { userId: string };
   }>('/api/brand-kits/user/:userId/active', async (request, reply) => {
@@ -227,7 +217,6 @@ export async function registerBrandKitRoutes(
         });
       }
 
-      // Get all active brand kits for user, sorted by creation date (newest first)
       const brandKits = await brandKitsRepo.findByUserId(userRecord.id, 'active');
 
       if (brandKits.length === 0) {
@@ -237,7 +226,6 @@ export async function registerBrandKitRoutes(
         });
       }
 
-      // Return most recent brand kit with full details
       const latestKit = brandKits[0];
       const assets = await assetsRepo.findByBrandKitId(latestKit.id);
       const colors = await colorsRepo.findByBrandKitId(latestKit.id);
@@ -287,10 +275,6 @@ export async function registerBrandKitRoutes(
     }
   });
 
-  /**
-   * GET /api/brand-kits
-   * List all brand kits for a user
-   */
   fastify.get<{
     Querystring: {
       userId: string;
@@ -328,10 +312,6 @@ export async function registerBrandKitRoutes(
     }
   });
 
-  /**
-   * GET /api/brand-kits/:id
-   * Get brand kit details with assets and colors
-   */
   fastify.get<{
     Params: { id: string };
   }>('/api/brand-kits/:id', async (request, reply) => {
@@ -437,10 +417,6 @@ export async function registerBrandKitRoutes(
     }
   });
 
-  /**
-   * DELETE /api/brand-kits/:id
-   * Delete brand kit (soft delete)
-   */
   fastify.delete<{
     Params: { id: string };
   }>('/api/brand-kits/:id', async (request, reply) => {
@@ -488,7 +464,6 @@ export async function registerBrandKitRoutes(
 
       console.log('[Brand Kits API] Brand kit found, fetching file...');
 
-      // Get uploaded file
       const data = await (request as any).file();
 
       if (!data) {
@@ -504,7 +479,6 @@ export async function registerBrandKitRoutes(
 
       console.log('[Brand Kits API] File buffered, size:', buffer.length, 'bytes');
 
-      // Validate file type and determine asset kind
       const mimeToKind: Record<string, { kind: string; maxSize: number }> = {
         // Images (20MB)
         'image/png': { kind: 'image', maxSize: 20 * 1024 * 1024 },
@@ -543,7 +517,6 @@ export async function registerBrandKitRoutes(
         });
       }
 
-      // Validate file size based on type
       if (buffer.length > fileTypeInfo.maxSize) {
         const maxSizeMB = Math.round(fileTypeInfo.maxSize / (1024 * 1024));
         return reply.code(400).send({
@@ -558,12 +531,10 @@ export async function registerBrandKitRoutes(
       const fileExt = fileName.split('.').pop() || 'bin';
       const storageKey = `brand-kits/${brandKit.user_id}/${brandKitId}/${randomUUID()}.${fileExt}`;
 
-      // Save file to local storage
       const fullPath = join(UPLOAD_DIR, storageKey);
       await mkdir(join(UPLOAD_DIR, `brand-kits/${brandKit.user_id}/${brandKitId}`), { recursive: true });
       await writeFile(fullPath, buffer);
 
-      // Create asset record with detected asset kind
       const asset = await assetsRepo.create({
         brandKitId,
         userId: brandKit.user_id,
@@ -576,8 +547,6 @@ export async function registerBrandKitRoutes(
         metadata: { kind: assetKind } // Store detailed kind in metadata
       });
 
-      // Process asset metadata (dimensions) asynchronously
-      // NOTE: Color extraction is now done in aggregate-colors endpoint
       (async () => {
         try {
           await assetsRepo.updateProcessingStatus(asset.id, 'processing');
@@ -646,7 +615,6 @@ export async function registerBrandKitRoutes(
         return reply.code(404).send({ error: 'Brand kit not found' });
       }
 
-      // Get all assets for this brand kit
       const assets = await assetsRepo.findByBrandKitId(brandKitId);
 
       // Filter for processable image assets
@@ -657,7 +625,6 @@ export async function registerBrandKitRoutes(
                asset.processing_status === 'completed';
       });
 
-      // Delete existing colors FIRST (whether we have assets or not)
       await colorsRepo.deleteByBrandKitId(brandKitId);
 
       if (imageAssets.length === 0) {
@@ -679,7 +646,6 @@ export async function registerBrandKitRoutes(
 
       for (const asset of imageAssets) {
         try {
-          // Load asset file
           const assetPath = join(UPLOAD_DIR, asset.storage_key);
           const assetBuffer = await readFile(assetPath);
 
@@ -689,7 +655,6 @@ export async function registerBrandKitRoutes(
             minProminence: 0.01
           });
 
-          // Get image dimensions for pixel count
           const sharp = (await import('sharp')).default;
           const metadata = await sharp(assetBuffer).metadata();
           const imagePixels = (metadata.width || 0) * (metadata.height || 0);
@@ -719,7 +684,6 @@ export async function registerBrandKitRoutes(
         }
       }
 
-      // Calculate global prominence and sort
       const aggregatedColors = Array.from(colorMap.entries())
         .map(([hex, data]) => ({
           hex,
@@ -733,7 +697,6 @@ export async function registerBrandKitRoutes(
 
       console.log(`[Brand Kits API] Aggregated ${aggregatedColors.length} colors from ${colorMap.size} unique colors`);
 
-      // Save aggregated colors (existing colors already deleted at the start)
       if (aggregatedColors.length > 0) {
         const colorRecords = aggregatedColors
           .map((color, idx) => {
@@ -759,7 +722,6 @@ export async function registerBrandKitRoutes(
                 clampedRgb.g.toString(16).padStart(2, '0') +
                 clampedRgb.b.toString(16).padStart(2, '0');
 
-              // Validate hex format (must be exactly 7 characters: # + 6 hex digits)
               if (!/^#[0-9A-Fa-f]{6}$/.test(validHex)) {
                 console.warn(`[Brand Kits API] Skipping invalid color hex: ${validHex} (original: ${color.hex})`);
                 return null;
@@ -816,27 +778,19 @@ export async function registerBrandKitRoutes(
     }
   });
 
-  /**
-   * DELETE /api/brand-kits/:id/assets/:assetId
-   * Delete an asset
-   */
   fastify.delete<{
     Params: { id: string; assetId: string };
   }>('/api/brand-kits/:id/assets/:assetId', async (request, reply) => {
     const { assetId } = request.params;
 
     try {
-      // Delete associated colors first
       await colorsRepo.deleteByAssetId(assetId);
 
-      // Delete asset
       const deleted = await assetsRepo.delete(assetId);
 
       if (!deleted) {
         return reply.code(404).send({ error: 'Asset not found' });
       }
-
-      // TODO: Delete file from storage
 
       return { success: true };
     } catch (error: any) {
@@ -863,7 +817,6 @@ export async function registerBrandKitRoutes(
     const { id: brandKitId } = request.params;
     const { colorHex, colorName, colorRole } = request.body;
 
-    // Validate hex color format
     if (!/^#[0-9A-Fa-f]{6}$/.test(colorHex)) {
       return reply.code(400).send({
         error: 'Invalid color format',
@@ -879,7 +832,6 @@ export async function registerBrandKitRoutes(
 
       const colorRgb = { r, g, b };
 
-      // Calculate HSL
       const hslCalc = (rgb: { r: number; g: number; b: number }) => {
         const rNorm = rgb.r / 255;
         const gNorm = rgb.g / 255;
@@ -997,10 +949,6 @@ export async function registerBrandKitRoutes(
     }
   });
 
-  /**
-   * DELETE /api/brand-kits/:id/colors/:colorId
-   * Delete a color
-   */
   fastify.delete<{
     Params: { id: string; colorId: string };
   }>('/api/brand-kits/:id/colors/:colorId', async (request, reply) => {
@@ -1023,11 +971,6 @@ export async function registerBrandKitRoutes(
     }
   });
 
-  /**
-   * GET /api/brand-assets/download/*
-   * Download brand asset file (for WebContainer mirroring)
-   * Uses wildcard to capture full storage key path with slashes
-   */
   fastify.get('/api/brand-assets/download/*', async (request, reply) => {
     // Extract storage key from URL path after /download/
     const fullPath = (request.url || '').split('/api/brand-assets/download/')[1];
@@ -1050,7 +993,6 @@ export async function registerBrandKitRoutes(
       const diskPath = join(UPLOAD_DIR, decodedKey);
       console.log('[Brand Assets API] Reading from disk:', diskPath);
 
-      // Check if file exists first
       const { stat } = await import('fs/promises');
       try {
         const stats = await stat(diskPath);
@@ -1063,7 +1005,7 @@ export async function registerBrandKitRoutes(
       }
 
       const fileBuffer = await readFile(diskPath);
-      console.log('[Brand Assets API] ✓ File read successfully:', fileBuffer.length, 'bytes');
+      console.log('[Brand Assets API] Success: File read successfully:', fileBuffer.length, 'bytes');
 
       // Determine MIME type from file extension
       const ext = decodedKey.split('.').pop()?.toLowerCase();
@@ -1082,15 +1024,14 @@ export async function registerBrandKitRoutes(
       };
       const mimeType = (ext && mimeTypes[ext]) || 'application/octet-stream';
 
-      // Send file
       reply.header('Content-Type', mimeType);
       reply.header('Content-Disposition', `inline`);
       reply.header('Content-Length', fileBuffer.length.toString());
-      console.log('[Brand Assets API] ✓ Sending file with Content-Type:', mimeType);
+      console.log('[Brand Assets API] Success: Sending file with Content-Type:', mimeType);
       reply.send(fileBuffer);
 
     } catch (error: any) {
-      console.error('[Brand Assets API] ❌ Asset download failed:', error);
+      console.error('[Brand Assets API] Error: Asset download failed:', error);
       console.error('[Brand Assets API] Error details:', {
         message: error.message,
         code: error.code,
@@ -1104,5 +1045,5 @@ export async function registerBrandKitRoutes(
     }
   });
 
-  console.log('[Brand Kits] ✓ All brand kit routes registered successfully');
+  console.log('[Brand Kits] Success: All brand kit routes registered successfully');
 }

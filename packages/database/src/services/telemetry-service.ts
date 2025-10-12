@@ -13,9 +13,7 @@
 
 import type { DatabaseClient } from '../client.js';
 
-// ============================================================================
 // TYPES
-// ============================================================================
 
 export type EventCategory =
   | 'messaging'
@@ -91,9 +89,7 @@ export interface HourlyPerformanceMetrics {
   avgTokens: number;
 }
 
-// ============================================================================
 // TELEMETRY SERVICE
-// ============================================================================
 
 export class TelemetryService {
   constructor(private db: DatabaseClient) {}
@@ -177,9 +173,6 @@ export class TelemetryService {
     return result.rows[0].id;
   }
 
-  /**
-   * Get event counts by category for a time range
-   */
   async getEventCountsByCategory(
     startTime: Date,
     endTime: Date,
@@ -196,9 +189,6 @@ export class TelemetryService {
     }));
   }
 
-  /**
-   * Get metric aggregates for a category and metric
-   */
   async getMetricAggregates(
     eventCategory: EventCategory,
     metricName: string,
@@ -226,9 +216,6 @@ export class TelemetryService {
     };
   }
 
-  /**
-   * Get time-series data for a metric
-   */
   async getMetricTimeSeries(
     eventCategory: EventCategory,
     metricName: string,
@@ -250,9 +237,6 @@ export class TelemetryService {
     }));
   }
 
-  /**
-   * Get daily event summary
-   */
   async getDailyEventSummary(
     startDate: Date,
     endDate: Date,
@@ -295,9 +279,6 @@ export class TelemetryService {
     }));
   }
 
-  /**
-   * Get hourly performance metrics
-   */
   async getHourlyPerformanceMetrics(
     startTime: Date,
     endTime: Date,
@@ -357,9 +338,6 @@ export class TelemetryService {
     return result.rows[0].archived_count;
   }
 
-  /**
-   * Get real-time events (last N events)
-   */
   async getRecentEvents(
     limit: number = 100,
     eventCategory?: EventCategory,
@@ -385,9 +363,6 @@ export class TelemetryService {
     return result.rows;
   }
 
-  /**
-   * Get user activity summary
-   */
   async getUserActivitySummary(
     userId: string,
     startDate: Date,

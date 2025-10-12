@@ -15,9 +15,7 @@
 import { DatabaseClient } from '../client.js';
 import type { RateLimitType } from './security-auditor.js';
 
-// ============================================================================
 // TYPES
-// ============================================================================
 
 export interface RateLimitConfig {
   limit: number;           // Maximum requests
@@ -50,9 +48,7 @@ interface WindowRecord {
   windowEnd: Date;
 }
 
-// ============================================================================
 // ENHANCED RATE LIMITER CLASS
-// ============================================================================
 
 export class EnhancedRateLimiter {
   private db: DatabaseClient | null;
@@ -116,9 +112,6 @@ export class EnhancedRateLimiter {
     setInterval(() => this.cleanup(), 5 * 60 * 1000);
   }
 
-  /**
-   * Check rate limit for a user/IP
-   */
   async check(
     limitType: RateLimitType,
     identifier: string,
@@ -172,7 +165,6 @@ export class EnhancedRateLimiter {
     const key = `${limitType}:${identifierType}:${identifier}`;
 
     if (this.db) {
-      // Delete from database
       await this.db.query(
         `DELETE FROM core.rate_limit_violations
          WHERE limit_type = $1 AND identifier = $2 AND identifier_type = $3
@@ -184,9 +176,6 @@ export class EnhancedRateLimiter {
     }
   }
 
-  /**
-   * Check rate limit using database
-   */
   private async checkDatabase(
     limitType: RateLimitType,
     identifier: string,
@@ -248,7 +237,6 @@ export class EnhancedRateLimiter {
         remaining: result.remaining - 1
       };
     } else {
-      // Log violation
       await this.db!.query(
         `INSERT INTO core.rate_limit_violations
          (limit_type, identifier, identifier_type, limit_value, current_count,
@@ -261,9 +249,6 @@ export class EnhancedRateLimiter {
     }
   }
 
-  /**
-   * Check rate limit using in-memory store
-   */
   private checkInMemory(key: string, config: RateLimitConfig): RateLimitResult {
     const record = this.inMemoryStore.get(key);
     const now = Date.now();
@@ -300,7 +285,6 @@ export class EnhancedRateLimiter {
     const now = Date.now();
 
     if (!record || now > record.windowEnd.getTime()) {
-      // Create new window
       const newRecord: WindowRecord = {
         count: 1,
         windowStart: new Date(now),
@@ -353,9 +337,6 @@ export class EnhancedRateLimiter {
     }
   }
 
-  /**
-   * Get current status for all limit types for an identifier
-   */
   async getStatus(
     identifier: string,
     identifierType: 'user_id' | 'ip_address' | 'session_id' = 'user_id'

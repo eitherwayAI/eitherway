@@ -57,9 +57,6 @@ async function ensurePreviewRegistered(webcontainer: WebContainer, port: number 
   }
 }
 
-/**
- * Check if a file exists in WebContainer
- */
 async function fileExists(webcontainer: WebContainer, filePath: string): Promise<boolean> {
   try {
     await webcontainer.fs.readFile(filePath, 'utf8');
@@ -168,7 +165,6 @@ const server = http.createServer(async (req, res) => {
     }
 
     try {
-      // Check cache first
       const cacheKey = targetUrl;
       const cached = cache.get(cacheKey);
       if (cached && (Date.now() - cached.time) < CACHE_TTL) {
@@ -309,7 +305,6 @@ const server = http.createServer(async (req, res) => {
                    'Content type:', content.constructor.name,
                    'Length:', content.length);
 
-        // Check if content is base64-encoded (our marker)
         const contentStr = content.toString('utf-8');
         let bodyBuf;
 
@@ -446,7 +441,6 @@ export async function runDevServer(webcontainer: WebContainer, files: any[]): Pr
       // Run npm install
       const installProcess = await webcontainer.spawn('npm', ['install']);
 
-      // Log output
       installProcess.output.pipeTo(
         new WritableStream({
           write(data) {
@@ -494,7 +488,6 @@ export async function runDevServer(webcontainer: WebContainer, files: any[]): Pr
     // Normalize path: strip leading slashes for baseDir calculation
     const normalizedPath = indexPath.replace(/^\/+/, '');
 
-    // Calculate base directory from normalized path
     let baseDir = '.';
     if (normalizedPath.includes('/')) {
       const lastSlash = normalizedPath.lastIndexOf('/');

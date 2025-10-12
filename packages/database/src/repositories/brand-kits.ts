@@ -9,9 +9,7 @@
 
 import { DatabaseClient } from '../client.js';
 
-// ============================================================================
 // TYPES
-// ============================================================================
 
 export interface BrandKit {
   id: string;
@@ -60,16 +58,11 @@ export interface BrandColor {
   updated_at: Date;
 }
 
-// ============================================================================
 // BRAND KITS REPOSITORY
-// ============================================================================
 
 export class BrandKitsRepository {
   constructor(private db: DatabaseClient) {}
 
-  /**
-   * Create a new brand kit
-   */
   async create(
     userId: string,
     name: string,
@@ -112,9 +105,6 @@ export class BrandKitsRepository {
     return result.rows;
   }
 
-  /**
-   * Update brand kit
-   */
   async update(
     id: string,
     updates: Partial<Pick<BrandKit, 'name' | 'description' | 'status'>>
@@ -155,9 +145,6 @@ export class BrandKitsRepository {
     return result.rows[0] || null;
   }
 
-  /**
-   * Delete brand kit (soft delete)
-   */
   async delete(id: string): Promise<boolean> {
     const result = await this.db.query(
       `UPDATE core.brand_kits SET status = 'deleted' WHERE id = $1`,
@@ -168,16 +155,11 @@ export class BrandKitsRepository {
   }
 }
 
-// ============================================================================
 // BRAND ASSETS REPOSITORY
-// ============================================================================
 
 export class BrandAssetsRepository {
   constructor(private db: DatabaseClient) {}
 
-  /**
-   * Create a new brand asset
-   */
   async create(params: {
     brandKitId: string;
     userId: string;
@@ -239,9 +221,6 @@ export class BrandAssetsRepository {
     return result.rows;
   }
 
-  /**
-   * Update asset processing status
-   */
   async updateProcessingStatus(
     id: string,
     status: BrandAsset['processing_status'],
@@ -260,9 +239,6 @@ export class BrandAssetsRepository {
     return result.rows[0] || null;
   }
 
-  /**
-   * Update asset dimensions
-   */
   async updateDimensions(
     id: string,
     width: number,
@@ -279,9 +255,6 @@ export class BrandAssetsRepository {
     return result.rows[0] || null;
   }
 
-  /**
-   * Delete asset
-   */
   async delete(id: string): Promise<boolean> {
     const result = await this.db.query(
       `DELETE FROM core.brand_assets WHERE id = $1`,
@@ -292,16 +265,11 @@ export class BrandAssetsRepository {
   }
 }
 
-// ============================================================================
 // BRAND COLORS REPOSITORY
-// ============================================================================
 
 export class BrandColorsRepository {
   constructor(private db: DatabaseClient) {}
 
-  /**
-   * Create a new brand color
-   */
   async create(params: {
     brandKitId: string;
     assetId?: string;
@@ -403,9 +371,6 @@ export class BrandColorsRepository {
     return result.rows;
   }
 
-  /**
-   * Update color
-   */
   async update(
     id: string,
     updates: Partial<Pick<BrandColor, 'color_name' | 'color_role' | 'display_order'>>
@@ -444,9 +409,6 @@ export class BrandColorsRepository {
     return result.rows[0] || null;
   }
 
-  /**
-   * Delete color
-   */
   async delete(id: string): Promise<boolean> {
     const result = await this.db.query(
       `DELETE FROM core.brand_colors WHERE id = $1`,
@@ -456,9 +418,6 @@ export class BrandColorsRepository {
     return result.rowCount !== null && result.rowCount > 0;
   }
 
-  /**
-   * Delete all colors for an asset
-   */
   async deleteByAssetId(assetId: string): Promise<number> {
     const result = await this.db.query(
       `DELETE FROM core.brand_colors WHERE asset_id = $1`,
@@ -468,9 +427,6 @@ export class BrandColorsRepository {
     return result.rowCount || 0;
   }
 
-  /**
-   * Delete all colors for a brand kit
-   */
   async deleteByBrandKitId(brandKitId: string): Promise<number> {
     const result = await this.db.query(
       `DELETE FROM core.brand_colors WHERE brand_kit_id = $1`,

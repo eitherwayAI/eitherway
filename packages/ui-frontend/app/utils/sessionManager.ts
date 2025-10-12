@@ -17,9 +17,6 @@ interface Session {
   last_message_at: string | null;
 }
 
-/**
- * Create a new session
- */
 export async function createSession(email: string, title: string): Promise<Session> {
   const response = await fetch(`${BACKEND_URL}/api/sessions`, {
     method: 'POST',
@@ -36,12 +33,7 @@ export async function createSession(email: string, title: string): Promise<Sessi
   return response.json();
 }
 
-/**
- * Get or create a session for the current user
- * Uses localStorage to persist the session across page reloads
- */
 export async function getOrCreateSession(email: string, title: string = 'New Chat'): Promise<Session> {
-  // Check if we have a session in localStorage
   const storedSessionId = localStorage.getItem('currentSessionId');
 
   if (storedSessionId) {
@@ -63,7 +55,6 @@ export async function getOrCreateSession(email: string, title: string = 'New Cha
     console.log('🆕 [Session Persistence] No stored session found in localStorage');
   }
 
-  // Create a new session
   console.log('🆕 [Session Persistence] Creating new session with title:', title);
   const session = await createSession(email, title);
   localStorage.setItem('currentSessionId', session.id);
@@ -83,7 +74,6 @@ export function clearSession() {
 
   // Archive active brand kits on backend to prevent old assets from appearing in new session
   console.log('🧹 [Session Persistence] Archiving active brand kits...');
-  // Get user ID from wallet address (primary auth method) or fallback to standard user email
   const walletAddress = typeof window !== 'undefined' ? localStorage.getItem('walletAddress') : null;
   const userId = walletAddress || 'user@eitherway.app';
 
@@ -112,7 +102,6 @@ export function clearSession() {
   brandKitStore.set({ pendingBrandKitId: null, dirty: false });
   console.log('✅ [Session Persistence] Brand kit state cleared');
 
-  // Reset server state so new conversation can start fresh server
   console.log('🔄 [Session Persistence] Resetting server state...');
   import('./webcontainerRunner').then(({ resetServerState }) => {
     resetServerState();
@@ -129,7 +118,6 @@ export function clearSession() {
       const wc = await webcontainer;
       const files = await wc.fs.readdir('.', { withFileTypes: true });
 
-      // Delete all files and directories in workspace
       for (const file of files) {
         try {
           if (file.isDirectory()) {

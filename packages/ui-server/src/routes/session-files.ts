@@ -38,7 +38,7 @@ export async function registerSessionFileRoutes(
 
     console.log(`[Session Files] Fetching file list for app: ${session.app_id}`);
     const files = await fileStore.list(session.app_id, limit);
-    console.log(`[Session Files] ✓ File list returned: ${files.length} files`);
+    console.log(`[Session Files] Success: File list returned: ${files.length} files`);
 
     // Debug: Log all file paths
     const flattenFiles = (nodes: any[], prefix = ''): string[] => {
@@ -58,12 +58,11 @@ export async function registerSessionFileRoutes(
     const allPaths = flattenFiles(files);
     console.log(`[Session Files] Files in tree: ${allPaths.join(', ')}`);
 
-    // Check for brand assets
     const hasBrandAsset = allPaths.some(p => p.includes('public/assets/') && (p.endsWith('.png') || p.endsWith('.jpg')));
     if (!hasBrandAsset) {
-      console.warn(`[Session Files] ⚠️  No brand assets found in file tree!`);
+      console.warn(`[Session Files] WARNING: No brand assets found in file tree!`);
     } else {
-      console.log(`[Session Files] ✓ Brand assets present in file tree`);
+      console.log(`[Session Files] Success: Brand assets present in file tree`);
     }
 
     return { files };
@@ -98,7 +97,7 @@ export async function registerSessionFileRoutes(
 
     try {
       const fileContent = await fileStore.read(session.app_id, path);
-      console.log(`[Session Files] ✓ File read successfully: ${path} (${fileContent.mimeType}, ${typeof fileContent.content === 'string' ? fileContent.content.length : Buffer.byteLength(fileContent.content)} bytes)`);
+      console.log(`[Session Files] Success: File read successfully: ${path} (${fileContent.mimeType}, ${typeof fileContent.content === 'string' ? fileContent.content.length : Buffer.byteLength(fileContent.content)} bytes)`);
 
       const protocol = request.headers['x-forwarded-proto'] || 'http';
       const host = request.headers.host || 'localhost:3001';
@@ -149,7 +148,7 @@ export async function registerSessionFileRoutes(
         version: fileContent.version
       };
     } catch (error: any) {
-      console.error(`[Session Files] ❌ Error reading file: ${path}`, error);
+      console.error(`[Session Files] Error: Error reading file: ${path}`, error);
       console.error(`[Session Files] App ID: ${session.app_id}, Session: ${sessionId}`);
       console.error(`[Session Files] Error details:`, {
         message: error.message,
@@ -187,24 +186,22 @@ export async function registerSessionFileRoutes(
     // CRITICAL FIX: Auto-create app_id if it doesn't exist
     let appId = session.app_id;
     if (!appId) {
-      console.log('[Session Files] ⚠️  Session has no app_id, creating one...');
+      console.log('[Session Files] WARNING: Session has no app_id, creating one...');
 
       try {
         // Import AppsRepository
         const { AppsRepository } = await import('@eitherway/database');
         const appsRepo = new AppsRepository(db);
 
-        // Create app with session title or default
         const appTitle = session.title || 'Generated App';
         const app = await appsRepo.create(session.user_id, appTitle, 'private');
         appId = app.id;
 
-        // Update session with app_id
         await sessionsRepo.update(sessionId, { app_id: appId } as any);
 
-        console.log('[Session Files] ✅ Created app:', appId, 'for session:', sessionId);
+        console.log('[Session Files] Success: Created app:', appId, 'for session:', sessionId);
       } catch (error: any) {
-        console.error('[Session Files] ❌ Failed to create app:', error);
+        console.error('[Session Files] Error: Failed to create app:', error);
         return reply.code(500).send({ error: `Failed to create application workspace: ${error.message}` });
       }
     } else {
@@ -214,7 +211,7 @@ export async function registerSessionFileRoutes(
     try {
       console.log('[Session Files] Writing file to database...', path);
       await fileStore.write(appId, path, content, mimeType);
-      console.log('[Session Files] ✅ File written successfully');
+      console.log('[Session Files] Success: File written successfully');
 
       await eventsRepo.log('file.updated', { path }, {
         sessionId,
@@ -228,13 +225,12 @@ export async function registerSessionFileRoutes(
         message: 'File saved successfully'
       };
     } catch (error: any) {
-      console.error('[Session Files] ❌ Error writing file:', error);
+      console.error('[Session Files] Error: Error writing file:', error);
       return reply.code(500).send({ error: error.message });
     }
   });
 
   // New: write-binary route for brand assets and other binary files
-  // Set higher body limit for large brand assets (50MB base64 encoded = ~37MB actual file)
   fastify.post<{
     Params: { sessionId: string };
     Body: { path: string; contentBase64: string; mimeType?: string };
@@ -264,7 +260,7 @@ export async function registerSessionFileRoutes(
     // Auto-create app_id if it doesn't exist
     let appId = session.app_id;
     if (!appId) {
-      console.log('[Session Files] ⚠️  Session has no app_id, creating one...');
+      console.log('[Session Files] WARNING: Session has no app_id, creating one...');
 
       try {
         const { AppsRepository } = await import('@eitherway/database');
@@ -276,9 +272,9 @@ export async function registerSessionFileRoutes(
 
         await sessionsRepo.update(sessionId, { app_id: appId } as any);
 
-        console.log('[Session Files] ✅ Created app:', appId, 'for session:', sessionId);
+        console.log('[Session Files] Success: Created app:', appId, 'for session:', sessionId);
       } catch (error: any) {
-        console.error('[Session Files] ❌ Failed to create app:', error);
+        console.error('[Session Files] Error: Failed to create app:', error);
         return reply.code(500).send({ error: `Failed to create application workspace: ${error.message}` });
       }
     } else {
@@ -291,7 +287,7 @@ export async function registerSessionFileRoutes(
       console.log('[Session Files] Writing binary file to database...', path, 'Size:', bytes.length, 'bytes');
 
       await fileStore.write(appId, path, bytes, mimeType);
-      console.log('[Session Files] ✅ Binary file written successfully');
+      console.log('[Session Files] Success: Binary file written successfully');
 
       await eventsRepo.log('file.upserted', { path }, {
         sessionId,
@@ -306,7 +302,7 @@ export async function registerSessionFileRoutes(
         message: 'Binary file saved successfully'
       };
     } catch (error: any) {
-      console.error('[Session Files] ❌ Error writing binary file:', error);
+      console.error('[Session Files] Error: Error writing binary file:', error);
       return reply.code(500).send({ error: error.message });
     }
   });

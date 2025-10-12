@@ -119,7 +119,6 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
  * before starting a new streaming request
  */
 async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: string | null) {
-  // Get brand kit ID from store (persisted in localStorage)
   let { pendingBrandKitId } = brandKitStore.get();
 
   // If no brand kit in store, try to fetch user's active brand kit
@@ -254,7 +253,6 @@ async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: st
         const writeResult = await writeRes.json();
         logger.info(`✅ Server synced: ${destPath} (${writeResult.size} bytes)`);
 
-        // Note: Immediate verification removed due to database transaction timing
         // The file is written successfully, but may not be immediately readable
         // due to async database commit. The file will be available when the agent
         // needs it during code generation.
@@ -388,7 +386,6 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
   const user = useStore(authStore.user);
   const { isConnected, address } = useWalletConnection();
 
-  // Get userId - prefer email, fallback to wallet address
   const userId = user?.email || (isConnected && address ? address : null);
 
   useEffect(() => {
@@ -440,7 +437,6 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
     }
   }, [initialMessages]);
 
-  // Load files into WebContainer when opening session from history
   useEffect(() => {
     if (files.length > 0 && sessionId) {
       console.log('📁 [Chat] Syncing', files.length, 'files to WebContainer for session:', sessionId);
@@ -456,7 +452,6 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
 
           // CRITICAL: Ensure brand assets are synced to both WC and server workspace
           // before loading files. This prevents 404 errors when the preview tries to
-          // load brand assets that weren't persisted in the session workspace.
           await ensureBrandAssetsSyncedBeforeStream(sessionId, userId);
           logger.info('✅ Brand assets resynced for historical session');
 
@@ -495,7 +490,6 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
       streamControllerRef.current = null;
     }
 
-    // Save metadata to current message before aborting (create new object!)
     setMessages((prev) => {
       return prev.map((msg, idx) => {
         if (idx === prev.length - 1 && msg.role === 'assistant') {
@@ -562,7 +556,6 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
 
     runAnimation();
 
-    // Reset Phase 2 state for new message
     setCurrentPhase(null);
     chatStore.setKey('currentPhase', null); // Also reset global store
     setReasoningText('');
@@ -570,14 +563,12 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
     setFileOperations([]);
     setTokenUsage(null);
 
-    // Add user message immediately
     const userMessage: Message = {
       id: `user-${Date.now()}`,
       role: 'user',
       content: _input,
     };
 
-    // Add empty assistant message placeholder with empty metadata
     const assistantMessageId = `assistant-${Date.now()}`;
     const assistantMessage: ExtendedMessage = {
       id: assistantMessageId,
@@ -598,7 +589,6 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
 
     textareaRef.current?.blur();
 
-    // Helper function to update current message metadata in real-time
     // IMPORTANT: Create new objects instead of mutating for React to detect changes
     const updateMessageMetadata = (updates: Partial<ExtendedMessage['metadata']>) => {
       setMessages((prev) => {
@@ -685,7 +675,6 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
           logger.debug('Streaming complete');
         },
         onError: (error) => {
-          // Save metadata even on error (create new object!)
           setMessages((prev) => {
             return prev.map((msg) => {
               if (msg.id === assistantMessageId) {
@@ -713,10 +702,8 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
         onPhase: (phase) => {
           logger.info('Phase:', phase);
           setCurrentPhase(phase);
-          // Update global chat store so Preview can access it
           chatStore.setKey('currentPhase', phase);
 
-          // Update metadata immediately
           updateMessageMetadata({ phase });
 
           // Auto-show workbench when agent starts writing code
@@ -729,7 +716,6 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
           // Removed noisy debug logging - fires for every reasoning chunk
           setReasoningText((prev) => {
             const newText = prev + text;
-            // Update metadata immediately with accumulated reasoning
             updateMessageMetadata({ reasoningText: newText });
             return newText;
           });
@@ -737,14 +723,12 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
         onThinkingComplete: (duration) => {
           logger.debug('Thinking complete in', duration, 'seconds');
           setThinkingDuration(duration);
-          // Update metadata immediately
           updateMessageMetadata({ thinkingDuration: duration });
         },
         onFileOperation: (operation, filePath) => {
           logger.debug('File operation:', operation, filePath);
           setFileOperations((prev) => {
             const newOps = [...prev, { operation, filePath }];
-            // Update metadata immediately with accumulated operations
             updateMessageMetadata({ fileOperations: newOps });
             return newOps;
           });
@@ -786,7 +770,6 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
                   const allPaths = flattenFiles(treeData.files);
                   logger.debug(`📁 File tree contains: ${allPaths.join(', ')}`);
 
-                  // Check if brand asset is in the tree
                   const hasBrandAsset = allPaths.some(p => p.includes('public/assets/') && p.endsWith('.png'));
                   if (!hasBrandAsset) {
                     logger.warn('⚠️  Brand asset NOT found in file tree! This will cause 404 errors.');
@@ -821,7 +804,6 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
           logger.debug('Token usage:', inputTokens, 'input,', outputTokens, 'output');
           const usage = { inputTokens, outputTokens };
           setTokenUsage(usage);
-          // Update metadata immediately
           updateMessageMetadata({ tokenUsage: usage });
         },
       });

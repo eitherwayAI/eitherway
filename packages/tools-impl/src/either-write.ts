@@ -36,7 +36,6 @@ export class EitherWriteExecutor implements ToolExecutor {
       let oldContent = '';
       let oldSha256 = '';
 
-      // Check if file exists
       try {
         await access(fullPath);
         isExisting = true;
@@ -55,7 +54,6 @@ export class EitherWriteExecutor implements ToolExecutor {
         // File doesn't exist, which is fine
       }
 
-      // Create parent directories if needed
       if (create_dirs) {
         const dir = dirname(fullPath);
         await mkdir(dir, { recursive: true });
@@ -73,7 +71,6 @@ export class EitherWriteExecutor implements ToolExecutor {
       // Write file
       await writeFile(fullPath, content, 'utf-8');
 
-      // Calculate new hash
       const newSha256 = createHash('sha256').update(content).digest('hex');
       const lineCount = content.split('\n').length;
 
@@ -118,7 +115,6 @@ export class EitherWriteExecutor implements ToolExecutor {
     const { fileStore, appId } = context;
 
     try {
-      // Check if file exists in database
       let isExisting = false;
       let oldContent = '';
 
@@ -141,7 +137,6 @@ export class EitherWriteExecutor implements ToolExecutor {
       // Write to database
       await fileStore.write(appId, path, content);
 
-      // Calculate hash and line count
       const newSha256 = createHash('sha256').update(content).digest('hex');
       const lineCount = content.split('\n').length;
 
@@ -196,7 +191,6 @@ export class EitherWriteExecutor implements ToolExecutor {
       }
     }
 
-    // Handle length differences
     if (newLines.length > oldLines.length) {
       const added = newLines.length - oldLines.length;
       diff.push(`... +${added} lines added`);

@@ -16,9 +16,7 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import type { DatabaseClient } from '../client.js';
 
-// ============================================================================
 // TYPES
-// ============================================================================
 
 export interface DeploymentConfig {
   appId: string;
@@ -51,9 +49,7 @@ export interface DeploymentLogEntry {
 
 export type DeploymentStatus = 'pending' | 'building' | 'deploying' | 'success' | 'failed' | 'cancelled';
 
-// ============================================================================
 // DEPLOYMENT SERVICE
-// ============================================================================
 
 export class DeploymentService {
   private db: DatabaseClient;
@@ -69,13 +65,11 @@ export class DeploymentService {
     const startTime = Date.now();
     const logs: DeploymentLogEntry[] = [];
 
-    // Parse repository URL
     const repoInfo = this.parseGitHubUrl(config.repositoryUrl);
     if (!repoInfo) {
       throw new Error('Invalid GitHub repository URL');
     }
 
-    // Create deployment record
     const deploymentId = await this.createDeployment({
       app_id: config.appId,
       user_id: config.userId,
@@ -91,7 +85,6 @@ export class DeploymentService {
     });
 
     try {
-      // Update status to building
       await this.updateDeploymentStatus(deploymentId, 'building');
       this.addLog(logs, 'info', 'Starting deployment process', {}, 'initialize', 0);
 
@@ -129,7 +122,6 @@ export class DeploymentService {
       // Step 5: Create gh-pages branch and commit
       this.addLog(logs, 'info', 'Preparing gh-pages deployment...', {}, 'deploy', 4);
 
-      // Create orphan gh-pages branch
       await this.runCommand('git', ['checkout', '--orphan', config.branch || 'gh-pages'], workingDir, logs);
 
       // Copy build output to root
@@ -147,7 +139,6 @@ export class DeploymentService {
       const deploymentUrl = `https://${repoInfo.owner}.github.io/${repoInfo.name}/`;
       this.addLog(logs, 'info', `Deployment successful: ${deploymentUrl}`, { deploymentUrl }, 'complete', 5);
 
-      // Update deployment record
       await this.updateDeployment(deploymentId, {
         status: 'success',
         deployment_url: deploymentUrl,
@@ -171,7 +162,6 @@ export class DeploymentService {
     } catch (error: any) {
       this.addLog(logs, 'error', `Deployment failed: ${error.message}`, { error: error.stack }, 'error', -1);
 
-      // Update deployment record with error
       await this.updateDeployment(deploymentId, {
         status: 'failed',
         error_message: error.message,
@@ -195,9 +185,6 @@ export class DeploymentService {
     }
   }
 
-  /**
-   * Create deployment record
-   */
   private async createDeployment(data: any): Promise<string> {
     const result = await this.db.query<{ id: string }>(
       `INSERT INTO core.deployments (
@@ -225,9 +212,6 @@ export class DeploymentService {
     return result.rows[0].id;
   }
 
-  /**
-   * Update deployment status
-   */
   private async updateDeploymentStatus(deploymentId: string, status: DeploymentStatus): Promise<void> {
     await this.db.query(
       'UPDATE core.deployments SET status = $1 WHERE id = $2',
@@ -235,9 +219,6 @@ export class DeploymentService {
     );
   }
 
-  /**
-   * Update deployment record
-   */
   private async updateDeployment(deploymentId: string, updates: any): Promise<void> {
     const fields: string[] = [];
     const values: any[] = [];
@@ -364,9 +345,6 @@ export class DeploymentService {
     };
   }
 
-  /**
-   * Check if file/directory exists
-   */
   private async fileExists(path: string): Promise<boolean> {
     try {
       await fs.access(path);
@@ -376,9 +354,6 @@ export class DeploymentService {
     }
   }
 
-  /**
-   * Get deployment by ID
-   */
   async getDeployment(deploymentId: string): Promise<any> {
     const result = await this.db.query(
       'SELECT * FROM core.deployments WHERE id = $1',
@@ -388,9 +363,6 @@ export class DeploymentService {
     return result.rows[0] || null;
   }
 
-  /**
-   * Get deployment logs
-   */
   async getDeploymentLogs(deploymentId: string): Promise<DeploymentLogEntry[]> {
     const result = await this.db.query<any>(
       `SELECT log_level, message, details, step_name, step_index, created_at
@@ -410,9 +382,6 @@ export class DeploymentService {
     }));
   }
 
-  /**
-   * Get deployments for an app
-   */
   async getDeploymentsByApp(appId: string, limit: number = 10): Promise<any[]> {
     const result = await this.db.query(
       `SELECT * FROM core.deployments
@@ -425,9 +394,6 @@ export class DeploymentService {
     return result.rows;
   }
 
-  /**
-   * Get latest successful deployment
-   */
   async getLatestSuccessfulDeployment(appId: string): Promise<any> {
     const result = await this.db.query(
       `SELECT * FROM core.deployments

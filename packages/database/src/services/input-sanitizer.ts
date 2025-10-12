@@ -11,9 +11,7 @@
  * Philosophy: Be paranoid. Sanitize everything. Trust nothing.
  */
 
-// ============================================================================
 // TYPES
-// ============================================================================
 
 export interface SanitizationResult<T = string> {
   sanitized: T;
@@ -28,9 +26,7 @@ export interface ValidationResult {
   sanitized?: any;
 }
 
-// ============================================================================
 // INPUT SANITIZER CLASS
-// ============================================================================
 
 export class InputSanitizer {
   /**
@@ -187,7 +183,6 @@ export class InputSanitizer {
       }
     }
 
-    // Remove path traversal attempts
     sanitized = sanitized.replace(/\.\./g, '');
     sanitized = sanitized.replace(/\/\//g, '/');
     sanitized = sanitized.replace(/\\/g, '/');
@@ -213,7 +208,6 @@ export class InputSanitizer {
     let sanitized = input;
     const removedPatterns: string[] = [];
 
-    // Check for path traversal in filename
     if (/[/\\]/.test(sanitized)) {
       removedPatterns.push('path_separator');
     }
@@ -318,14 +312,12 @@ export class InputSanitizer {
       // Deep scan for dangerous patterns in string values
       const scan = (obj: any): void => {
         if (typeof obj === 'string') {
-          // Check for XSS
           for (const pattern of this.XSS_PATTERNS) {
             if (pattern.test(obj)) {
               removedPatterns.push(`xss:${pattern.source.substring(0, 30)}`);
             }
           }
 
-          // Check for SQL injection
           for (const pattern of this.SQL_PATTERNS) {
             if (pattern.test(obj)) {
               removedPatterns.push(`sql:${pattern.source.substring(0, 30)}`);
@@ -425,9 +417,6 @@ export class InputSanitizer {
     };
   }
 
-  /**
-   * Validate UUID
-   */
   static validateUuid(input: string): ValidationResult {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -447,15 +436,12 @@ export class InputSanitizer {
     if (type === 'auto') {
       // Auto-detect type
       if (typeof input === 'string') {
-        // Check if it looks like a URL
         if (input.startsWith('http://') || input.startsWith('https://')) {
           return this.sanitizeUrl(input);
         }
-        // Check if it looks like an email
         if (input.includes('@') && input.includes('.')) {
           return this.sanitizeEmail(input);
         }
-        // Check if it looks like a file path
         if (input.includes('/') || input.includes('\\')) {
           return this.sanitizeFilePath(input);
         }

@@ -44,7 +44,6 @@ export function useBackendHistory() {
 
     logger.info('Loading session from backend:', sessionId);
 
-    // Load session and files in parallel
     Promise.all([
       fetch(`${BACKEND_URL}/api/sessions/${sessionId}`),
       fetch(`${BACKEND_URL}/api/sessions/${sessionId}/files/tree`),

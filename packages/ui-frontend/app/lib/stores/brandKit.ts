@@ -1,6 +1,5 @@
 import { map } from 'nanostores';
 
-// Load initial state from localStorage (browser-safe)
 const loadFromLocalStorage = () => {
   if (typeof window === 'undefined') return { pendingBrandKitId: null, dirty: false };
 

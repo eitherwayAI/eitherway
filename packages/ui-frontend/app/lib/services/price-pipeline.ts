@@ -189,7 +189,6 @@ export class PricePipeline {
         'Accept': 'application/json'
       };
 
-      // Add API key if available
       if (process.env.COINGECKO_API_KEY) {
         headers['x-cg-demo-api-key'] = process.env.COINGECKO_API_KEY;
       }

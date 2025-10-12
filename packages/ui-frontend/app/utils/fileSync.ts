@@ -23,9 +23,6 @@ interface FileContentResponse {
   mimeType?: string;
 }
 
-/**
- * Fetch file content from backend
- */
 async function fetchFileContent(sessionId: string, filePath: string): Promise<FileContentResponse> {
   const response = await fetch(
     `${BACKEND_URL}/api/sessions/${sessionId}/files/read?path=${encodeURIComponent(filePath)}`,
@@ -105,7 +102,6 @@ export async function syncFilesToWebContainer(
       // DEBUG: Log first 100 chars of content to verify it's changing
       logger.debug(`📥 Fetched ${filePath}: ${fileData.content.substring(0, 100)}...`);
 
-      // Handle binary vs text files
       let fileContents: string;
       if (fileData.isBinary && fileData.content) {
         // Binary file: store as base64 string prefixed with __BASE64__ marker

@@ -7,9 +7,7 @@
 
 import { DatabaseClient } from '../client.js';
 
-// ============================================================================
 // TYPES
-// ============================================================================
 
 export type SecurityEventType =
   | 'auth.login_attempt'
@@ -97,9 +95,7 @@ export interface RiskAssessment {
   recommendation: 'allow' | 'warn' | 'block' | 'ban';
 }
 
-// ============================================================================
 // SECURITY AUDITOR CLASS
-// ============================================================================
 
 export class SecurityAuditor {
   constructor(private db: DatabaseClient) {}
@@ -145,7 +141,6 @@ export class SecurityAuditor {
 
     const eventId = result.rows[0].id;
 
-    // Log to console for immediate visibility
     const logLevel = severity === 'critical' || severity === 'error' ? 'error' : 'warn';
     console[logLevel](`[Security] ${eventType} [${severity}]`, {
       eventId,
@@ -212,21 +207,18 @@ export class SecurityAuditor {
    * Assess risk for an IP address
    */
   async assessIpRisk(ipAddress: string): Promise<RiskAssessment> {
-    // Get risk score from database function
     const scoreResult = await this.db.query(
       `SELECT calculate_ip_risk_score($1::inet) AS risk_score`,
       [ipAddress]
     );
     const riskScore = scoreResult.rows[0]?.risk_score || 0;
 
-    // Check if should block
     const blockResult = await this.db.query(
       `SELECT should_block_ip($1::inet) AS should_block`,
       [ipAddress]
     );
     const shouldBlock = blockResult.rows[0]?.should_block || false;
 
-    // Get event statistics
     const statsResult = await this.db.query(
       `SELECT
          COUNT(*) AS recent_events,
@@ -267,9 +259,6 @@ export class SecurityAuditor {
     };
   }
 
-  /**
-   * Get recent security events
-   */
   async getRecentEvents(
     filters: {
       eventType?: SecurityEventType;
@@ -321,9 +310,6 @@ export class SecurityAuditor {
     return result.rows;
   }
 
-  /**
-   * Get security metrics summary
-   */
   async getMetricsSummary(hours: number = 24): Promise<{
     totalEvents: number;
     criticalEvents: number;
@@ -370,9 +356,6 @@ export class SecurityAuditor {
     };
   }
 
-  /**
-   * Get high-risk users
-   */
   async getHighRiskUsers(): Promise<Array<{
     userId: string;
     email: string;
@@ -397,9 +380,6 @@ export class SecurityAuditor {
     }));
   }
 
-  /**
-   * Get suspicious IP addresses
-   */
   async getSuspiciousIps(): Promise<Array<{
     ipAddress: string;
     totalEvents: number;

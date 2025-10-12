@@ -13,9 +13,7 @@
 
 import sharp from 'sharp';
 
-// ============================================================================
 // TYPES
-// ============================================================================
 
 export interface RGB {
   r: number;
@@ -49,9 +47,7 @@ export interface PaletteExtractionResult {
   dimensions: { width: number; height: number };
 }
 
-// ============================================================================
 // EXTRACTOR CLASS
-// ============================================================================
 
 export class PaletteExtractor {
   private static readonly DEFAULT_OPTIONS: Required<PaletteExtractionOptions> = {
@@ -73,7 +69,6 @@ export class PaletteExtractor {
   ): Promise<PaletteExtractionResult> {
     const opts = { ...PaletteExtractor.DEFAULT_OPTIONS, ...options };
 
-    // Load image and get metadata
     const image = sharp(imageBuffer);
     const metadata = await image.metadata();
 
@@ -126,11 +121,9 @@ export class PaletteExtractor {
     const resizedPixels = resized.info.width * resized.info.height;
 
     for (const { rgb, count } of sortedColors) {
-      // Check minimum prominence
       const prominence = count / resizedPixels;
       if (prominence < opts.minProminence) continue;
 
-      // Check similarity to already extracted colors
       const isSimilar = extractedColors.some(existing =>
         this.colorDistance(rgb, existing.rgb) < opts.similarityThreshold
       );
@@ -237,13 +230,9 @@ export class PaletteExtractor {
     };
   }
 
-  /**
-   * Validate if color is acceptable (not too dark, not too light, not grayscale)
-   */
   static isAcceptableColor(rgb: RGB, options: { minSaturation?: number } = {}): boolean {
     const { minSaturation = 10 } = options;
 
-    // Calculate saturation
     const max = Math.max(rgb.r, rgb.g, rgb.b);
     const min = Math.min(rgb.r, rgb.g, rgb.b);
     const diff = max - min;
@@ -264,9 +253,6 @@ export class PaletteExtractor {
     return true;
   }
 
-  /**
-   * Get color name suggestion based on hue
-   */
   static suggestColorName(hsl: HSL): string {
     const { h, s, l } = hsl;
 

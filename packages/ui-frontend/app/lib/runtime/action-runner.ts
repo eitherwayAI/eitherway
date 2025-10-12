@@ -141,7 +141,6 @@ export class ActionRunner {
         ? `Modifying file: ${action.filePath}`
         : `Creating file: ${action.filePath}`;
 
-      // Update the action state with the operation type
       this.#updateAction(key, { operationType });
     } else {
       actionDescription = `Running command: ${action.content?.substring(0, 100)}...`;
@@ -219,7 +218,6 @@ export class ActionRunner {
 
     let folder = nodePath.dirname(action.filePath);
 
-    // remove trailing slashes
     folder = folder.replace(/\/+$/g, '');
 
     if (folder !== '.') {
@@ -232,7 +230,6 @@ export class ActionRunner {
     }
 
     try {
-      // Check if file exists to determine if we should modify or create
       let fileExists = false;
       try {
         await webcontainer.fs.readFile(action.filePath, 'utf8');
@@ -262,7 +259,6 @@ export class ActionRunner {
         await webcontainer.fs.writeFile(action.filePath, contentToWrite);
         logger.debug(`Modified file ${action.filePath}`);
       } else {
-        // Create new file
         let contentToWrite = action.content;
         const basename = action.filePath.split('/').pop() || action.filePath;
         if (basename === 'styles.css') {
@@ -447,9 +443,7 @@ export class ActionRunner {
     return null;
   }
 
-  // Create YouTube preview element
   function createYouTubePreview(videoId, width, height) {
-    // Create as an anchor element for better compatibility
     const preview = document.createElement('a');
     preview.href = 'https://www.youtube.com/watch?v=' + videoId;
     preview.target = '_blank';
@@ -463,21 +457,17 @@ export class ActionRunner {
     inner.className = 'youtube-preview-inner';
     inner.style.backgroundImage = 'url(https://img.youtube.com/vi/' + videoId + '/maxresdefault.jpg), url(https://img.youtube.com/vi/' + videoId + '/hqdefault.jpg)';
 
-    // Add WebContainer badge
     const badge = document.createElement('div');
     badge.className = 'youtube-badge';
     badge.innerHTML = '<svg class="youtube-badge-icon" viewBox="0 0 24 24"><path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/></svg> Preview Mode';
 
-    // Create content wrapper
     const content = document.createElement('div');
     content.className = 'youtube-preview-content';
 
-    // Add play button
     const playButton = document.createElement('div');
     playButton.className = 'youtube-play-button';
     playButton.innerHTML = '<div class="youtube-play-icon"></div>';
 
-    // Add text information
     const textWrapper = document.createElement('div');
     textWrapper.className = 'youtube-preview-text';
 
@@ -650,13 +640,10 @@ export class ActionRunner {
     }
   }
 
-  // Initialize theme
   const savedTheme = localStorage.getItem('theme') || 'light';
   document.documentElement.setAttribute('data-theme', savedTheme);
 
-  // Create button after DOM loads
   function createThemeToggle() {
-    // Get existing button or create new one
     let btn = document.getElementById('theme-toggle');
 
     if (btn) {
@@ -668,7 +655,6 @@ export class ActionRunner {
       // Always update icon to ensure it's correct
       updateThemeIcon(savedTheme);
     } else {
-      // Create new button
       btn = document.createElement('button');
       btn.id = 'theme-toggle';
       btn.onclick = toggleTheme;
@@ -679,7 +665,6 @@ export class ActionRunner {
       const header = document.querySelector('header, nav, .header, .navbar, .nav-header');
 
       if (header && header.children.length > 0) {
-        // Check if header has a good structure for inline placement
         const hasFlexOrGrid = window.getComputedStyle(header).display.includes('flex') ||
                               window.getComputedStyle(header).display.includes('grid');
 
@@ -687,7 +672,6 @@ export class ActionRunner {
           // Place inline in header
           btn.style.cssText = 'width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,0.5);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:2px solid rgba(255,255,255,0.2);cursor:pointer;display:flex;align-items:center;justify-content:center;margin-left:auto;flex-shrink:0;';
 
-          // Create a wrapper div to ensure proper placement
           const wrapper = document.createElement('div');
           wrapper.style.cssText = 'display:flex;align-items:center;margin-left:auto;';
           wrapper.appendChild(btn);

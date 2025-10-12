@@ -14,9 +14,7 @@ import { DeploymentsRepository } from '../repositories/deployments.js';
 import archiver from 'archiver';
 import FormData from 'form-data';
 
-// ============================================================================
 // TYPES
-// ============================================================================
 
 export interface NetlifyDeployConfig {
   appId: string;
@@ -51,9 +49,7 @@ export interface NetlifyLogsAccessToken {
   deployId: string;
 }
 
-// ============================================================================
 // NETLIFY SERVICE
-// ============================================================================
 
 export class NetlifyService {
   private db: DatabaseClient;
@@ -74,9 +70,6 @@ export class NetlifyService {
     this.deployments = new DeploymentsRepository(db);
   }
 
-  /**
-   * Validate Netlify PAT and get user info
-   */
   async validateToken(token: string): Promise<NetlifyTokenValidationResult> {
     try {
       const response = await fetch('https://api.netlify.com/api/v1/user', {
@@ -109,21 +102,16 @@ export class NetlifyService {
     }
   }
 
-  /**
-   * Save or update user's Netlify PAT
-   */
   async saveUserToken(
     userId: string,
     token: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      // Validate token first
       const validation = await this.validateToken(token);
       if (!validation.valid) {
         return { success: false, error: validation.error };
       }
 
-      // Save encrypted token
       await this.userIntegrations.upsert({
         user_id: userId,
         service: 'netlify',
@@ -142,9 +130,6 @@ export class NetlifyService {
     }
   }
 
-  /**
-   * Get user's Netlify PAT (decrypted)
-   */
   async getUserToken(userId: string): Promise<string | null> {
     return await this.userIntegrations.getDecryptedToken(userId, 'netlify');
   }
@@ -158,7 +143,6 @@ export class NetlifyService {
     siteName?: string,
     sessionId?: string
   ): Promise<{ siteId: string; url: string; adminUrl: string; netlifyId: string }> {
-    // Check if site already exists for this app
     const existingSite = await this.netlifySites.getByAppId(appId);
     if (existingSite) {
       return {
@@ -169,13 +153,11 @@ export class NetlifyService {
       };
     }
 
-    // Get user token
     const token = await this.getUserToken(userId);
     if (!token) {
       throw new Error('No Netlify token found for user');
     }
 
-    // Create new site via Netlify API
     const requestBody: any = {
       created_via: 'eitherway'
     };
@@ -204,7 +186,6 @@ export class NetlifyService {
 
     const siteData = await response.json() as any;
 
-    // Save site to database
     const site = await this.netlifySites.create({
       user_id: userId,
       app_id: appId,
@@ -229,7 +210,6 @@ export class NetlifyService {
    */
   async deploy(config: NetlifyDeployConfig): Promise<NetlifyDeployResult> {
     try {
-      // Get user token
       const token = await this.getUserToken(config.userId);
       if (!token) {
         return {
@@ -252,14 +232,11 @@ export class NetlifyService {
         url: site.url
       });
 
-      // Create deployment record
       const deploymentId = await this.createDeploymentRecord(config, site.siteId);
       console.log('[NetlifyService] Created deployment record:', deploymentId);
 
-      // Update deployment status to building
       await this.deployments.updateStatus(deploymentId, 'building');
 
-      // Create ZIP archive (reuse existing logic)
       console.log('[NetlifyService] Creating ZIP buffer for app:', config.appId);
       const zipBuffer = await this.createZipBuffer(config);
       console.log('[NetlifyService] ZIP buffer created:', {
@@ -267,7 +244,6 @@ export class NetlifyService {
         sizeKB: (zipBuffer.length / 1024).toFixed(2)
       });
 
-      // Validate ZIP is not empty
       if (zipBuffer.length < 100) {
         const errorMsg = 'ZIP file is empty or too small. No files found in the application workspace. Please ensure files have been created first.';
         console.error('[NetlifyService]', errorMsg);
@@ -333,10 +309,8 @@ export class NetlifyService {
 
       const deployData = await deployResponse.json() as any;
 
-      // Update deployment record with Netlify deploy ID
       await this.updateDeploymentSuccess(deploymentId, site, deployData);
 
-      // Update site's last deploy info
       await this.netlifySites.updateLastDeploy(site.siteId, deployData.deploy_id || deployData.id);
 
       return {
@@ -357,10 +331,6 @@ export class NetlifyService {
     }
   }
 
-  /**
-   * Get access token for Netlify logs WebSocket
-   * Note: This requires a server-level access token (different from user PAT)
-   */
   async getLogsAccessToken(
     siteId: string,
     deployId: string,
@@ -399,9 +369,6 @@ export class NetlifyService {
     }
   }
 
-  /**
-   * Create ZIP buffer from app files
-   */
   private async createZipBuffer(config: NetlifyDeployConfig): Promise<Buffer> {
     const archive = archiver('zip', { zlib: { level: 9 } });
 
@@ -409,7 +376,6 @@ export class NetlifyService {
     const chunks: Buffer[] = [];
     archive.on('data', (chunk: Buffer) => chunks.push(chunk));
 
-    // Get all files from file store
     console.log('[NetlifyService] Fetching file tree for app:', config.appId);
     const fileTree = await this.fileStore.list(config.appId);
     console.log('[NetlifyService] File tree nodes:', fileTree.length);
@@ -431,7 +397,7 @@ export class NetlifyService {
     const files = flattenFiles(fileTree);
     console.log('[NetlifyService] Total files to zip:', files.length);
     if (files.length === 0) {
-      console.warn('[NetlifyService] ⚠️  No files found in app! ZIP will be empty!');
+      console.warn('[NetlifyService] WARNING: No files found in app! ZIP will be empty!');
     } else {
       console.log('[NetlifyService] Files:', files.slice(0, 10).map(f => f.path).join(', '), files.length > 10 ? `... and ${files.length - 10} more` : '');
     }
@@ -481,9 +447,6 @@ export class NetlifyService {
     return Buffer.concat(chunks);
   }
 
-  /**
-   * Check if file should be excluded
-   */
   private shouldExclude(path: string, patterns: string[]): boolean {
     for (const pattern of patterns) {
       if (path.startsWith(pattern + '/') || path === pattern) {
@@ -493,9 +456,6 @@ export class NetlifyService {
     return false;
   }
 
-  /**
-   * Create deployment record in database
-   */
   private async createDeploymentRecord(
     config: NetlifyDeployConfig,
     netlifySiteId: string
@@ -519,9 +479,6 @@ export class NetlifyService {
     return result.rows[0].id;
   }
 
-  /**
-   * Update deployment record on success
-   */
   private async updateDeploymentSuccess(
     deploymentId: string,
     site: any,
@@ -542,9 +499,6 @@ export class NetlifyService {
     );
   }
 
-  /**
-   * Update deployment record on error
-   */
   private async updateDeploymentError(deploymentId: string, error: string): Promise<void> {
     await this.db.query(
       `UPDATE core.deployments

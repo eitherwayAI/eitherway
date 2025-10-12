@@ -6,9 +6,7 @@
 
 import type { DatabaseClient } from '../client.js';
 
-// ============================================================================
 // TYPES
-// ============================================================================
 
 export interface Deployment {
   id: string;
@@ -70,16 +68,11 @@ export interface DeploymentLog {
   created_at: Date;
 }
 
-// ============================================================================
 // DEPLOYMENTS REPOSITORY
-// ============================================================================
 
 export class DeploymentsRepository {
   constructor(private db: DatabaseClient) {}
 
-  /**
-   * Get deployment by ID
-   */
   async getById(id: string): Promise<Deployment | null> {
     const result = await this.db.query<Deployment>(
       'SELECT * FROM core.deployments WHERE id = $1',
@@ -89,9 +82,6 @@ export class DeploymentsRepository {
     return result.rows[0] || null;
   }
 
-  /**
-   * Get all deployments for an app
-   */
   async getByAppId(appId: string, limit: number = 20): Promise<Deployment[]> {
     const result = await this.db.query<Deployment>(
       `SELECT * FROM core.deployments
@@ -104,9 +94,6 @@ export class DeploymentsRepository {
     return result.rows;
   }
 
-  /**
-   * Get latest successful deployment
-   */
   async getLatestSuccessful(appId: string): Promise<Deployment | null> {
     const result = await this.db.query<Deployment>(
       `SELECT * FROM core.deployments
@@ -119,9 +106,6 @@ export class DeploymentsRepository {
     return result.rows[0] || null;
   }
 
-  /**
-   * Get deployment summary for an app
-   */
   async getSummary(appId: string): Promise<{
     total_deployments: number;
     successful_deployments: number;
@@ -139,9 +123,6 @@ export class DeploymentsRepository {
     return result.rows[0] || null;
   }
 
-  /**
-   * Get deployment logs
-   */
   async getLogs(deploymentId: string): Promise<DeploymentLog[]> {
     const result = await this.db.query<DeploymentLog>(
       `SELECT * FROM core.deployment_logs
@@ -153,9 +134,6 @@ export class DeploymentsRepository {
     return result.rows;
   }
 
-  /**
-   * Get recent deployments across all apps
-   */
   async getRecent(limit: number = 100): Promise<any[]> {
     const result = await this.db.query(
       `SELECT * FROM core.recent_deployments LIMIT $1`,
@@ -165,9 +143,6 @@ export class DeploymentsRepository {
     return result.rows;
   }
 
-  /**
-   * Update deployment status
-   */
   async updateStatus(id: string, status: Deployment['status']): Promise<void> {
     await this.db.query(
       'UPDATE core.deployments SET status = $1 WHERE id = $2',
@@ -202,16 +177,11 @@ export class DeploymentsRepository {
   }
 }
 
-// ============================================================================
 // EXPORTS REPOSITORY
-// ============================================================================
 
 export class ExportsRepository {
   constructor(private db: DatabaseClient) {}
 
-  /**
-   * Get export by ID
-   */
   async getById(id: string): Promise<Export | null> {
     const result = await this.db.query<Export>(
       'SELECT * FROM core.exports WHERE id = $1',
@@ -221,9 +191,6 @@ export class ExportsRepository {
     return result.rows[0] || null;
   }
 
-  /**
-   * Get all exports for an app
-   */
   async getByAppId(appId: string, limit: number = 20): Promise<Export[]> {
     const result = await this.db.query<Export>(
       `SELECT * FROM core.exports
@@ -236,9 +203,6 @@ export class ExportsRepository {
     return result.rows;
   }
 
-  /**
-   * Get export statistics for an app
-   */
   async getStatistics(appId: string): Promise<{
     total_exports: number;
     successful_exports: number;

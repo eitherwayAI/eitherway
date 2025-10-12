@@ -39,7 +39,6 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
       const originalSha256 = createHash('sha256').update(content).digest('hex');
       const lines = content.split('\n');
 
-      // Validate line numbers
       if (start_line < 1 || start_line > lines.length) {
         return {
           content: `Error: start_line ${start_line} out of range (file has ${lines.length} lines)`,
@@ -110,7 +109,6 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
       const newLines = [...before, ...replacementLines, ...after];
       const newContent = newLines.join('\n');
 
-      // Calculate new sha256
       const newSha256 = createHash('sha256').update(newContent).digest('hex');
 
       // Write back
@@ -192,7 +190,6 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
       const originalSha256 = createHash('sha256').update(content).digest('hex');
       const lines = content.split('\n');
 
-      // Validate line numbers
       if (start_line < 1 || start_line > lines.length) {
         return {
           content: `Error: start_line ${start_line} out of range (file has ${lines.length} lines)`,
@@ -263,7 +260,6 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
       const newLines = [...before, ...replacementLines, ...after];
       const newContent = newLines.join('\n');
 
-      // Calculate new sha256
       const newSha256 = createHash('sha256').update(newContent).digest('hex');
 
       // Write back to database

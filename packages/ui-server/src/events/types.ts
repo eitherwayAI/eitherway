@@ -131,10 +131,6 @@ export type ErrorEvent = z.infer<typeof ErrorEventSchema>;
 export type StatusEvent = z.infer<typeof StatusEventSchema>;
 export type ResponseEvent = z.infer<typeof ResponseEventSchema>;
 
-/**
- * Validate and parse a stream event
- * @throws {z.ZodError} if validation fails
- */
 export function validateStreamEvent(data: unknown): StreamEvent {
   return StreamEventSchema.parse(data);
 }

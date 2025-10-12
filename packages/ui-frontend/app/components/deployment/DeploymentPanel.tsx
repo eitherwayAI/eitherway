@@ -7,9 +7,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// ============================================================================
 // TYPES
-// ============================================================================
 
 interface DeploymentPanelProps {
   appId: string;
@@ -19,9 +17,7 @@ interface DeploymentPanelProps {
   onClose?: () => void;
 }
 
-// ============================================================================
 // MAIN COMPONENT
-// ============================================================================
 
 export function DeploymentPanel({ appId, sessionId, userId, initialTab = 'deploy', onClose }: DeploymentPanelProps) {
   return (
@@ -35,9 +31,7 @@ export function DeploymentPanel({ appId, sessionId, userId, initialTab = 'deploy
   );
 }
 
-// ============================================================================
 // DEPLOY MODAL (NETLIFY ONLY)
-// ============================================================================
 
 interface DeployResult {
   siteId: string;
@@ -110,7 +104,6 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
 
       console.log('[Deploy] Deployment successful!', deployData.data);
 
-      // Set success result
       setDeployResult(deployData.data);
       setIsDeploying(false);
 
@@ -391,9 +384,7 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
   );
 }
 
-// ============================================================================
 // DOWNLOAD MODAL
-// ============================================================================
 
 function DownloadModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanelProps, 'initialTab'>) {
   const [includeNodeModules, setIncludeNodeModules] = useState(false);
@@ -564,9 +555,7 @@ function DownloadModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPan
   );
 }
 
-// ============================================================================
 // MODAL OVERLAY COMPONENT
-// ============================================================================
 
 function ModalOverlay({ children, onClose }: { children: React.ReactNode; onClose?: () => void }) {
   return (

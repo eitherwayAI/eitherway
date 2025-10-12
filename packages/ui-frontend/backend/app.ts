@@ -39,7 +39,6 @@ export function buildApp(): FastifyInstance {
     };
   });
 
-  // GET /api/stream-test - Simple Lorem ipsum streaming (SSE)
   app.get('/api/stream-test', async (request, reply) => {
     const { chunkSize, delayMs, text } = request.query as {
       chunkSize?: string;
@@ -53,7 +52,6 @@ export function buildApp(): FastifyInstance {
       text,
     };
 
-    // Set SSE headers with CORS
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -75,7 +73,6 @@ export function buildApp(): FastifyInstance {
         reply.raw.write(formatSSE(event));
       }
 
-      // Send completion event
       reply.raw.write(formatSSE({
         type: 'complete',
         timestamp: new Date().toISOString(),
@@ -117,7 +114,6 @@ export function buildApp(): FastifyInstance {
       text,
     };
 
-    // Set SSE headers with CORS
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -149,7 +145,6 @@ export function buildApp(): FastifyInstance {
     }
   });
 
-  // GET /api/wizard/stream - Minimal wizard-style streaming endpoint
   // Stripped from robust /api/wizard/requirements/preview
   app.get('/api/wizard/stream', async (request, reply) => {
     const { brief, chunkSize, delayMs } = request.query as {
@@ -170,7 +165,6 @@ export function buildApp(): FastifyInstance {
       text: `Processing brief: "${brief}"\n\nSuggestions: ${LOREM_TEXT}`,
     };
 
-    // Set SSE headers with CORS (same pattern as robust backend)
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -199,7 +193,6 @@ export function buildApp(): FastifyInstance {
         reply.raw.write(formatSSE(event));
       }
 
-      // Send completion event
       const completionEvent = {
         type: 'complete',
         duration: Date.now() - startTime,

@@ -143,9 +143,6 @@ export class ModelClient {
           break;
 
         case 'content_block_start':
-          const blockType = (event.content_block as any).type;
-          console.log(`[STREAM] content_block_start: ${blockType}`);
-
           if (event.content_block.type === 'text') {
             currentTextBlock = '';
           } else if (event.content_block.type === 'tool_use') {
@@ -156,7 +153,6 @@ export class ModelClient {
               inputJson: ''
             };
           } else if ((event.content_block as any).type === 'server_tool_use') {
-            console.log(`[STREAM] 🔍 server_tool_use detected: ${(event.content_block as any).id}`);
             currentToolUse = {
               type: 'server_tool_use',
               id: (event.content_block as any).id,
@@ -164,7 +160,6 @@ export class ModelClient {
               inputJson: ''
             };
           } else if ((event.content_block as any).type === 'web_search_tool_result') {
-            console.log(`[STREAM] ✅ web_search_tool_result detected for: ${(event.content_block as any).tool_use_id}`);
             contentBlocks.push({
               type: 'web_search_tool_result',
               tool_use_id: (event.content_block as any).tool_use_id,
@@ -187,11 +182,9 @@ export class ModelClient {
 
         case 'content_block_stop':
           if (currentTextBlock) {
-            console.log(`[STREAM] Pushing text block (${currentTextBlock.length} chars)`);
             contentBlocks.push({ type: 'text', text: currentTextBlock });
             currentTextBlock = '';
           } else if (currentToolUse) {
-            // Parse accumulated JSON once at the end
             try {
               currentToolUse.input = JSON.parse(currentToolUse.inputJson || '{}');
             } catch (e) {
@@ -199,7 +192,6 @@ export class ModelClient {
               currentToolUse.input = {};
             }
             delete currentToolUse.inputJson;
-            console.log(`[STREAM] Pushing ${currentToolUse.type}: ${currentToolUse.name} (${currentToolUse.id})`);
             contentBlocks.push(currentToolUse);
             onDelta({
               type: 'tool_use',
@@ -236,12 +228,6 @@ export class ModelClient {
         outputTokens
       }
     };
-
-    // Log final content block summary
-    console.log(`\n[STREAM] Response complete. Content blocks:`);
-    contentBlocks.forEach((block, idx) => {
-      console.log(`  [${idx}] ${block.type}${block.id ? ` (${block.id})` : ''}${block.tool_use_id ? ` -> ${block.tool_use_id}` : ''}`);
-    });
 
     if (onComplete) {
       onComplete(response);
@@ -314,9 +300,6 @@ export class ModelClient {
     }));
   }
 
-  /**
-   * Get current config
-   */
   getConfig(): ClaudeConfig {
     return { ...this.config };
   }

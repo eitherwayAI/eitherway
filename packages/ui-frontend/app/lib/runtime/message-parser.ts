@@ -236,7 +236,6 @@ export class StreamingMessageParser {
   }
 
   reset() {
-    // Check for incomplete artifacts/actions before clearing
     this.#messages.forEach((state, messageId) => {
       if (state.insideArtifact) {
         logger.warn(`Message ${messageId} ended with unclosed artifact - response may have been truncated`);

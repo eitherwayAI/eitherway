@@ -12,9 +12,7 @@
  * Scoring: 0-100 composite score based on PWA best practices
  */
 
-// ============================================================================
 // TYPES
-// ============================================================================
 
 export interface PWAValidationResult {
   status: 'passed' | 'failed' | 'warning';
@@ -80,9 +78,7 @@ export interface IconInfo {
   purpose?: string;
 }
 
-// ============================================================================
 // PWA VALIDATOR CLASS
-// ============================================================================
 
 export class PWAValidator {
   /**
@@ -104,9 +100,6 @@ export class PWAValidator {
     'browser'
   ];
 
-  /**
-   * Validate PWA from a given URL
-   */
   async validate(baseUrl: string): Promise<PWAValidationResult> {
     const result: PWAValidationResult = {
       status: 'failed',
@@ -146,25 +139,19 @@ export class PWAValidator {
       // Normalize URL
       const url = new URL(baseUrl);
 
-      // Check HTTPS (required for PWA)
       result.is_https = url.protocol === 'https:' || url.hostname === 'localhost';
       if (!result.is_https) {
         result.validation_errors.push('PWA requires HTTPS (or localhost for development)');
       }
 
-      // Validate manifest
       await this.validateManifest(url, result);
 
-      // Check for service worker (simulated - would need actual page load in production)
       await this.validateServiceWorker(url, result);
 
-      // Validate icons
       this.validateIcons(result);
 
-      // Check HTML for viewport meta (simulated)
       await this.validateViewportMeta(url, result);
 
-      // Calculate scores
       this.calculateScores(result);
 
       // Determine overall status
@@ -184,9 +171,6 @@ export class PWAValidator {
     return result;
   }
 
-  /**
-   * Validate manifest.json
-   */
   private async validateManifest(baseUrl: URL, result: PWAValidationResult): Promise<void> {
     try {
       // Try common manifest locations
@@ -225,7 +209,6 @@ export class PWAValidator {
       result.manifest_url = manifestUrl!;
       result.manifest_data = manifestData;
 
-      // Validate required fields
       if (manifestData.name) {
         result.has_name = true;
         if (manifestData.name.length > 45) {
@@ -292,7 +275,6 @@ export class PWAValidator {
         result.manifest_errors.push('Missing required field: icons (at least one icon required)');
       }
 
-      // Check for description
       if (!manifestData.description) {
         result.manifest_warnings.push('Missing optional field: description (helps users understand your app)');
       }
@@ -305,9 +287,6 @@ export class PWAValidator {
     }
   }
 
-  /**
-   * Validate service worker (simulated check)
-   */
   private async validateServiceWorker(baseUrl: URL, result: PWAValidationResult): Promise<void> {
     // In a real implementation, this would:
     // 1. Load the page in a headless browser
@@ -346,21 +325,16 @@ export class PWAValidator {
       result.service_worker_errors.push('Note: Service worker is required for offline functionality and "Add to Home Screen" prompt');
     }
 
-    // Check if offline-ready (would require actual service worker inspection)
     // For now, assume offline-ready if service worker is registered
     result.offline_ready = result.service_worker_registered;
   }
 
-  /**
-   * Validate icons
-   */
   private validateIcons(result: PWAValidationResult): void {
     if (result.icons_found.length === 0) {
       result.icons_missing = PWAValidator.REQUIRED_ICON_SIZES;
       return;
     }
 
-    // Parse all available sizes
     const availableSizes = new Set<string>();
     result.icons_found.forEach(icon => {
       if (icon.sizes) {
@@ -368,7 +342,6 @@ export class PWAValidator {
       }
     });
 
-    // Check for required sizes
     const missing: string[] = [];
     PWAValidator.REQUIRED_ICON_SIZES.forEach(size => {
       if (!availableSizes.has(size.toLowerCase())) {
@@ -379,7 +352,6 @@ export class PWAValidator {
     result.icons_missing = missing;
     result.icons_valid = missing.length === 0;
 
-    // Check for maskable icons (recommended)
     const hasMaskable = result.icons_found.some(icon =>
       icon.purpose?.includes('maskable')
     );
@@ -389,15 +361,11 @@ export class PWAValidator {
     }
   }
 
-  /**
-   * Validate viewport meta tag (simulated check)
-   */
   private async validateViewportMeta(baseUrl: URL, result: PWAValidationResult): Promise<void> {
     try {
       const response = await fetch(baseUrl.toString());
       const html = await response.text();
 
-      // Check for viewport meta tag
       const hasViewport = /<meta\s+name=["']viewport["']/i.test(html);
 
       result.has_viewport_meta = hasViewport;
@@ -447,9 +415,6 @@ export class PWAValidator {
     result.overall_score = manifestScore + swScore + iconsScore + additionalScore;
   }
 
-  /**
-   * Validate color format (hex, rgb, hsl)
-   */
   private isValidColor(color: string): boolean {
     // Hex color
     if (/^#[0-9A-Fa-f]{3,8}$/.test(color)) return true;

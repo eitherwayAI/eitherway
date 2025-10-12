@@ -33,7 +33,7 @@ if (!healthy) {
   console.error('Failed to connect to database');
   process.exit(1);
 }
-console.log('✓ Database connected\n');
+console.log('Success: Database connected\n');
 
 await registerSessionRoutes(fastify, db);
 await registerAppRoutes(fastify, db);
@@ -103,7 +103,6 @@ fastify.post<{
     // Write to filesystem
     await writeFile(fullPath, content, 'utf-8');
 
-    // Save to database
     const filesRepo = new FilesRepository(db);
     const appId = process.env.APP_ID || 'default-app';
     await filesRepo.upsertFile(appId, filePath, content);
@@ -156,13 +155,10 @@ fastify.register(async (fastify) => {
           await agent.saveTranscript();
 
         } catch (error: any) {
-          // Log the full error for debugging
           console.error('[Agent Error]', error);
 
-          // Parse error message for better display
           let errorMessage = error.message || 'Unknown error occurred';
 
-          // Check if it's an Anthropic API error
           if (error.message && error.message.includes('"type":"api_error"')) {
             try {
               // Try to parse the JSON error
@@ -245,9 +241,9 @@ const PORT = process.env.PORT || 3001;
 
 try {
   await fastify.listen({ port: Number(PORT), host: '0.0.0.0' });
-  console.log(`\n🚀 EitherWay UI Server running on http://localhost:${PORT}`);
-  console.log(`📁 Workspace: ${WORKSPACE_DIR}`);
-  console.log(`💾 Database: Connected\n`);
+  console.log(`\nEitherWay UI Server running on http://localhost:${PORT}`);
+  console.log(`Workspace: ${WORKSPACE_DIR}`);
+  console.log(`Database: Connected\n`);
 } catch (err) {
   fastify.log.error(err);
   process.exit(1);

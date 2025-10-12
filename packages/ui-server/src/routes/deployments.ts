@@ -37,9 +37,7 @@ export async function registerDeploymentRoutes(
   const fileStore = new PostgresFileStore(db);
   const exportService = new ExportService(db, fileStore);
 
-  // ==========================================================================
   // DEPLOYMENT ROUTES
-  // ==========================================================================
 
   /**
    * POST /api/apps/:appId/deploy/github-pages
@@ -112,10 +110,6 @@ export async function registerDeploymentRoutes(
     }
   });
 
-  /**
-   * GET /api/apps/:appId/deploy/history
-   * Get deployment history
-   */
   fastify.get<{
     Params: { appId: string };
     Querystring: { limit?: string };
@@ -140,10 +134,6 @@ export async function registerDeploymentRoutes(
     }
   });
 
-  /**
-   * GET /api/apps/:appId/deploy/:id
-   * Get deployment details
-   */
   fastify.get<{
     Params: { appId: string; id: string };
   }>('/api/apps/:appId/deploy/:id', async (request, reply) => {
@@ -173,10 +163,6 @@ export async function registerDeploymentRoutes(
     }
   });
 
-  /**
-   * GET /api/apps/:appId/deploy/:id/logs
-   * Get deployment logs
-   */
   fastify.get<{
     Params: { appId: string; id: string };
   }>('/api/apps/:appId/deploy/:id/logs', async (request, reply) => {
@@ -199,10 +185,6 @@ export async function registerDeploymentRoutes(
     }
   });
 
-  /**
-   * DELETE /api/apps/:appId/deploy/:id
-   * Cancel deployment
-   */
   fastify.delete<{
     Params: { appId: string; id: string };
   }>('/api/apps/:appId/deploy/:id', async (request, reply) => {
@@ -232,10 +214,6 @@ export async function registerDeploymentRoutes(
     }
   });
 
-  /**
-   * GET /api/apps/:appId/deploy/summary
-   * Get deployment summary
-   */
   fastify.get<{
     Params: { appId: string };
   }>('/api/apps/:appId/deploy/summary', async (request, reply) => {
@@ -265,9 +243,7 @@ export async function registerDeploymentRoutes(
     }
   });
 
-  // ==========================================================================
   // EXPORT ROUTES
-  // ==========================================================================
 
   /**
    * POST /api/apps/:appId/export
@@ -332,7 +308,6 @@ export async function registerDeploymentRoutes(
 
       const { buffer, exportId, stats } = await exportService.createZipExport(config);
 
-      // Set headers for ZIP download
       reply.header('Content-Type', 'application/zip');
       reply.header('Content-Disposition', `attachment; filename="app-${appId}-${Date.now()}.zip"`);
       reply.header('Content-Length', buffer.length.toString());
@@ -340,10 +315,8 @@ export async function registerDeploymentRoutes(
       reply.header('X-File-Count', stats.fileCount.toString());
       reply.header('X-Total-Size', stats.totalSizeBytes.toString());
 
-      // Track download
       await exportsRepo.trackDownload(exportId);
 
-      // Send complete buffer
       return reply.send(buffer);
 
     } catch (error: any) {
@@ -356,10 +329,6 @@ export async function registerDeploymentRoutes(
     }
   });
 
-  /**
-   * GET /api/apps/:appId/export/history
-   * Get export history
-   */
   fastify.get<{
     Params: { appId: string };
     Querystring: { limit?: string };
@@ -384,10 +353,6 @@ export async function registerDeploymentRoutes(
     }
   });
 
-  /**
-   * GET /api/apps/:appId/export/statistics
-   * Get export statistics
-   */
   fastify.get<{
     Params: { appId: string };
   }>('/api/apps/:appId/export/statistics', async (request, reply) => {

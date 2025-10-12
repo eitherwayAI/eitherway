@@ -73,7 +73,6 @@ const inlineThemeCode = stripIndents`
     // Hide text until fonts are loaded
     document.documentElement.classList.add('fonts-loading');
 
-    // Check if fonts are already loaded
     if (document.fonts && document.fonts.ready) {
       document.fonts.ready.then(() => {
         document.documentElement.classList.remove('fonts-loading');
@@ -109,7 +108,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
     document.querySelector('html')?.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // Load preview helpers on client to enable live style tweaks (e.g., applyColorChange)
   useEffect(() => {
     import('~/lib/client/preview-helpers.client').catch(() => {});
   }, []);

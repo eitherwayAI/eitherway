@@ -53,9 +53,6 @@ function getAssetDestinationPath(asset: BrandAsset): string {
   }
 }
 
-/**
- * Fetch brand asset file from backend storage
- */
 async function fetchBrandAssetFile(storageKey: string): Promise<ArrayBuffer> {
   const response = await fetch(`${BACKEND_URL}/api/brand-assets/download/${encodeURIComponent(storageKey)}`);
 

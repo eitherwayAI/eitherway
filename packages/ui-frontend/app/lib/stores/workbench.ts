@@ -215,7 +215,6 @@ export class WorkbenchStore {
   }
 
   abortAllActions() {
-    // TODO: what do we wanna do and how do we wanna recover from this?
   }
 
   addArtifact({ messageId, title, id }: ArtifactCallbackData) {

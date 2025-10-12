@@ -145,7 +145,6 @@ export class FilesStore {
         throw new Error(`Backend sync failed: ${error.message}`);
       }
 
-      // Trigger preview reload after file save
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('webcontainer:file-updated', {
           detail: { filePath: relativePath }
@@ -160,7 +159,6 @@ export class FilesStore {
   }
 
   async #syncToBackend(filePath: string, content: string, retries = 3) {
-    // Get current session ID from localStorage
     const sessionId = localStorage.getItem('currentSessionId');
     console.log('[FilesStore] Session ID:', sessionId);
 
@@ -249,7 +247,6 @@ export class FilesStore {
     const watchEvents = events.flat(2);
 
     for (const { type, path, buffer } of watchEvents) {
-      // remove any trailing slashes
       const sanitizedPath = path.replace(/\/+$/g, '');
 
       switch (type) {

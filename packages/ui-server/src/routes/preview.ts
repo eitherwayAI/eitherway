@@ -38,14 +38,8 @@ export async function registerPreviewRoutes(
   const previewSessions = new PreviewSessionsRepository(db);
   const pwaValidator = new PWAValidator();
 
-  // ==========================================================================
   // PREVIEW CONFIG ROUTES
-  // ==========================================================================
 
-  /**
-   * GET /api/apps/:appId/preview/config
-   * Get all preview configs for an app
-   */
   fastify.get<{
     Params: { appId: string };
   }>('/api/apps/:appId/preview/config', async (request, reply) => {
@@ -134,10 +128,6 @@ export async function registerPreviewRoutes(
     }
   });
 
-  /**
-   * DELETE /api/apps/:appId/preview/config/:id
-   * Delete a preview config
-   */
   fastify.delete<{
     Params: { appId: string; id: string };
   }>('/api/apps/:appId/preview/config/:id', async (request, reply) => {
@@ -167,9 +157,7 @@ export async function registerPreviewRoutes(
     }
   });
 
-  // ==========================================================================
   // PWA VALIDATION ROUTES
-  // ==========================================================================
 
   /**
    * POST /api/apps/:appId/preview/pwa/validate
@@ -220,10 +208,6 @@ export async function registerPreviewRoutes(
     }
   });
 
-  /**
-   * GET /api/apps/:appId/preview/pwa/validations
-   * Get PWA validation history
-   */
   fastify.get<{
     Params: { appId: string };
     Querystring: { limit?: string };
@@ -248,10 +232,6 @@ export async function registerPreviewRoutes(
     }
   });
 
-  /**
-   * GET /api/apps/:appId/preview/pwa/latest
-   * Get latest PWA validation
-   */
   fastify.get<{
     Params: { appId: string };
   }>('/api/apps/:appId/preview/pwa/latest', async (request, reply) => {
@@ -281,10 +261,6 @@ export async function registerPreviewRoutes(
     }
   });
 
-  /**
-   * GET /api/apps/:appId/preview/pwa/summary
-   * Get PWA validation summary (stats)
-   */
   fastify.get<{
     Params: { appId: string };
   }>('/api/apps/:appId/preview/pwa/summary', async (request, reply) => {
@@ -314,9 +290,7 @@ export async function registerPreviewRoutes(
     }
   });
 
-  // ==========================================================================
   // PREVIEW SESSION ROUTES
-  // ==========================================================================
 
   /**
    * POST /api/apps/:appId/preview/session
@@ -349,10 +323,6 @@ export async function registerPreviewRoutes(
     }
   });
 
-  /**
-   * GET /api/apps/:appId/preview/sessions
-   * Get active preview sessions
-   */
   fastify.get<{
     Params: { appId: string };
   }>('/api/apps/:appId/preview/sessions', async (request, reply) => {
@@ -375,10 +345,6 @@ export async function registerPreviewRoutes(
     }
   });
 
-  /**
-   * DELETE /api/apps/:appId/preview/session/:id
-   * Deactivate a preview session
-   */
   fastify.delete<{
     Params: { appId: string; id: string };
   }>('/api/apps/:appId/preview/session/:id', async (request, reply) => {
@@ -444,10 +410,6 @@ export async function registerPreviewRoutes(
     }
   });
 
-  /**
-   * GET /api/preview/session/:token
-   * Get preview session by token (public endpoint)
-   */
   fastify.get<{
     Params: { token: string };
   }>('/api/preview/session/:token', async (request, reply) => {
@@ -463,7 +425,6 @@ export async function registerPreviewRoutes(
         });
       }
 
-      // Track access
       await previewSessions.trackAccess(token);
 
       return reply.code(200).send({

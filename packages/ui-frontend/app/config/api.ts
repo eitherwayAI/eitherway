@@ -3,13 +3,7 @@
  * Determines the backend URL based on environment
  */
 
-/**
- * Get the backend API base URL
- * - In production (deployed): uses relative URLs so nginx can proxy
- * - In development (localhost:5173): uses localhost:3001 directly
- */
 export function getBackendUrl(): string {
-  // Check if we're in browser
   if (typeof window === 'undefined') {
     // Server-side: use relative URLs
     return '';
@@ -27,11 +21,6 @@ export function getBackendUrl(): string {
   return '';
 }
 
-/**
- * Get WebSocket URL for agent communication
- * - In production: uses wss:// with current host
- * - In development: uses wss://localhost:3001
- */
 export function getWebSocketUrl(): string {
   if (typeof window === 'undefined') {
     return 'wss://localhost:3001';

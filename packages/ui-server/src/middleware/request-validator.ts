@@ -30,9 +30,6 @@ const DEFAULT_OPTIONS: Required<RequestValidatorOptions> = {
   securityAuditor: null as any
 };
 
-/**
- * Create request validation middleware
- */
 export function createRequestValidator(options: RequestValidatorOptions = {}) {
   const opts = { ...DEFAULT_OPTIONS, ...options };
 
@@ -45,7 +42,6 @@ export function createRequestValidator(options: RequestValidatorOptions = {}) {
     };
 
     try {
-      // Validate Content-Type for POST/PUT/PATCH
       if (opts.validateContentType && ['POST', 'PUT', 'PATCH'].includes(request.method)) {
         const contentType = request.headers['content-type'];
 
@@ -95,7 +91,6 @@ export function createRequestValidator(options: RequestValidatorOptions = {}) {
 
         for (const [key, value] of Object.entries(params)) {
           if (typeof value === 'string') {
-            // Check for UUID format
             if (value.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
               const result = InputSanitizer.validateUuid(value);
               if (result.valid) {

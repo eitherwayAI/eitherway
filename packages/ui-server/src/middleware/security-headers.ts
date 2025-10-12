@@ -153,9 +153,6 @@ function generatePermissionsPolicy(): string {
     .join(', ');
 }
 
-/**
- * Create security headers middleware
- */
 export function createSecurityHeaders(options: SecurityHeadersOptions = {}) {
   const opts = { ...DEFAULT_OPTIONS, ...options };
 
@@ -216,15 +213,11 @@ export function createSecurityHeaders(options: SecurityHeadersOptions = {}) {
       reply.header(key, value);
     }
 
-    // Remove server identification header
     reply.removeHeader('X-Powered-By');
     reply.removeHeader('Server');
   };
 }
 
-/**
- * Create relaxed security headers for development
- */
 export function createDevelopmentSecurityHeaders() {
   return createSecurityHeaders({
     enableCSP: false, // Disable strict CSP in dev

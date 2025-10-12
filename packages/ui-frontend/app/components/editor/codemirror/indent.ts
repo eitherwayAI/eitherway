@@ -39,13 +39,11 @@ function changeBySelectedLine(
     if (range.from === range.to) {
       cb(range.from, undefined, changes, line);
     }
-    // handle the case when multiple characters are selected in a single line
     else if (range.from < range.to && range.to <= line.to) {
       cb(range.from, range.to, changes, line);
     } else {
       let atLine = -1;
 
-      // handle the case when selection spans multiple lines
       for (let pos = range.from; pos <= range.to; ) {
         const line = state.doc.lineAt(pos);
 

@@ -32,9 +32,6 @@ const DEFAULT_OPTIONS: Required<Omit<IpRiskBlockerOptions, 'securityAuditor' | '
   ]
 };
 
-/**
- * Create IP risk assessment middleware
- */
 export function createIpRiskBlocker(options: IpRiskBlockerOptions) {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const { securityAuditor, onBlocked } = options;
@@ -42,7 +39,6 @@ export function createIpRiskBlocker(options: IpRiskBlockerOptions) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
     const ipAddress = request.ip;
 
-    // Check whitelist
     if (opts.whitelistedIps.includes(ipAddress)) {
       return; // Allow whitelisted IPs
     }
@@ -51,7 +47,6 @@ export function createIpRiskBlocker(options: IpRiskBlockerOptions) {
       // Assess IP risk
       const assessment = await securityAuditor.assessIpRisk(ipAddress);
 
-      // Add risk score header for debugging
       if (process.env.NODE_ENV === 'development') {
         reply.header('X-Risk-Score', assessment.riskScore.toString());
         reply.header('X-Risk-Recommendation', assessment.recommendation);
@@ -66,7 +61,6 @@ export function createIpRiskBlocker(options: IpRiskBlockerOptions) {
           requestMethod: request.method
         };
 
-        // Log blocked attempt
         await securityAuditor.logEvent(
           'access.forbidden',
           'critical',
@@ -111,7 +105,6 @@ export function createIpRiskBlocker(options: IpRiskBlockerOptions) {
           requestMethod: request.method
         };
 
-        // Log warning (non-blocking)
         await securityAuditor.logEvent(
           'access.unauthorized',
           'warning',
@@ -135,10 +128,6 @@ export function createIpRiskBlocker(options: IpRiskBlockerOptions) {
   };
 }
 
-/**
- * Create IP-based CAPTCHA challenge middleware
- * (For future implementation - returns 429 with CAPTCHA challenge)
- */
 export function createCaptchaChallenge(securityAuditor: SecurityAuditor) {
   return createIpRiskBlocker({
     securityAuditor,

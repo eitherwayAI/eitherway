@@ -26,7 +26,6 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
 
   const canHideChat = showWorkbench || !showChat;
 
-  // Get preview URL from first available preview
   const previewUrl = previews[0]?.baseUrl || 'http://localhost:5173';
 
   // Use actual session ID from chat store (fallback to demo for compatibility)

@@ -10,9 +10,7 @@
 import type { DatabaseClient } from '../client.js';
 import type { PWAValidationResult } from '../services/pwa-validator.js';
 
-// ============================================================================
 // TYPES
-// ============================================================================
 
 export interface PreviewConfig {
   id: string;
@@ -107,16 +105,11 @@ export interface CreatePreviewSessionInput {
   expires_in_hours?: number;
 }
 
-// ============================================================================
 // PREVIEW CONFIGS REPOSITORY
-// ============================================================================
 
 export class PreviewConfigsRepository {
   constructor(private db: DatabaseClient) {}
 
-  /**
-   * Create a new preview configuration
-   */
   async create(input: CreatePreviewConfigInput): Promise<PreviewConfig> {
     const result = await this.db.query<PreviewConfig>(
       `INSERT INTO core.preview_configs (
@@ -141,9 +134,6 @@ export class PreviewConfigsRepository {
     return result.rows[0];
   }
 
-  /**
-   * Get preview config by ID
-   */
   async getById(id: string): Promise<PreviewConfig | null> {
     const result = await this.db.query<PreviewConfig>(
       'SELECT * FROM core.preview_configs WHERE id = $1',
@@ -153,9 +143,6 @@ export class PreviewConfigsRepository {
     return result.rows[0] || null;
   }
 
-  /**
-   * Get all preview configs for an app
-   */
   async getByAppId(appId: string): Promise<PreviewConfig[]> {
     const result = await this.db.query<PreviewConfig>(
       `SELECT * FROM core.preview_configs
@@ -167,9 +154,6 @@ export class PreviewConfigsRepository {
     return result.rows;
   }
 
-  /**
-   * Get default preview config for an app (or create one)
-   */
   async getOrCreateDefault(appId: string, userId: string): Promise<PreviewConfig> {
     const result = await this.db.query<{ id: string }>(
       'SELECT get_or_create_default_preview_config($1, $2) as id',
@@ -180,9 +164,6 @@ export class PreviewConfigsRepository {
     return (await this.getById(configId))!;
   }
 
-  /**
-   * Update preview config
-   */
   async update(
     id: string,
     updates: Partial<Omit<CreatePreviewConfigInput, 'app_id' | 'user_id'>>
@@ -236,9 +217,6 @@ export class PreviewConfigsRepository {
     return result.rows[0] || null;
   }
 
-  /**
-   * Delete preview config
-   */
   async delete(id: string): Promise<boolean> {
     const result = await this.db.query(
       'DELETE FROM core.preview_configs WHERE id = $1',
@@ -249,16 +227,11 @@ export class PreviewConfigsRepository {
   }
 }
 
-// ============================================================================
 // PWA VALIDATIONS REPOSITORY
-// ============================================================================
 
 export class PWAValidationsRepository {
   constructor(private db: DatabaseClient) {}
 
-  /**
-   * Create a new PWA validation record
-   */
   async create(input: CreatePWAValidationInput): Promise<PWAValidation> {
     const { result } = input;
 
@@ -318,9 +291,6 @@ export class PWAValidationsRepository {
     return dbResult.rows[0];
   }
 
-  /**
-   * Get PWA validation by ID
-   */
   async getById(id: string): Promise<PWAValidation | null> {
     const result = await this.db.query<PWAValidation>(
       'SELECT * FROM core.pwa_validations WHERE id = $1',
@@ -330,9 +300,6 @@ export class PWAValidationsRepository {
     return result.rows[0] || null;
   }
 
-  /**
-   * Get all PWA validations for an app
-   */
   async getByAppId(appId: string, limit: number = 10): Promise<PWAValidation[]> {
     const result = await this.db.query<PWAValidation>(
       `SELECT * FROM core.pwa_validations
@@ -345,9 +312,6 @@ export class PWAValidationsRepository {
     return result.rows;
   }
 
-  /**
-   * Get latest PWA validation for an app
-   */
   async getLatestByAppId(appId: string): Promise<PWAValidation | null> {
     const result = await this.db.query<PWAValidation>(
       `SELECT * FROM core.pwa_validations
@@ -360,9 +324,6 @@ export class PWAValidationsRepository {
     return result.rows[0] || null;
   }
 
-  /**
-   * Get PWA validation summary for an app
-   */
   async getSummary(appId: string): Promise<{
     total_validations: number;
     passed_count: number;
@@ -382,9 +343,6 @@ export class PWAValidationsRepository {
     return result.rows[0] || null;
   }
 
-  /**
-   * Delete old PWA validations (keep last N per app)
-   */
   async cleanupOldValidations(appId: string, keepCount: number = 50): Promise<number> {
     const result = await this.db.query(
       `DELETE FROM core.pwa_validations
@@ -401,16 +359,11 @@ export class PWAValidationsRepository {
   }
 }
 
-// ============================================================================
 // PREVIEW SESSIONS REPOSITORY
-// ============================================================================
 
 export class PreviewSessionsRepository {
   constructor(private db: DatabaseClient) {}
 
-  /**
-   * Create a new preview session
-   */
   async create(input: CreatePreviewSessionInput): Promise<PreviewSession> {
     const expiresInHours = input.expires_in_hours || 24;
     const previewToken = this.generatePreviewToken();
@@ -435,9 +388,6 @@ export class PreviewSessionsRepository {
     return result.rows[0];
   }
 
-  /**
-   * Get preview session by ID
-   */
   async getById(id: string): Promise<PreviewSession | null> {
     const result = await this.db.query<PreviewSession>(
       'SELECT * FROM core.preview_sessions WHERE id = $1',
@@ -447,9 +397,6 @@ export class PreviewSessionsRepository {
     return result.rows[0] || null;
   }
 
-  /**
-   * Get preview session by token
-   */
   async getByToken(token: string): Promise<PreviewSession | null> {
     const result = await this.db.query<PreviewSession>(
       `SELECT * FROM core.preview_sessions
@@ -460,9 +407,6 @@ export class PreviewSessionsRepository {
     return result.rows[0] || null;
   }
 
-  /**
-   * Get active preview sessions for an app
-   */
   async getActiveByAppId(appId: string): Promise<PreviewSession[]> {
     const result = await this.db.query<PreviewSession>(
       `SELECT * FROM core.preview_sessions

@@ -14,17 +14,11 @@ export interface RateLimitResult {
 export class RateLimiter {
   constructor(private db: DatabaseClient) {}
 
-  /**
-   * Get current UTC date as a string (YYYY-MM-DD)
-   */
   private getCurrentUtcDate(): string {
     const now = new Date();
     return now.toISOString().split('T')[0];
   }
 
-  /**
-   * Get the UTC midnight timestamp for the next day
-   */
   private getNextUtcMidnight(): Date {
     const now = new Date();
     const tomorrow = new Date(Date.UTC(
@@ -36,10 +30,6 @@ export class RateLimiter {
     return tomorrow;
   }
 
-  /**
-   * Check if a user can create a new session
-   * @returns RateLimitResult with allowed status and current count
-   */
   async checkSessionCreation(userId: string): Promise<RateLimitResult> {
     const currentDate = this.getCurrentUtcDate();
 
@@ -61,10 +51,6 @@ export class RateLimiter {
     };
   }
 
-  /**
-   * Increment the session creation count for a user
-   * Should be called after successfully creating a session
-   */
   async incrementSessionCount(userId: string): Promise<void> {
     const currentDate = this.getCurrentUtcDate();
 
@@ -77,10 +63,6 @@ export class RateLimiter {
     );
   }
 
-  /**
-   * Check if a session can send a new message
-   * @returns RateLimitResult with allowed status and current count
-   */
   async checkMessageSending(sessionId: string): Promise<RateLimitResult> {
     const currentDate = this.getCurrentUtcDate();
 
@@ -102,10 +84,6 @@ export class RateLimiter {
     };
   }
 
-  /**
-   * Increment the message count for a session
-   * Should be called after successfully creating a message
-   */
   async incrementMessageCount(sessionId: string): Promise<void> {
     const currentDate = this.getCurrentUtcDate();
 
@@ -118,9 +96,6 @@ export class RateLimiter {
     );
   }
 
-  /**
-   * Get the current session count for a user (for display purposes)
-   */
   async getUserSessionCount(userId: string): Promise<number> {
     const currentDate = this.getCurrentUtcDate();
 
@@ -134,9 +109,6 @@ export class RateLimiter {
     return result.rows.length > 0 ? result.rows[0].sessions_created : 0;
   }
 
-  /**
-   * Get the current message count for a session (for display purposes)
-   */
   async getSessionMessageCount(sessionId: string): Promise<number> {
     const currentDate = this.getCurrentUtcDate();
 

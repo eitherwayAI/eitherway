@@ -10,9 +10,7 @@
 
 import { z } from 'zod';
 
-// ============================================================================
 // OPERATION SCHEMAS
-// ============================================================================
 
 /**
  * Write operation: Create or overwrite files
@@ -93,9 +91,7 @@ const PlanSchema = z.object({
     .max(100, 'Plan exceeds maximum of 100 operations')
 });
 
-// ============================================================================
 // TYPES
-// ============================================================================
 
 export type WriteOp = z.infer<typeof WriteOpSchema>;
 export type PatchOp = z.infer<typeof PatchOpSchema>;
@@ -104,9 +100,7 @@ export type PackageRemoveOp = z.infer<typeof PackageRemoveSchema>;
 export type PlanOperation = z.infer<typeof PlanOperationSchema>;
 export type Plan = z.infer<typeof PlanSchema>;
 
-// ============================================================================
 // VALIDATOR CLASS
-// ============================================================================
 
 export class PlanValidator {
   /**
@@ -278,7 +272,6 @@ export class PlanValidator {
    * @returns Validation result with reason if invalid
    */
   private validatePath(path: string): { valid: boolean; reason?: string } {
-    // Check blocked patterns first (takes precedence)
     for (const pattern of PlanValidator.BLOCKED_PATTERNS) {
       if (pattern.test(path)) {
         return {
@@ -288,7 +281,6 @@ export class PlanValidator {
       }
     }
 
-    // Check allowed directories
     let isAllowed = false;
     for (const pattern of PlanValidator.ALLOWED_DIRS) {
       if (pattern.test(path)) {
@@ -316,7 +308,6 @@ export class PlanValidator {
    * @returns Validation result
    */
   private validateContent(content: string, path: string): { valid: boolean; reason?: string } {
-    // Check for suspicious patterns in content
     const suspiciousPatterns = [
       { pattern: /eval\s*\(/i, reason: 'Contains eval() - potential code injection risk' },
       { pattern: /new\s+Function\s*\(/i, reason: 'Contains Function() constructor - potential code injection risk' },
@@ -337,16 +328,10 @@ export class PlanValidator {
     return { valid: true };
   }
 
-  /**
-   * Get list of allowed directory patterns (for documentation)
-   */
   static getAllowedPatterns(): string[] {
     return PlanValidator.ALLOWED_DIRS.map(p => p.source);
   }
 
-  /**
-   * Get list of blocked patterns (for documentation)
-   */
   static getBlockedPatterns(): string[] {
     return PlanValidator.BLOCKED_PATTERNS.map(p => p.source);
   }

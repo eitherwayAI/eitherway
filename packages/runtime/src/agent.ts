@@ -1,8 +1,3 @@
-/**
- * Agent Orchestrator with Stage 1-5 workflow
- * Portion 1: Implements Stages 1-2 (Analyze, Plan)
- */
-
 import { ModelClient } from './model-client.js';
 import { ToolRunner } from './tool-runner.js';
 import { TranscriptRecorder } from './transcript.js';
@@ -17,20 +12,14 @@ import type {
   ToolExecutor
 } from '@eitherway/tools-core';
 
-/**
- * Phase types for streaming UI
- */
 export type StreamingPhase = 'thinking' | 'reasoning' | 'code-writing' | 'building' | 'completed';
 
-/**
- * Streaming callbacks for real-time updates
- */
 export interface StreamingCallbacks {
   onDelta?: (delta: { type: string; content: string }) => void;
-  onReasoning?: (delta: { text: string }) => void; // Separate callback for reasoning text
+  onReasoning?: (delta: { text: string }) => void;
   onPhase?: (phase: StreamingPhase) => void;
-  onThinkingComplete?: (duration: number) => void; // Duration in seconds
-  onFileOperation?: (operation: 'creating' | 'editing' | 'created' | 'edited', filePath: string) => void; // File ops with progressive states
+  onThinkingComplete?: (duration: number) => void;
+  onFileOperation?: (operation: 'creating' | 'editing' | 'created' | 'edited', filePath: string) => void;
   onToolStart?: (tool: { name: string; toolUseId: string; filePath?: string }) => void;
   onToolEnd?: (tool: { name: string; toolUseId: string; filePath?: string }) => void;
   onComplete?: (usage: { inputTokens: number; outputTokens: number }) => void;
@@ -41,10 +30,10 @@ Use ONLY the tools listed below. Prefer either-line-replace for small, targeted 
 
 COMPLETENESS REQUIREMENT (HIGHEST PRIORITY):
   - EVERY app you create must be 100% COMPLETE and FUNCTIONAL from the start
-  - If HTML references a .js file → YOU MUST CREATE that .js file in the SAME turn
-  - If HTML references a .css file → YOU MUST CREATE that .css file in the SAME turn
-  - If you create HTML with buttons/forms → YOU MUST CREATE the JavaScript that makes them work
-  - If you mention a feature → YOU MUST IMPLEMENT that feature completely
+  - If HTML references a .js file, YOU MUST CREATE that .js file in the SAME turn
+  - If HTML references a .css file, YOU MUST CREATE that .css file in the SAME turn
+  - If you create HTML with buttons/forms, YOU MUST CREATE the JavaScript that makes them work
+  - If you mention a feature, YOU MUST IMPLEMENT that feature completely
   - NEVER stop until ALL referenced files exist and ALL functionality works
   - Check: Does the user's request require JavaScript? If YES, create it in the same response
   - Check: Are there ANY <script src="..."> tags? If YES, create those files NOW
@@ -96,16 +85,16 @@ SVG USAGE IN WEBCONTAINER (CRITICAL):
   <img src="icon.svg" alt="Icon">
 
   AVOID these patterns in WebContainer:
-  ❌ <img src="data:image/svg+xml,..."> (may be blocked by COEP/CSP)
-  ❌ background: url('data:image/svg+xml,...') (may be blocked)
-  ❌ <use xlink:href="data:..."> (explicitly blocked since Dec 2023)
+  - <img src="data:image/svg+xml,..."> (may be blocked by COEP/CSP)
+  - background: url('data:image/svg+xml,...') (may be blocked)
+  - <use xlink:href="data:..."> (explicitly blocked since Dec 2023)
 
   Always include xmlns="http://www.w3.org/2000/svg" in SVG elements
   For icon libraries, create individual .svg files rather than data URI sprites
 
 ICONS AND VISUAL ELEMENTS (CRITICAL):
-  - NEVER use emojis (🚀 ❌ ✅ 💰 📊 etc.) in user-facing applications
-  - NEVER use Unicode symbols (•, ◆, ★, →, ✓, etc.) as icons - they're too simple
+  - NEVER use emojis in user-facing applications
+  - NEVER use Unicode symbols (such as bullets, arrows, stars, checkmarks) as icons - they're too simple
   - Emojis and Unicode symbols appear unprofessional and inconsistent
   - ALWAYS use proper SVG icons instead
 
@@ -129,13 +118,12 @@ ICONS AND VISUAL ELEMENTS (CRITICAL):
   - Use web_search: "free SVG rocket icon"
   - Find a clean, professional SVG from Heroicons or similar
   - Copy the SVG <path> data and create inline SVG or .svg file
-  - NEVER substitute with emoji 🚀 or Unicode ▲
+  - NEVER substitute with emojis or Unicode symbols
 
   Examples of what NOT to do:
-  ❌ <span>🚀</span> (emoji)
-  ❌ <span>▲</span> (Unicode symbol)
-  ❌ <span>★</span> (Unicode symbol)
-  ✓ <svg>...rocket path...</svg> (proper SVG icon)
+  - <span>emoji</span> (emoji)
+  - Unicode symbols like arrows, stars, checkmarks (too simple and unprofessional)
+  Correct approach: <svg>...rocket path...</svg> (proper SVG icon)
 
   The only exception: emojis in user-generated content or chat messages
   Always use professional SVG icons for all UI elements
@@ -152,7 +140,7 @@ For execution:
   Stage 2: Plan architecture (design system, components, files).
            CRITICAL: List ALL files needed (HTML, CSS, JS, etc.) - create them ALL in one turn.
   Stage 3: Select tools (name each planned call, READ first for edits).
-           CRITICAL: If HTML references script.js → add either-write for script.js to your plan.
+           CRITICAL: If HTML references script.js, add either-write for script.js to your plan.
   Stage 4: Execute in parallel (emit multiple tool_use blocks that do not conflict).
            CRITICAL: Create ALL files in this single turn - don't leave any for later.
   Stage 5: Verify & Respond (self-check: did I create ALL referenced files? Are all features working?)
@@ -221,7 +209,6 @@ export class Agent {
   private conversationHistory: Message[];
   private options: AgentOptions;
 
-  // --- READ-before-WRITE enforcement constants ---
   private static readonly WRITE_TOOLS = new Set(['either-line-replace', 'either-write']);
   private static readonly READ_TOOL = 'either-view';
 
@@ -237,23 +224,13 @@ export class Agent {
     this.conversationHistory = [];
   }
 
-  /**
-   * Load conversation history (for restoring state)
-   */
   loadConversationHistory(messages: Message[]): void {
     this.conversationHistory = messages;
   }
 
-  /**
-   * Process a user request through the agent workflow
-   * @param userMessage - The user's prompt
-   * @param callbacks - Optional streaming callbacks for real-time updates
-   */
   async processRequest(userMessage: string, callbacks?: StreamingCallbacks): Promise<string> {
-    // Start transcript
     const transcriptId = this.recorder.startTranscript(userMessage);
 
-    // Add user message to history (content must be array for Claude API)
     this.conversationHistory.push({
       role: 'user',
       content: [{ type: 'text', text: userMessage }]
@@ -267,46 +244,37 @@ export class Agent {
 
     let finalResponse = '';
     let turnCount = 0;
-    const maxTurns = 20; // Safety limit
+    const maxTurns = 20;
     const changedFiles = new Set<string>();
     let hasExecutedTools = false;
 
-    // Track cumulative token usage across all turns
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
 
-    let justExecutedTools = false;  // Track if we executed tools in previous iteration
+    let justExecutedTools = false;
 
-    // Buffering for thinking → reasoning transition
     let thinkingBuffer = '';
     let thinkingStartTime: number | null = null;
     let isInThinkingPhase = false;
 
-    // Buffering for final summary (after tools)
     let summaryBuffer = '';
     let isInSummaryPhase = false;
 
-    // Track file operations across ALL turns (not just per-turn)
     const fileOpsThisRequest = new Map<string, 'create' | 'edit'>();
     const filesCreatedThisRequest = new Set<string>();
 
     while (turnCount < maxTurns) {
       turnCount++;
 
-      // Validate conversation history before sending to Claude
       this.validateConversationHistory();
 
-      // Track if we should skip thinking phase (for subsequent turns after tools)
       let hasEmittedThinking = false;
       if (justExecutedTools) {
-        // Skip thinking phase for summary turn (no need to show "Thinking..." again)
         hasEmittedThinking = true;
-        isInSummaryPhase = true; // Buffer summary text for smooth streaming
+        isInSummaryPhase = true;
         summaryBuffer = '';
         justExecutedTools = false;
       }
-
-      // Send message to Claude
       const response = await this.modelClient.sendMessage(
         this.conversationHistory,
         SYSTEM_PROMPT,
@@ -371,17 +339,15 @@ export class Agent {
       const { contentBlocks: enforcedAssistantBlocks, toolUses } =
         this.injectReadBeforeWriteBlocks(response.content);
 
-      // --- Handle thinking → reasoning transition ---
+      // --- Handle thinking to reasoning transition ---
       if (isInThinkingPhase && thinkingBuffer && toolUses.length > 0) {
         // Thinking phase complete, we have tools to execute
         isInThinkingPhase = false;
 
-        // Calculate thinking duration
         const thinkingDuration = thinkingStartTime
           ? Math.round((Date.now() - thinkingStartTime) / 1000)
           : 0;
 
-        // Emit thinking complete with duration
         if (callbacks?.onThinkingComplete) {
           callbacks.onThinkingComplete(thinkingDuration);
         }
@@ -389,7 +355,6 @@ export class Agent {
         // Small delay to let user read the "Thought for X seconds" message
         await new Promise(resolve => setTimeout(resolve, 800));
 
-        // Emit reasoning phase
         if (callbacks?.onPhase) {
           callbacks.onPhase('reasoning');
         }
@@ -438,7 +403,6 @@ export class Agent {
 
         // If we were in summary phase, stream the buffered summary smoothly
         if (isInSummaryPhase && summaryBuffer) {
-          // Emit 'building' phase
           if (callbacks?.onPhase) {
             callbacks.onPhase('building');
           }
@@ -468,9 +432,7 @@ export class Agent {
         break;
       }
 
-      // Emit 'code-writing' phase when we have tools to execute
       if (toolUses.length > 0 && callbacks?.onPhase) {
-        // Add delay before showing "Writing code..." for natural pacing
         await new Promise(resolve => setTimeout(resolve, 600));
         callbacks.onPhase('code-writing');
       }
@@ -490,16 +452,13 @@ export class Agent {
           content: `[DRY RUN] Would execute: ${tu.name} with input: ${JSON.stringify(tu.input, null, 2)}`
         }));
       } else {
-        // Track new file operations this turn (for emitting)
         const newFileOpsThisTurn = new Map<string, 'create' | 'edit'>();
 
-        // Emit tool start events and execute tools
         toolResults = [];
         for (const toolUse of toolUses) {
           // Extract file path for file operation tools
           const filePath = (toolUse.input as any)?.path;
 
-          // Track file operations (deduplicate and determine correct operation type)
           if (filePath && (toolUse.name === 'either-write' || toolUse.name === 'either-line-replace')) {
             // Determine operation: 'create' if new file, 'edit' if already exists
             let operation: 'create' | 'edit';
@@ -520,7 +479,6 @@ export class Agent {
               fileOpsThisRequest.set(filePath, operation);
               newFileOpsThisTurn.set(filePath, operation);
 
-              // Emit "Creating..." or "Editing..." message before execution
               if (callbacks?.onFileOperation) {
                 await new Promise(resolve => setTimeout(resolve, 200)); // Delay between file operations
                 const progressiveState: 'creating' | 'editing' = operation === 'create' ? 'creating' : 'editing';
@@ -529,7 +487,6 @@ export class Agent {
             }
           }
 
-          // Emit tool start (hidden for file operations, shown for others)
           if (callbacks?.onToolStart && !filePath) {
             callbacks.onToolStart({
               name: toolUse.name,
@@ -542,7 +499,6 @@ export class Agent {
           const result = await this.toolRunner.executeTools([toolUse]);
           toolResults.push(...result);
 
-          // Emit "Created" or "Edited" message after execution (only for new operations)
           if (filePath && newFileOpsThisTurn.has(filePath)) {
             if (callbacks?.onFileOperation) {
               await new Promise(resolve => setTimeout(resolve, 300)); // Delay before completion message
@@ -552,7 +508,6 @@ export class Agent {
             }
           }
 
-          // Emit tool end (hidden for file operations, shown for others)
           if (callbacks?.onToolEnd && !filePath) {
             callbacks.onToolEnd({
               name: toolUse.name,
@@ -564,7 +519,6 @@ export class Agent {
 
         hasExecutedTools = true;
 
-        // Track changed files and collect created file paths
         const createdFilesThisTurn = new Set<string>();
         for (const result of toolResults) {
           const metadata = (result as any).metadata;
@@ -574,11 +528,9 @@ export class Agent {
           }
         }
 
-        // Check for missing file references in newly created HTML files
         const missingRefs = await this.checkMissingFileReferences(toolUses, createdFilesThisTurn, toolResults);
         if (missingRefs.length > 0) {
-          // Add warning to the last tool result to inform the agent
-          const warningMessage = `\n\n⚠️ WARNING: Missing file references detected:\n${missingRefs.map(ref => `  - ${ref.htmlFile} references <${ref.tag} ${ref.attr}="${ref.file}"> but ${ref.file} was not created`).join('\n')}\n\nYou MUST create these files in your next response to make the app functional.`;
+          const warningMessage = `\n\nWARNING: Missing file references detected:\n${missingRefs.map(ref => `  - ${ref.htmlFile} references <${ref.tag} ${ref.attr}="${ref.file}"> but ${ref.file} was not created`).join('\n')}\n\nYou MUST create these files in your next response to make the app functional.`;
 
           // Append warning to the last tool result
           if (toolResults.length > 0) {
@@ -596,7 +548,6 @@ export class Agent {
         content: toolResults
       });
 
-      // Add tool results to conversation
       this.conversationHistory.push({
         role: 'user',
         content: toolResults
@@ -611,12 +562,10 @@ export class Agent {
     // End transcript
     this.recorder.endTranscript(transcriptId, finalResponse);
 
-    // Emit completed phase (only at the very end, after all turns)
     if (callbacks?.onPhase) {
       callbacks.onPhase('completed');
     }
 
-    // Emit completion with token usage
     if (callbacks?.onComplete) {
       callbacks.onComplete({
         inputTokens: totalInputTokens,
@@ -627,58 +576,38 @@ export class Agent {
     return finalResponse;
   }
 
-  /**
-   * Get conversation history
-   */
   getHistory(): Message[] {
     return [...this.conversationHistory];
   }
 
-  /**
-   * Reset conversation
-   */
   reset(): void {
     this.conversationHistory = [];
     this.toolRunner.clearCache();
   }
 
-  /**
-   * Save transcript to disk
-   */
   async saveTranscript(): Promise<void> {
     await this.recorder.saveCurrentTranscript();
   }
 
-  /**
-   * Set database context for file operations
-   */
   setDatabaseContext(fileStore: any, appId: string, sessionId?: string): void {
     this.toolRunner.setDatabaseContext(fileStore, appId, sessionId);
   }
 
-  /**
-   * Run verification and create summary
-   */
   private async runVerification(changedFiles: Set<string>): Promise<string> {
     const verifier = new VerifierRunner(this.options.workingDir);
 
-    // Create change summary
     const changeSummary = this.createChangeSummary(changedFiles);
 
     // Run verification
     const verifyResult = await verifier.run();
     const verifySummary = VerifierRunner.formatSummary(verifyResult);
 
-    // Get metrics summary
     const metrics = this.toolRunner.getMetrics();
     const metricsSummary = metrics.getSummaryString();
 
     return `\n\n---\n${changeSummary}${verifySummary}\n\n**Metrics:**\n${metricsSummary}`;
   }
 
-  /**
-   * Create a summary of changed files
-   */
   private createChangeSummary(changedFiles: Set<string>): string {
     if (changedFiles.size === 0) {
       return '';
@@ -692,15 +621,10 @@ export class Agent {
     return summary;
   }
 
-  /**
-   * Validate conversation history format and content
-   * Prevents API errors by ensuring all messages follow Claude API requirements
-   */
   private validateConversationHistory(): void {
     this.conversationHistory.forEach((msg, idx) => {
-      // Validate that content is always an array (Claude API requirement)
       if (!Array.isArray(msg.content)) {
-        console.error(`\n❌ CONVERSATION HISTORY VALIDATION ERROR:`);
+        console.error(`\nCONVERSATION HISTORY VALIDATION ERROR:`);
         console.error(`   Message [${idx}] (role: ${msg.role}) has non-array content`);
         console.error(`   Content type: ${typeof msg.content}`);
         console.error(`   Content value:`, msg.content);
@@ -714,11 +638,10 @@ export class Agent {
         );
       }
 
-      // Validate that content array is not empty (except for optional final assistant message)
       if (msg.content.length === 0) {
         const isFinalAssistant = idx === this.conversationHistory.length - 1 && msg.role === 'assistant';
         if (!isFinalAssistant) {
-          console.error(`\n❌ CONVERSATION HISTORY VALIDATION ERROR:`);
+          console.error(`\nCONVERSATION HISTORY VALIDATION ERROR:`);
           console.error(`   Message [${idx}] (role: ${msg.role}) has empty content array`);
           console.error(`\n   Claude API requires all messages to have non-empty content,`);
           console.error(`   except for the optional final assistant message.`);
@@ -732,7 +655,6 @@ export class Agent {
         }
       }
 
-      // Validate server_tool_use blocks are properly paired with web_search_tool_result
       if (msg.role === 'assistant' && Array.isArray(msg.content)) {
         const serverToolUses = msg.content.filter((b: any) => b.type === 'server_tool_use');
         const webSearchResults = msg.content.filter((b: any) => b.type === 'web_search_tool_result');
@@ -751,7 +673,7 @@ export class Agent {
             const hasMatchingResult = webSearchResults.some((wsr: any) => wsr.tool_use_id === stu.id);
 
             if (!hasMatchingResult) {
-              console.error(`\n⚠️  WARNING: Message [${idx}] has server_tool_use (${stu.id}) without web_search_tool_result`);
+              console.error(`\nWARNING: Message [${idx}] has server_tool_use (${stu.id}) without web_search_tool_result`);
               console.error(`   This might cause issues, but continuing anyway for debugging...`);
               console.error('');
 
@@ -792,7 +714,6 @@ export class Agent {
     };
 
     for (const blk of contentBlocks) {
-      // Track explicit reads
       if (blk?.type === 'tool_use' && blk.name === Agent.READ_TOOL) {
         const path = blk.input?.path;
         if (typeof path === 'string' && path.length > 0) {
@@ -847,10 +768,6 @@ export class Agent {
     return { contentBlocks: out, toolUses: executableToolUses };
   }
 
-  /**
-   * Check for missing file references in newly created HTML files
-   * Detects <script src="..."> and <link href="..."> that reference non-existent files
-   */
   private async checkMissingFileReferences(
     toolUses: ToolUse[],
     createdFiles: Set<string>,
@@ -868,7 +785,6 @@ export class Agent {
       const htmlPath = htmlWrite.input?.path;
       if (!htmlPath) continue;
 
-      // Get the HTML content from the tool result
       const resultIdx = toolUses.indexOf(htmlWrite);
       const result = toolResults[resultIdx];
       if (!result || result.is_error) continue;

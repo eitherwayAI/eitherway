@@ -39,7 +39,6 @@ export const Artifact = memo(({ artifactId }: ArtifactProps) => {
 
   //   const isAnyActionRunning = useStore(
   //   computed(artifact.runner.actions, (actions) => {
-  //     return Object.values(actions).some(
   //       (action) => action.status === 'running' || action.status === 'pending'
   //     );
   //   })

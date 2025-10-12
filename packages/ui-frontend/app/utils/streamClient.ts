@@ -80,7 +80,6 @@ export async function streamFromFastify(options: StreamOptions): Promise<StreamC
       const chunk = decoder.decode(value, { stream: true });
       buffer += chunk;
 
-      // Process SSE lines (format: "data: {json}\n\n")
       const lines = buffer.split('\n\n');
 
       // Keep the last incomplete line in the buffer

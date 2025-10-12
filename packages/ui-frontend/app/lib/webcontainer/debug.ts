@@ -7,7 +7,6 @@ export async function debugWebContainer() {
   try {
     const wc = await webcontainer;
     
-    // Log WebContainer readiness
     logger.info('WebContainer initialized successfully');
     
     // Listen to all port events for debugging
@@ -19,7 +18,6 @@ export async function debugWebContainer() {
         timestamp: new Date().toISOString()
       });
       
-      // Check if URL is localhost and warn
       if (url.includes('localhost')) {
         logger.warn(`⚠️ Localhost URL detected: ${url}`);
         logger.warn('WebContainer should provide a unique URL like https://[id].webcontainerapp.io');
@@ -33,7 +31,6 @@ export async function debugWebContainer() {
       logger.info(`🚀 Server Ready - Port: ${port}, URL: ${url}`);
     });
     
-    // Check WebContainer's current state
     const fs = wc.fs;
     const processes = typeof wc.spawn !== 'undefined' ? 'Available' : 'Not Available';
     
@@ -48,7 +45,6 @@ export async function debugWebContainer() {
   }
 }
 
-// Initialize debugging
 if (typeof window !== 'undefined') {
   debugWebContainer();
 }

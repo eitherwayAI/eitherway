@@ -45,7 +45,7 @@ const initialPosts = [
         communityName: 'r/aww',
         author: 'PuppyParent',
         timestamp: '2 hours ago',
-        title: 'Meet Cooper! He just discovered grass for the first time 🥺',
+        title: 'Meet Cooper! He just discovered grass for the first time',
         text: 'Our 8-week-old golden retriever experiencing the outdoors. He couldn\'t stop rolling around!',
         image: 'images/post4.jpg',
         votes: 24156,

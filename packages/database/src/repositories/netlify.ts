@@ -6,9 +6,7 @@
 
 import type { DatabaseClient } from '../client.js';
 
-// ============================================================================
 // TYPES
-// ============================================================================
 
 export interface UserIntegration {
   id: string;
@@ -68,9 +66,7 @@ export interface CreateNetlifySiteData {
   created_via?: string;
 }
 
-// ============================================================================
 // USER INTEGRATIONS REPOSITORY
-// ============================================================================
 
 export class UserIntegrationsRepository {
   constructor(private db: DatabaseClient, private encryptionKey: string) {
@@ -79,9 +75,6 @@ export class UserIntegrationsRepository {
     }
   }
 
-  /**
-   * Create or update user integration with encrypted token
-   */
   async upsert(data: CreateIntegrationData): Promise<UserIntegration> {
     const tokenLast4 = data.token.length >= 4 ? data.token.slice(-4) : '****';
 
@@ -121,9 +114,6 @@ export class UserIntegrationsRepository {
     return result.rows[0];
   }
 
-  /**
-   * Get user integration by user ID and service
-   */
   async get(userId: string, service: string): Promise<UserIntegration | null> {
     const result = await this.db.query<UserIntegration>(
       `SELECT * FROM core.user_integrations
@@ -134,9 +124,6 @@ export class UserIntegrationsRepository {
     return result.rows[0] || null;
   }
 
-  /**
-   * Get decrypted token
-   */
   async getDecryptedToken(userId: string, service: string): Promise<string | null> {
     const result = await this.db.query<{ token: string }>(
       `SELECT decrypt_token(encrypted_token, $1) as token
@@ -160,9 +147,6 @@ export class UserIntegrationsRepository {
     );
   }
 
-  /**
-   * Update last used timestamp
-   */
   async updateLastUsed(userId: string, service: string): Promise<void> {
     await this.db.query(
       `UPDATE core.user_integrations
@@ -172,9 +156,6 @@ export class UserIntegrationsRepository {
     );
   }
 
-  /**
-   * Delete user integration
-   */
   async delete(userId: string, service: string): Promise<boolean> {
     const result = await this.db.query(
       `DELETE FROM core.user_integrations
@@ -185,9 +166,6 @@ export class UserIntegrationsRepository {
     return (result.rowCount || 0) > 0;
   }
 
-  /**
-   * Get all integrations for a user (without decrypted tokens)
-   */
   async getAllForUser(userId: string): Promise<UserIntegration[]> {
     const result = await this.db.query<UserIntegration>(
       `SELECT * FROM core.user_integrations_safe
@@ -200,16 +178,11 @@ export class UserIntegrationsRepository {
   }
 }
 
-// ============================================================================
 // NETLIFY SITES REPOSITORY
-// ============================================================================
 
 export class NetlifySitesRepository {
   constructor(private db: DatabaseClient) {}
 
-  /**
-   * Create a new Netlify site record
-   */
   async create(data: CreateNetlifySiteData): Promise<NetlifySite> {
     const result = await this.db.query<NetlifySite>(
       `INSERT INTO core.netlify_sites (
@@ -243,9 +216,6 @@ export class NetlifySitesRepository {
     return result.rows[0];
   }
 
-  /**
-   * Get Netlify site by ID
-   */
   async getById(id: string): Promise<NetlifySite | null> {
     const result = await this.db.query<NetlifySite>(
       'SELECT * FROM core.netlify_sites WHERE id = $1',
@@ -255,9 +225,6 @@ export class NetlifySitesRepository {
     return result.rows[0] || null;
   }
 
-  /**
-   * Get Netlify site by Netlify site ID
-   */
   async getByNetlifySiteId(userId: string, netlifySiteId: string): Promise<NetlifySite | null> {
     const result = await this.db.query<NetlifySite>(
       `SELECT * FROM core.netlify_sites
@@ -268,9 +235,6 @@ export class NetlifySitesRepository {
     return result.rows[0] || null;
   }
 
-  /**
-   * Get Netlify site for an app
-   */
   async getByAppId(appId: string): Promise<NetlifySite | null> {
     const result = await this.db.query<NetlifySite>(
       `SELECT * FROM core.netlify_sites
@@ -283,9 +247,6 @@ export class NetlifySitesRepository {
     return result.rows[0] || null;
   }
 
-  /**
-   * Get all Netlify sites for a user
-   */
   async getAllForUser(userId: string, limit: number = 50): Promise<NetlifySite[]> {
     const result = await this.db.query<NetlifySite>(
       `SELECT * FROM core.netlify_sites
@@ -298,9 +259,6 @@ export class NetlifySitesRepository {
     return result.rows;
   }
 
-  /**
-   * Update last deploy info
-   */
   async updateLastDeploy(id: string, deployId: string): Promise<void> {
     await this.db.query(
       `UPDATE core.netlify_sites
@@ -320,9 +278,6 @@ export class NetlifySitesRepository {
     );
   }
 
-  /**
-   * Delete Netlify site record
-   */
   async delete(id: string): Promise<boolean> {
     const result = await this.db.query(
       'DELETE FROM core.netlify_sites WHERE id = $1',
@@ -332,9 +287,6 @@ export class NetlifySitesRepository {
     return (result.rowCount || 0) > 0;
   }
 
-  /**
-   * Get site with deployment stats
-   */
   async getWithStats(id: string): Promise<any> {
     const result = await this.db.query(
       `SELECT * FROM core.netlify_sites_with_stats WHERE id = $1`,

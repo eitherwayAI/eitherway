@@ -13,9 +13,6 @@ export class ConfigLoader {
     this.configDir = configDir;
   }
 
-  /**
-   * Load Claude/Anthropic configuration
-   */
   async loadClaudeConfig(): Promise<ClaudeConfig> {
     const configPath = resolve(this.configDir, 'anthropic.json');
 
@@ -23,7 +20,6 @@ export class ConfigLoader {
       const content = await readFile(configPath, 'utf-8');
       const config = JSON.parse(content) as ClaudeConfig;
 
-      // Validate required fields
       if (!config.apiKey) {
         throw new Error('API key is required in anthropic.json');
       }
@@ -32,7 +28,6 @@ export class ConfigLoader {
         config.model = 'claude-sonnet-4-5-20250929';
       }
 
-      // Set defaults
       const claudeConfig: ClaudeConfig = {
         apiKey: config.apiKey,
         model: config.model,
@@ -62,9 +57,6 @@ export class ConfigLoader {
     }
   }
 
-  /**
-   * Load agent configuration
-   */
   async loadAgentConfig(): Promise<AgentConfig> {
     const configPath = resolve(this.configDir, 'agent.json');
 
@@ -81,9 +73,6 @@ export class ConfigLoader {
     }
   }
 
-  /**
-   * Load both configurations
-   */
   async loadAll(): Promise<{ claudeConfig: ClaudeConfig; agentConfig: AgentConfig }> {
     const [claudeConfig, agentConfig] = await Promise.all([
       this.loadClaudeConfig(),

@@ -23,7 +23,6 @@ export const Preview = memo(() => {
   useEffect(() => {
     console.log('🎯 [Preview] currentPhase changed to:', currentPhase);
 
-    // Reset build timer when agent starts writing code
     if (currentPhase === 'code-writing') {
       setBuildStartTime(Date.now());
       setElapsedSeconds(0);
@@ -47,7 +46,6 @@ export const Preview = memo(() => {
   const [url, setUrl] = useState('');
   const [iframeUrl, setIframeUrl] = useState<string | undefined>();
 
-  // update deploy status based on preview state (avoid set during render)
   useEffect(() => {
     const current = workbenchStore.isAppReadyForDeploy.get();
     if (activePreview && !current) {
@@ -72,11 +70,9 @@ export const Preview = memo(() => {
     setUrl(baseUrl);
     setIframeUrl(baseUrl);
 
-    // set to ready when we have a preview URL
     setBuildStatus('ready');
     setIsMonitoring(false);
 
-    // update deploy status - app is ready only when we show iframe
     workbenchStore.isAppReadyForDeploy.set(true);
 
     // clear timers when preview is ready
@@ -141,7 +137,6 @@ export const Preview = memo(() => {
     const allComplete =
       actionsList.length > 0 && actionsList.every((a) => a.status === 'complete' || a.status === 'aborted');
 
-    // update build status based on action states
     if ((hasRunning || hasPending) && !activePreview) {
       setBuildStatus('building');
     }
@@ -199,7 +194,6 @@ export const Preview = memo(() => {
         }
       })();
 
-      // set a longer timeout since servers take time to start
       if (!buildTimeoutRef.current) {
         buildTimeoutRef.current = setTimeout(() => {
           const timeoutMessage = 'Taking a bit longer than usual...';
@@ -245,12 +239,10 @@ export const Preview = memo(() => {
     }
   }, [artifacts, activePreview, buildStatus, isMonitoring, iframeUrl]);
 
-  // initialize build start time
   useEffect(() => {
     setBuildStartTime(Date.now());
   }, []);
 
-  // check initial state when previews are available
   useEffect(() => {
     if (previews.length > 0 && activePreview) {
       workbenchStore.isAppReadyForDeploy.set(true);
@@ -301,7 +293,6 @@ export const Preview = memo(() => {
   // Auto-reload preview when files are edited and saved
   useEffect(() => {
     const handleFileUpdate = () => {
-      // Add small delay to let dev server detect changes and rebuild
       setTimeout(() => {
         reloadPreview();
       }, 500);

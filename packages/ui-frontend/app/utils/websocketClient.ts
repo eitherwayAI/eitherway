@@ -116,11 +116,9 @@ export async function streamFromWebSocket(options: StreamOptions): Promise<Strea
         reject(new Error('WebSocket connection failed'));
       };
 
-      // Add timeout
       setTimeout(() => reject(new Error('WebSocket connection timeout')), 10000);
     });
 
-    // Setup message handler
     ws.onmessage = (event) => {
       if (aborted) return;
 
@@ -241,7 +239,6 @@ export async function streamFromWebSocket(options: StreamOptions): Promise<Strea
     // Initial connection
     await connectWebSocket();
 
-    // Send the prompt to start streaming
     console.log('[WebSocket] Sending prompt:', prompt);
     if (ws) {
       ws.send(

@@ -7,7 +7,6 @@ const logger = createScopedLogger('WebContainerURL');
  * or in local development
  */
 export function isWebContainerEnvironment(): boolean {
-  // Check for WebContainer-specific environment indicators
   if (typeof window === 'undefined') {
     return false;
   }
@@ -15,11 +14,9 @@ export function isWebContainerEnvironment(): boolean {
   // WebContainer sets specific globals
   const hasWebContainerGlobal = 'WebContainer' in window;
 
-  // Check if we're in StackBlitz or similar environment
   const isStackBlitz =
     window.location.hostname.includes('stackblitz') || window.location.hostname.includes('webcontainer');
 
-  // Check for WebContainer-specific iframe embedding
   const isEmbedded = window.parent !== window;
 
   // In production Eitherway, we should be in WebContainer environment
@@ -105,7 +102,6 @@ export async function validatePreviewUrl(url: string): Promise<boolean> {
 export function getPreviewUrl(baseUrl: string, port: number): string {
   const transformedUrl = transformPreviewUrl(baseUrl, port);
 
-  // Log the transformation for debugging
   if (baseUrl !== transformedUrl) {
     logger.info(`URL transformed: ${baseUrl} -> ${transformedUrl}`);
   }

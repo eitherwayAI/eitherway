@@ -18,9 +18,6 @@ export interface RateLimiterMiddlewareOptions {
   onLimitExceeded?: (request: FastifyRequest, reply: FastifyReply) => void;
 }
 
-/**
- * Create rate limiting middleware
- */
 export function createRateLimiter(options: RateLimiterMiddlewareOptions) {
   const {
     rateLimiter,
@@ -53,7 +50,6 @@ export function createRateLimiter(options: RateLimiterMiddlewareOptions) {
       // Increment rate limit counter
       const result = await rateLimiter.increment(limitType, identifier, actualType);
 
-      // Add rate limit headers
       reply.header('X-RateLimit-Limit', result.limit.toString());
       reply.header('X-RateLimit-Remaining', result.remaining.toString());
       reply.header('X-RateLimit-Reset', result.resetAt.toISOString());
@@ -69,7 +65,6 @@ export function createRateLimiter(options: RateLimiterMiddlewareOptions) {
           sessionId: actualType === 'session_id' ? identifier : undefined
         };
 
-        // Log violation
         if (securityAuditor) {
           await securityAuditor.logRateLimitViolation(
             {
@@ -105,7 +100,6 @@ export function createRateLimiter(options: RateLimiterMiddlewareOptions) {
         return;
       }
 
-      // Check warning threshold
       const shouldWarn = rateLimiter.shouldWarn(result, limitType);
       if (shouldWarn) {
         reply.header('X-RateLimit-Warning', 'Approaching rate limit');
@@ -142,9 +136,6 @@ export function createRateLimiter(options: RateLimiterMiddlewareOptions) {
   };
 }
 
-/**
- * Create rate limiter for specific route patterns
- */
 export function createRouteBasedRateLimiter(
   rateLimiter: EnhancedRateLimiter,
   securityAuditor?: SecurityAuditor,

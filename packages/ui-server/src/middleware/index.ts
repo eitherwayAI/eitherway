@@ -48,7 +48,6 @@ export async function registerSecurityMiddleware(
     isDevelopment = process.env.NODE_ENV === 'development'
   } = options;
 
-  // Initialize security services
   const securityAuditor = new SecurityAuditor(db);
   const rateLimiter = new EnhancedRateLimiter(db);
 
@@ -58,10 +57,10 @@ export async function registerSecurityMiddleware(
   if (enableSecurityHeaders) {
     if (isDevelopment) {
       fastify.addHook('onRequest', createDevelopmentSecurityHeaders());
-      console.log('[Security] ✓ Development security headers enabled');
+      console.log('[Security] Success: Development security headers enabled');
     } else {
       fastify.addHook('onRequest', createSecurityHeaders());
-      console.log('[Security] ✓ Production security headers enabled');
+      console.log('[Security] Success: Production security headers enabled');
     }
   }
 
@@ -73,7 +72,7 @@ export async function registerSecurityMiddleware(
       warnThreshold: 60,
       enableBlocking: true
     }));
-    console.log('[Security] ✓ IP risk blocking enabled (threshold: 80)');
+    console.log('[Security] Success: IP risk blocking enabled (threshold: 80)');
   }
 
   // 3. Rate Limiting (before request validation)
@@ -83,7 +82,6 @@ export async function registerSecurityMiddleware(
       securityAuditor,
       // getUserId function - extract from request context
       (request) => {
-        // TODO: Extract user ID from JWT or session
         return null;
       },
       // getSessionId function - extract from query or headers
@@ -92,7 +90,7 @@ export async function registerSecurityMiddleware(
         return query.sessionId || null;
       }
     ));
-    console.log('[Security] ✓ Multi-bucket rate limiting enabled');
+    console.log('[Security] Success: Multi-bucket rate limiting enabled');
   }
 
   // 4. Request Validation (last - validates sanitized input)
@@ -105,7 +103,7 @@ export async function registerSecurityMiddleware(
       maxBodySize: 10 * 1024 * 1024,
       securityAuditor
     }));
-    console.log('[Security] ✓ Request validation and sanitization enabled');
+    console.log('[Security] Success: Request validation and sanitization enabled');
   }
 
   console.log('[Security] All middleware registered successfully\n');

@@ -15,9 +15,7 @@ import archiver from 'archiver';
 import type { DatabaseClient } from '../client.js';
 import type { PostgresFileStore } from './file-store.js';
 
-// ============================================================================
 // TYPES
-// ============================================================================
 
 export interface ExportConfig {
   appId: string;
@@ -44,9 +42,7 @@ export interface ExportStats {
   totalSizeBytes: number;
 }
 
-// ============================================================================
 // EXPORT SERVICE
-// ============================================================================
 
 export class ExportService {
   private db: DatabaseClient;
@@ -57,9 +53,6 @@ export class ExportService {
     this.fileStore = fileStore;
   }
 
-  /**
-   * Create ZIP export and return buffer
-   */
   async createZipExport(config: ExportConfig): Promise<{ buffer: Buffer; exportId: string; stats: ExportStats }> {
     const startTime = Date.now();
 
@@ -79,19 +72,16 @@ export class ExportService {
       ...(config.excludePatterns || [])
     ];
 
-    // Remove node_modules from excludes if explicitly included
     if (config.includeNodeModules) {
       const index = excludePatterns.indexOf('node_modules');
       if (index > -1) excludePatterns.splice(index, 1);
     }
 
-    // Remove .git from excludes if git history is included
     if (config.includeGitHistory) {
       const index = excludePatterns.indexOf('.git');
       if (index > -1) excludePatterns.splice(index, 1);
     }
 
-    // Create export record
     const exportId = await this.createExport({
       app_id: config.appId,
       user_id: config.userId,
@@ -103,10 +93,8 @@ export class ExportService {
     });
 
     try {
-      // Update status to processing
       await this.updateExportStatus(exportId, 'processing');
 
-      // Get all files from file store
       const fileTree = await this.fileStore.list(config.appId);
 
       // Flatten tree structure and extract only actual files (not directories)
@@ -125,7 +113,6 @@ export class ExportService {
 
       const files = flattenFiles(fileTree);
 
-      // Check if there are any files
       if (!files || files.length === 0) {
         throw new Error('No files found in the application workspace. Please create some files before exporting.');
       }
@@ -135,18 +122,15 @@ export class ExportService {
         return !this.shouldExclude(file.path, excludePatterns);
       });
 
-      // Check if any files remain after filtering
       if (filteredFiles.length === 0) {
         throw new Error('All files were excluded by filters. Try including more files or adjusting exclude patterns.');
       }
 
-      // Calculate stats
       const stats: ExportStats = {
         fileCount: filteredFiles.length,
         totalSizeBytes: 0
       };
 
-      // Create ZIP archive
       const archive = archiver('zip', {
         zlib: { level: 9 } // Maximum compression
       });
@@ -160,7 +144,6 @@ export class ExportService {
         compressedSize += chunk.length;
       });
 
-      // Add files to archive
       for (const file of filteredFiles) {
         try {
           const fileContent = await this.fileStore.read(config.appId, file.path);
@@ -168,10 +151,8 @@ export class ExportService {
             let content: Buffer;
 
             if (typeof fileContent.content === 'string') {
-              // Handle string content (text files)
               content = Buffer.from(fileContent.content, 'utf-8');
             } else if (fileContent.content instanceof Uint8Array) {
-              // Handle Uint8Array (binary files from Postgres)
               content = Buffer.from(fileContent.content);
             } else {
               // Fallback: assume it's already a Buffer or can be converted
@@ -202,7 +183,6 @@ export class ExportService {
       // Combine all chunks into a single buffer
       const zipBuffer = Buffer.concat(chunks);
 
-      // Calculate duration and update export record
       const duration = Date.now() - startTime;
       await this.updateExport(exportId, {
         status: 'success',
@@ -221,7 +201,6 @@ export class ExportService {
       };
 
     } catch (error: any) {
-      // Update export record with error
       await this.updateExport(exportId, {
         status: 'failed',
         error_message: error.message,
@@ -233,9 +212,6 @@ export class ExportService {
     }
   }
 
-  /**
-   * Create export record
-   */
   private async createExport(data: any): Promise<string> {
     const result = await this.db.query<{ id: string }>(
       `INSERT INTO core.exports (
@@ -258,9 +234,6 @@ export class ExportService {
     return result.rows[0].id;
   }
 
-  /**
-   * Update export status
-   */
   private async updateExportStatus(exportId: string, status: 'pending' | 'processing' | 'success' | 'failed'): Promise<void> {
     await this.db.query(
       'UPDATE core.exports SET status = $1 WHERE id = $2',
@@ -268,9 +241,6 @@ export class ExportService {
     );
   }
 
-  /**
-   * Update export record
-   */
   private async updateExport(exportId: string, updates: any): Promise<void> {
     const fields: string[] = [];
     const values: any[] = [];
@@ -301,9 +271,6 @@ export class ExportService {
     );
   }
 
-  /**
-   * Check if path should be excluded
-   */
   private shouldExclude(path: string, excludePatterns: string[]): boolean {
     for (const pattern of excludePatterns) {
       // Simple pattern matching (support * wildcard)
@@ -325,9 +292,6 @@ export class ExportService {
     return false;
   }
 
-  /**
-   * Get export by ID
-   */
   async getExport(exportId: string): Promise<any> {
     const result = await this.db.query(
       'SELECT * FROM core.exports WHERE id = $1',
@@ -337,9 +301,6 @@ export class ExportService {
     return result.rows[0] || null;
   }
 
-  /**
-   * Get exports for an app
-   */
   async getExportsByApp(appId: string, limit: number = 10): Promise<any[]> {
     const result = await this.db.query(
       `SELECT * FROM core.exports
@@ -352,9 +313,6 @@ export class ExportService {
     return result.rows;
   }
 
-  /**
-   * Get export statistics
-   */
   async getExportStatistics(appId: string): Promise<any> {
     const result = await this.db.query(
       'SELECT * FROM core.export_statistics WHERE app_id = $1',
@@ -364,9 +322,6 @@ export class ExportService {
     return result.rows[0] || null;
   }
 
-  /**
-   * Delete old exports (cleanup)
-   */
   async cleanupOldExports(appId: string, keepCount: number = 50): Promise<number> {
     const result = await this.db.query(
       `DELETE FROM core.exports

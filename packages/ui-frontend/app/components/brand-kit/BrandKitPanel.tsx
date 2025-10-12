@@ -57,14 +57,11 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
   // Use email if authenticated, otherwise use wallet address
   const userId = user?.email || (isConnected && address ? address : null);
 
-  // Load brand kit from localStorage (session-scoped) on mount
   // Do NOT fetch from server automatically - brand kits are per-session, not per-user
-  // Note: Page refresh clearing is handled in brandKitStore initialization
   useEffect(() => {
     const loadSessionBrandKit = async () => {
       setIsLoadingExisting(false);
 
-      // Check if there's a brand kit ID in localStorage for current session
       const { pendingBrandKitId } = brandKitStore.get();
 
       if (!pendingBrandKitId) {

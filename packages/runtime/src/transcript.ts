@@ -59,9 +59,6 @@ export class TranscriptRecorder {
     this.log('info', `Ended transcript ${id}`);
   }
 
-  /**
-   * Save current transcript to disk
-   */
   async saveCurrentTranscript(): Promise<void> {
     if (!this.currentTranscript) {
       return;
@@ -90,9 +87,6 @@ export class TranscriptRecorder {
     }
   }
 
-  /**
-   * Get current transcript
-   */
   getCurrentTranscript(): Transcript | null {
     return this.currentTranscript ? { ...this.currentTranscript } : null;
   }

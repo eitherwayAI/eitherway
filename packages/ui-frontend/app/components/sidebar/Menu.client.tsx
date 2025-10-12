@@ -107,7 +107,6 @@ export function Menu() {
     setDialogContent(null);
   };
 
-  // Load sessions on mount AND when sidebar opens
   useEffect(() => {
     loadEntries();
   }, [loadEntries]);

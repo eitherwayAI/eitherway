@@ -23,13 +23,11 @@ import {
   AppsRepository
 } from '@eitherway/database';
 
-// Helper to validate UUID
 function isValidUUID(str: string): boolean {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   return uuidRegex.test(str);
 }
 
-// Helper to get or create demo user
 async function getOrCreateDemoUser(db: DatabaseClient): Promise<string> {
   const usersRepo = new UsersRepository(db);
 
@@ -39,7 +37,6 @@ async function getOrCreateDemoUser(db: DatabaseClient): Promise<string> {
     return existingUser.id;
   }
 
-  // Create demo user
   const demoUser = await usersRepo.create('demo-user@eitherway.local', 'Demo User');
   return demoUser.id;
 }
@@ -49,7 +46,6 @@ export async function registerNetlifyRoutes(
   db: DatabaseClient,
   workspaceDir: string
 ) {
-  // Get encryption key from environment
   const encryptionKey = process.env.ENCRYPTION_KEY;
   if (!encryptionKey) {
     console.warn('[Netlify] ENCRYPTION_KEY not set - Netlify integration will not work');
@@ -62,9 +58,7 @@ export async function registerNetlifyRoutes(
   const netlifySites = new NetlifySitesRepository(db);
   const deployments = new DeploymentsRepository(db);
 
-  // ==========================================================================
   // TOKEN MANAGEMENT
-  // ==========================================================================
 
   /**
    * POST /api/netlify/validate-token
@@ -86,7 +80,6 @@ export async function registerNetlifyRoutes(
     }
 
     try {
-      // Handle demo/non-UUID userIds
       if (userId === 'demo-user' || !isValidUUID(userId)) {
         userId = await getOrCreateDemoUser(db);
       }
@@ -100,7 +93,6 @@ export async function registerNetlifyRoutes(
         });
       }
 
-      // Get the saved integration to return safe info
       const integration = await userIntegrations.get(userId, 'netlify');
 
       return reply.code(200).send({
@@ -126,10 +118,6 @@ export async function registerNetlifyRoutes(
     }
   });
 
-  /**
-   * GET /api/netlify/integration
-   * Get user's Netlify integration status
-   */
   fastify.get<{
     Querystring: { userId: string };
   }>('/api/netlify/integration', async (request, reply) => {
@@ -176,10 +164,6 @@ export async function registerNetlifyRoutes(
     }
   });
 
-  /**
-   * DELETE /api/netlify/token
-   * Remove Netlify integration
-   */
   fastify.delete<{
     Body: { userId: string };
   }>('/api/netlify/token', async (request, reply) => {
@@ -217,9 +201,7 @@ export async function registerNetlifyRoutes(
     }
   });
 
-  // ==========================================================================
   // DEPLOYMENT
-  // ==========================================================================
 
   /**
    * POST /api/netlify/deploy
@@ -252,7 +234,6 @@ export async function registerNetlifyRoutes(
     }
 
     try {
-      // Handle demo/non-UUID userIds
       if (userId === 'demo-user' || !isValidUUID(userId)) {
         userId = await getOrCreateDemoUser(db);
       }
@@ -265,7 +246,6 @@ export async function registerNetlifyRoutes(
 
       let validatedAppId = appId;
 
-      // Check if the provided appId is actually a sessionId
       if (sessionId && sessionId === appId) {
         console.log(`[Netlify] appId matches sessionId, looking up session: ${sessionId}`);
         const session = await sessionsRepo.findById(sessionId);
@@ -277,18 +257,15 @@ export async function registerNetlifyRoutes(
           });
         }
 
-        // Get or create app_id from session
         if (session.app_id) {
           validatedAppId = session.app_id;
           console.log(`[Netlify] Using existing app_id from session: ${validatedAppId}`);
         } else {
-          // Create app for this session
           console.log(`[Netlify] Session has no app_id, creating one...`);
           const appTitle = session.title || 'Generated App';
           const app = await appsRepo.create(session.user_id, appTitle, 'private');
           validatedAppId = app.id;
 
-          // Update session with app_id
           await sessionsRepo.update(sessionId, { app_id: validatedAppId } as any);
           console.log(`[Netlify] Created app: ${validatedAppId} for session: ${sessionId}`);
         }
@@ -307,7 +284,6 @@ export async function registerNetlifyRoutes(
                 validatedAppId = session.app_id;
                 console.log(`[Netlify] Using app_id from session: ${validatedAppId}`);
               } else if (session) {
-                // Create app for this session
                 const appTitle = session.title || 'Generated App';
                 const newApp = await appsRepo.create(session.user_id, appTitle, 'private');
                 validatedAppId = newApp.id;
@@ -375,14 +351,8 @@ export async function registerNetlifyRoutes(
     }
   });
 
-  // ==========================================================================
   // SITES MANAGEMENT
-  // ==========================================================================
 
-  /**
-   * GET /api/netlify/sites
-   * Get user's Netlify sites
-   */
   fastify.get<{
     Querystring: { userId: string; limit?: string };
   }>('/api/netlify/sites', async (request, reply) => {
@@ -416,10 +386,6 @@ export async function registerNetlifyRoutes(
     }
   });
 
-  /**
-   * GET /api/netlify/sites/:siteId
-   * Get specific site with deployment stats
-   */
   fastify.get<{
     Params: { siteId: string };
   }>('/api/netlify/sites/:siteId', async (request, reply) => {
@@ -450,10 +416,6 @@ export async function registerNetlifyRoutes(
     }
   });
 
-  /**
-   * GET /api/netlify/sites/app/:appId
-   * Get Netlify site for a specific app
-   */
   fastify.get<{
     Params: { appId: string };
   }>('/api/netlify/sites/app/:appId', async (request, reply) => {
@@ -484,14 +446,8 @@ export async function registerNetlifyRoutes(
     }
   });
 
-  // ==========================================================================
   // DEPLOYMENT HISTORY
-  // ==========================================================================
 
-  /**
-   * GET /api/netlify/deployments/:appId
-   * Get deployment history for an app
-   */
   fastify.get<{
     Params: { appId: string };
     Querystring: { limit?: string };
@@ -500,7 +456,6 @@ export async function registerNetlifyRoutes(
     const limit = parseInt(request.query.limit || '20', 10);
 
     try {
-      // Get deployments filtered by Netlify type
       const allDeployments = await deployments.getByAppId(appId, limit);
       const netlifyDeployments = allDeployments.filter(
         d => d.deployment_type === 'netlify'
@@ -521,10 +476,6 @@ export async function registerNetlifyRoutes(
     }
   });
 
-  /**
-   * GET /api/netlify/deployments/:appId/:deploymentId
-   * Get specific deployment details
-   */
   fastify.get<{
     Params: { appId: string; deploymentId: string };
   }>('/api/netlify/deployments/:appId/:deploymentId', async (request, reply) => {
@@ -555,15 +506,8 @@ export async function registerNetlifyRoutes(
     }
   });
 
-  // ==========================================================================
   // LOGS ACCESS
-  // ==========================================================================
 
-  /**
-   * GET /api/netlify/logs/token
-   * Get WebSocket access token for Netlify logs
-   * (Requires server-level Netlify token)
-   */
   fastify.get<{
     Querystring: {
       siteId: string;

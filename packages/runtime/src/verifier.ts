@@ -181,13 +181,13 @@ export class VerifierRunner {
    */
   static formatSummary(result: VerifyResult): string {
     if (result.steps.length === 0) {
-      return '✓ No verification steps configured';
+      return 'No verification steps configured';
     }
 
     const lines: string[] = ['\n**Verification Results:**'];
 
     for (const step of result.steps) {
-      const icon = step.ok ? '✓' : '✗';
+      const icon = step.ok ? 'PASS' : 'FAIL';
       const time = step.duration ? ` (${step.duration}ms)` : '';
       lines.push(`  ${icon} ${step.name}${time}`);
 
@@ -202,7 +202,7 @@ export class VerifierRunner {
       }
     }
 
-    const summary = result.passed ? 'All checks passed ✓' : 'Some checks failed ✗';
+    const summary = result.passed ? 'All checks passed' : 'Some checks failed';
     lines.push(`\n${summary} (${result.totalDuration}ms total)`);
 
     return lines.join('\n');

@@ -51,7 +51,6 @@ export class PreviewsStore {
         previewInfo.baseUrl = url;
       }
 
-      // Log when preview is ready
       if (type === 'open') {
         logger.info(`✅ Dev server ready at: ${url}`);
       }

@@ -16,18 +16,13 @@ export class SecurityGuard {
     this.secretPatterns = config.secretPatterns.map(p => new RegExp(p, 'g'));
   }
 
-  /**
-   * Check if a path is allowed
-   */
   isPathAllowed(path: string): boolean {
-    // Check denied paths first
     for (const denied of this.deniedPaths) {
       if (this.matchGlob(path, denied)) {
         return false;
       }
     }
 
-    // Check allowed paths
     for (const allowed of this.allowedPaths) {
       if (this.matchGlob(path, allowed)) {
         return true;

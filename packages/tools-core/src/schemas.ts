@@ -189,7 +189,6 @@ export const EITHER_WRITE_SCHEMA = TOOL_SCHEMAS['either-write'];
 export const EITHER_LINE_REPLACE_SCHEMA = TOOL_SCHEMAS['either-line-replace'];
 export const IMAGEGEN_SCHEMA = TOOL_SCHEMAS['eithergen--generate_image'];
 
-// Get all tool definitions as array for Claude API
 export function getAllToolDefinitions(): ToolDefinition[] {
   return Object.values(TOOL_SCHEMAS);
 }

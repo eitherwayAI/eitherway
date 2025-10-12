@@ -9,9 +9,7 @@
 
 import { useState, useEffect } from 'react';
 
-// ============================================================================
 // TYPES
-// ============================================================================
 
 interface PWAValidationResult {
   status: 'passed' | 'failed' | 'warning';
@@ -38,9 +36,7 @@ interface MobilePreviewProps {
   onClose?: () => void;
 }
 
-// ============================================================================
 // CONSTANTS
-// ============================================================================
 
 const IPHONE_17_PRO_MAX = {
   name: 'iPhone 17 Pro Max',
@@ -52,9 +48,7 @@ const IPHONE_17_PRO_MAX = {
   notchHeight: 30
 };
 
-// ============================================================================
 // MOBILE PREVIEW COMPONENT
-// ============================================================================
 
 export function MobilePreview({ previewUrl, appId, sessionId, onClose }: MobilePreviewProps) {
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
@@ -62,7 +56,6 @@ export function MobilePreview({ previewUrl, appId, sessionId, onClose }: MobileP
   const [isValidating, setIsValidating] = useState(false);
   const [showPwaDetails, setShowPwaDetails] = useState(false);
 
-  // Calculate dimensions based on orientation
   const width = orientation === 'portrait' ? IPHONE_17_PRO_MAX.width : IPHONE_17_PRO_MAX.height;
   const height = orientation === 'portrait' ? IPHONE_17_PRO_MAX.height : IPHONE_17_PRO_MAX.width;
 
@@ -115,9 +108,6 @@ export function MobilePreview({ previewUrl, appId, sessionId, onClose }: MobileP
     }
   };
 
-  /**
-   * Load latest PWA validation on mount
-   */
   useEffect(() => {
     const loadLatestValidation = async () => {
       try {
@@ -322,10 +312,6 @@ export function MobilePreview({ previewUrl, appId, sessionId, onClose }: MobileP
     </div>
   );
 }
-
-// ============================================================================
-// HELPER COMPONENTS
-// ============================================================================
 
 function ScoreBar({ label, score, max }: { label: string; score: number; max: number }) {
   const percentage = (score / max) * 100;

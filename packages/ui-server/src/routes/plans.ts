@@ -42,7 +42,6 @@ export async function registerPlanRoutes(
 
     console.log(`[Plan API] Received plan execution request: ${planId} with ${operations?.length || 0} operations`);
 
-    // Validate request body
     if (!planId || !sessionId || !operations) {
       return reply.code(400).send({
         error: 'Invalid request',
@@ -117,7 +116,6 @@ export async function registerPlanRoutes(
 
       console.log(`[Plan API] Plan ${planId} executed: ${result.status} (${result.succeededOps}/${result.totalOps} succeeded)`);
 
-      // Log completion
       await eventsRepo.log('plan.completed', {
         planId,
         status: result.status,
@@ -159,11 +157,6 @@ export async function registerPlanRoutes(
     }
   });
 
-  /**
-   * GET /api/projects/plans/:planId
-   *
-   * Get execution status and results for a plan
-   */
   fastify.get<{
     Params: { planId: string };
   }>('/api/projects/plans/:planId', async (request, reply) => {
@@ -171,7 +164,6 @@ export async function registerPlanRoutes(
 
     console.log(`[Plan API] Fetching plan status: ${planId}`);
 
-    // Get plan execution summary
     const executionResult = await db.query(
       `SELECT * FROM core.plan_executions WHERE plan_id = $1`,
       [planId]
@@ -183,7 +175,6 @@ export async function registerPlanRoutes(
 
     const execution = executionResult.rows[0];
 
-    // Get operation details
     const operationsResult = await db.query(
       `SELECT
          id,
@@ -231,11 +222,6 @@ export async function registerPlanRoutes(
     };
   });
 
-  /**
-   * GET /api/projects/plans
-   *
-   * List recent plan executions (optional - for debugging)
-   */
   fastify.get<{
     Querystring: { sessionId?: string; limit?: string };
   }>('/api/projects/plans', async (request, reply) => {

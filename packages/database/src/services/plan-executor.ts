@@ -13,9 +13,7 @@ import { PostgresFileStore } from './file-store.js';
 import { EventsRepository } from '../repositories/events.js';
 import type { Plan, PlanOperation, WriteOp, PatchOp, PackageInstallOp, PackageRemoveOp } from './plan-validator.js';
 
-// ============================================================================
 // TYPES
-// ============================================================================
 
 export interface ExecutionResult {
   planId: string;
@@ -40,9 +38,7 @@ export interface OperationResult {
   durationMs?: number;
 }
 
-// ============================================================================
 // EXECUTOR CLASS
-// ============================================================================
 
 export class PlanExecutor {
   private fileStore: PostgresFileStore;
@@ -64,7 +60,6 @@ export class PlanExecutor {
     const { planId, sessionId, operations } = plan;
     const executionStartTime = Date.now();
 
-    // Check if plan already exists (idempotency)
     const existingExecution = await this.checkExistingExecution(planId);
 
     if (existingExecution) {
@@ -72,7 +67,6 @@ export class PlanExecutor {
       return this.getExecutionResult(planId);
     }
 
-    // Create plan execution record
     await this.db.query(
       `INSERT INTO core.plan_executions (plan_id, session_id, app_id, total_ops, status, started_at)
        VALUES ($1, $2, $3, $4, 'running', now())`,
@@ -185,7 +179,6 @@ export class PlanExecutor {
 
     const executionDuration = Date.now() - executionStartTime;
 
-    // Update plan execution summary
     await this.db.query(
       `UPDATE core.plan_executions
        SET succeeded_ops = $1, failed_ops = $2, skipped_ops = $3,
@@ -338,9 +331,6 @@ export class PlanExecutor {
     return await this.updatePackageJson(appId, 'remove', packages, false);
   }
 
-  /**
-   * Update package.json with package operations
-   */
   private async updatePackageJson(
     appId: string,
     action: 'add' | 'remove',
@@ -400,9 +390,6 @@ export class PlanExecutor {
     };
   }
 
-  /**
-   * Check if plan has already been executed (idempotency)
-   */
   private async checkExistingExecution(planId: string): Promise<boolean> {
     const result = await this.db.query(
       `SELECT id FROM core.plan_executions WHERE plan_id = $1`,
@@ -412,9 +399,6 @@ export class PlanExecutor {
     return result.rows.length > 0;
   }
 
-  /**
-   * Get execution result from database
-   */
   private async getExecutionResult(planId: string): Promise<ExecutionResult> {
     const executionResult = await this.db.query(
       `SELECT * FROM core.plan_executions WHERE plan_id = $1`,

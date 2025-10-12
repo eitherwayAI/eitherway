@@ -33,9 +33,6 @@ export class ToolValidator {
     }
   }
 
-  /**
-   * Validate tool input against its schema
-   */
   validate(toolName: string, input: Record<string, any>): ValidationResult {
     const validator = this.validators.get(toolName);
 
@@ -61,23 +58,14 @@ export class ToolValidator {
     return { valid: true, errors: [] };
   }
 
-  /**
-   * Get schema for a specific tool
-   */
   getSchema(toolName: string): ToolDefinition | undefined {
     return TOOL_SCHEMAS[toolName];
   }
 
-  /**
-   * Check if a tool exists
-   */
   hasToolSchema(toolName: string): boolean {
     return this.validators.has(toolName);
   }
 
-  /**
-   * Get all available tool names
-   */
   getAvailableTools(): string[] {
     return Array.from(this.validators.keys());
   }
