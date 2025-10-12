@@ -14,8 +14,8 @@ import { registerImageRoutes } from './routes/images.js';
 
 const fastify = Fastify({ logger: true });
 
-await fastify.register(cors, { origin: true });
-await fastify.register(websocket);
+await fastify.register(cors as any, { origin: true });
+await fastify.register(websocket as any);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -120,7 +120,7 @@ fastify.post<{
 });
 
 fastify.register(async (fastify) => {
-  fastify.get('/api/agent', { websocket: true }, (connection) => {
+  fastify.get('/api/agent', { websocket: true } as any, (connection: any) => {
     connection.socket.on('message', async (message: Buffer) => {
       const data = JSON.parse(message.toString());
 

@@ -44,7 +44,7 @@ fi
 # Copy nginx configuration
 print_info "Copying nginx configuration..."
 if [ ! -f /etc/nginx/sites-available/eitherway.conf ]; then
-    cp /home/ubuntu/eitherway/deployment/nginx/eitherway.conf /etc/nginx/sites-available/eitherway.conf
+    cp /root/Eitherway-revamped/deployment/nginx/eitherway.conf /etc/nginx/sites-available/eitherway.conf
 fi
 
 # Create temporary nginx config without SSL (for certbot)

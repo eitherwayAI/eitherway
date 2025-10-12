@@ -767,7 +767,7 @@ export async function registerBrandKitRoutes(
 
               return {
                 brandKitId,
-                assetId: null, // Aggregated colors don't belong to a single asset
+                assetId: undefined, // Aggregated colors don't belong to a single asset
                 colorHex: validHex.toUpperCase(),
                 colorRgb: clampedRgb,
                 colorHsl: clampedHsl,
