@@ -52,6 +52,7 @@ export class ToolRunner {
     const { id, name, input } = toolUse;
     const startTime = Date.now();
 
+    // Check if tool exists
     const executor = this.executors.get(name);
     if (!executor) {
       return {
@@ -62,6 +63,7 @@ export class ToolRunner {
       };
     }
 
+    // Validate input against schema
     const validation = this.validator.validate(name, input);
     if (!validation.valid) {
       return {
@@ -85,6 +87,7 @@ export class ToolRunner {
       }
     }
 
+    // Check idempotency (hash-based deduplication)
     const cacheKey = this.getCacheKey(name, input);
     const cached = this.executionCache.get(cacheKey);
     if (cached) {
@@ -100,6 +103,7 @@ export class ToolRunner {
       // Execute the tool
       const result = await executor.execute(input, this.context);
 
+      // Calculate metrics
       const latency = Date.now() - startTime;
       const inputSize = JSON.stringify(input).length;
       const outputSize = result.content.length;
@@ -304,22 +308,37 @@ export class ToolRunner {
     this.executionCache.clear();
   }
 
+  /**
+   * Get available tool names
+   */
   getAvailableTools(): string[] {
     return Array.from(this.executors.keys());
   }
 
+  /**
+   * Check if a tool is available
+   */
   hasExecutor(name: string): boolean {
     return this.executors.has(name);
   }
 
+  /**
+   * Get metrics collector
+   */
   getMetrics(): MetricsCollector {
     return this.metrics;
   }
 
+  /**
+   * Get rate limiter
+   */
   getRateLimiter(): RateLimiter {
     return this.rateLimiter;
   }
 
+  /**
+   * Set database context for file operations
+   */
   setDatabaseContext(fileStore: any, appId: string, sessionId?: string): void {
     this.context.fileStore = fileStore;
     this.context.appId = appId;
@@ -350,13 +369,18 @@ export class SecurityGuard {
     this.secretPatterns = config.secretPatterns.map(p => new RegExp(p, 'g'));
   }
 
+  /**
+   * Check if a path is allowed
+   */
   isPathAllowed(path: string): boolean {
+    // Check denied paths first
     for (const denied of this.deniedPaths) {
       if (this.matchGlob(path, denied)) {
         return false;
       }
     }
 
+    // Check allowed paths
     for (const allowed of this.allowedPaths) {
       if (this.matchGlob(path, allowed)) {
         return true;

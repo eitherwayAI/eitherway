@@ -44,6 +44,9 @@ export function logStreamEvent(direction: 'inbound' | 'outbound', event: StreamE
   }
 }
 
+/**
+ * Get recent event log entries
+ */
 export function getEventLog(limit?: number): EventLogEntry[] {
   const entries = limit ? eventLog.slice(-limit) : [...eventLog];
   return entries;
@@ -56,6 +59,9 @@ export function clearEventLog(): void {
   eventLog.length = 0;
 }
 
+/**
+ * Get event statistics
+ */
 export function getEventStats() {
   const stats = {
     total: eventLog.length,
@@ -77,6 +83,7 @@ export function getEventStats() {
     // Count by direction
     stats.byDirection[entry.direction]++;
 
+    // Calculate gaps
     if (prevTimestamp > 0) {
       totalGap += entry.timestamp - prevTimestamp;
     }

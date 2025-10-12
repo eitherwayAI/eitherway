@@ -11,6 +11,7 @@ export function sendStreamEvent(socket: WebSocket, event: StreamEvent, options?:
 }): boolean {
   const { skipValidation = false, skipLogging = false } = options || {};
 
+  // Validate event schema
   if (!skipValidation) {
     const validation = safeValidateStreamEvent(event);
     if (!validation.success) {
@@ -22,19 +23,18 @@ export function sendStreamEvent(socket: WebSocket, event: StreamEvent, options?:
     }
   }
 
+  // Check socket state
   if (socket.readyState !== 1) { // WebSocket.OPEN
-    // Socket closed - silently fail (client will reconnect)
-    // Only log for non-reasoning events to reduce noise
-    if (event.kind !== 'reasoning' && event.kind !== 'delta') {
-      console.log('[StreamEvent] Socket closed, buffering event:', event.kind);
-    }
+    console.warn('[StreamEvent] Socket not open, cannot send event:', event.kind);
     return false;
   }
 
+  // Log event (for observability)
   if (!skipLogging) {
     logStreamEvent('outbound', event);
   }
 
+  // Send event
   try {
     socket.send(JSON.stringify(event));
     return true;
@@ -57,6 +57,9 @@ export function sendStreamEvents(socket: WebSocket, events: StreamEvent[]): numb
   return sent;
 }
 
+/**
+ * Create a scoped sender for a specific connection/request
+ */
 export function createEventSender(socket: WebSocket, requestId?: string) {
   return {
     send(event: StreamEvent) {

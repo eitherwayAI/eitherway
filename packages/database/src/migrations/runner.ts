@@ -68,7 +68,7 @@ async function applyMigration(db: DatabaseClient, migration: Migration): Promise
     );
   });
 
-  console.log(`Migration ${migration.id} applied successfully`);
+  console.log(`✓ Migration ${migration.id} applied successfully`);
 }
 
 async function runMigrations(): Promise<void> {
@@ -80,7 +80,7 @@ async function runMigrations(): Promise<void> {
     if (!healthy) {
       throw new Error('Database health check failed');
     }
-    console.log('Connected to database\n');
+    console.log('✓ Connected to database\n');
 
     await ensureMigrationsTable(db);
 
@@ -100,10 +100,10 @@ async function runMigrations(): Promise<void> {
       await applyMigration(db, migration);
     }
 
-    console.log(`\nAll migrations completed successfully`);
+    console.log(`\n✓ All migrations completed successfully`);
 
   } catch (error: any) {
-    console.error('\nMigration failed:', error.message);
+    console.error('\n✗ Migration failed:', error.message);
     if (error.stack) {
       console.error(error.stack);
     }

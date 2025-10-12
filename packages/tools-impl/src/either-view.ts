@@ -35,11 +35,13 @@ export class EitherViewExecutor implements ToolExecutor {
       // Read file with size limit
       const content = await readFile(fullPath, encoding as BufferEncoding);
 
+      // Calculate SHA-256 hash
       const sha256 = createHash('sha256').update(content).digest('hex');
 
       // Count lines
       const lineCount = content.split('\n').length;
 
+      // Check if truncation needed
       const isTruncated = content.length > max_bytes;
 
       if (isTruncated) {
@@ -61,6 +63,7 @@ export class EitherViewExecutor implements ToolExecutor {
         };
       }
 
+      // Return full content with metadata
       return {
         content,
         isError: false,
@@ -106,11 +109,13 @@ export class EitherViewExecutor implements ToolExecutor {
         content = Buffer.from(fileData.content).toString(encoding as BufferEncoding);
       }
 
+      // Calculate SHA-256 hash
       const sha256 = createHash('sha256').update(content).digest('hex');
 
       // Count lines
       const lineCount = content.split('\n').length;
 
+      // Check if truncation needed
       const isTruncated = content.length > max_bytes;
 
       if (isTruncated) {
@@ -133,6 +138,7 @@ export class EitherViewExecutor implements ToolExecutor {
         };
       }
 
+      // Return full content with metadata
       return {
         content,
         isError: false,

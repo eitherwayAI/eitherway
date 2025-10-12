@@ -20,10 +20,16 @@ export class RateLimiter {
     this.setLimit('eithergen', { maxRequests: 5, windowMs: 60000 });  // 5 per minute
   }
 
+  /**
+   * Set rate limit for a specific tool
+   */
   setLimit(tool: string, config: RateLimitConfig): void {
     this.config.set(tool, config);
   }
 
+  /**
+   * Check if request is allowed
+   */
   async checkLimit(tool: string): Promise<{ allowed: boolean; retryAfter?: number }> {
     const config = this.config.get(tool);
     if (!config) {
@@ -34,6 +40,7 @@ export class RateLimiter {
     const now = Date.now();
     const requests = this.requests.get(tool) || [];
 
+    // Remove expired requests
     const validRequests = requests.filter(time => now - time < config.windowMs);
 
     if (validRequests.length >= config.maxRequests) {
@@ -61,6 +68,9 @@ export class RateLimiter {
     this.requests.delete(tool);
   }
 
+  /**
+   * Get current usage
+   */
   getUsage(tool: string): { current: number; max: number; windowMs: number } | null {
     const config = this.config.get(tool);
     if (!config) return null;

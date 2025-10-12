@@ -55,7 +55,9 @@ export class PostgresFileStore implements FileStore {
       const dirMap = new Map<string, FileNode>();
 
       files.forEach(file => {
-        const parts = file.path.split('/');
+        // Normalize path: remove leading slashes to prevent empty directory names
+        const normalizedPath = file.path.replace(/^\/+/, '');
+        const parts = normalizedPath.split('/');
         const node = nodeMap.get(file.path)!;
 
         if (parts.length === 1) {

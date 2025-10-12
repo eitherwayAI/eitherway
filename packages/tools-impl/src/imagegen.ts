@@ -27,6 +27,7 @@ export class ImageGenExecutor implements ToolExecutor {
       };
     }
 
+    // Validate OPENAI_API_KEY
     if (!process.env.OPENAI_API_KEY) {
       return {
         content: `Error: OpenAI API key not configured.\n\nTo enable:\n1. Get API key from https://platform.openai.com/api-keys\n2. Set environment variable: export OPENAI_API_KEY=your_key`,
@@ -35,6 +36,7 @@ export class ImageGenExecutor implements ToolExecutor {
     }
 
     try {
+      // Get database client and services
       const db = createDatabaseClient();
       const imageService = new ImageGenerationService(db);
 
@@ -83,6 +85,7 @@ export class ImageGenExecutor implements ToolExecutor {
         };
       }
 
+      // Get the actual image bytes
       const assetId = result.assets[0].id;
       const asset = await imageService.getAsset(assetId);
 
@@ -94,6 +97,7 @@ export class ImageGenExecutor implements ToolExecutor {
         };
       }
 
+      // Save to VFS (database-backed file system)
       const fileStore = new PostgresFileStore(db);
       const mimeType = asset.mimeType;
       const extension = mimeType === 'image/png' ? '.png' : '.jpg';
@@ -109,17 +113,30 @@ export class ImageGenExecutor implements ToolExecutor {
       // DO NOT close db - it's a singleton shared by all tools
       // The server manages database lifecycle, not individual tools
 
+      // Build public URL for the image
       const serverOrigin = process.env.SERVER_ORIGIN || 'http://localhost:3001';
       const assetUrl = `${serverOrigin}/api/images/assets/${assetId}`;
+
+      // Determine the correct path for HTML/code usage
+      // Vite serves files from public/ directory at the root path
+      // So public/image.png should be referenced as /image.png
+      let htmlPath = finalPath;
+      if (finalPath.startsWith('public/') || finalPath.startsWith('/public/')) {
+        // Remove the public/ prefix for Vite
+        htmlPath = '/' + finalPath.replace(/^\/?public\//, '');
+      } else if (!finalPath.startsWith('/')) {
+        // Ensure absolute path
+        htmlPath = '/' + finalPath;
+      }
 
       return {
         content: `✅ Image generated and saved successfully!
 
-📁 File Path: ${finalPath}
-⚠️  IMPORTANT: Use this EXACT path in your HTML/code: ${finalPath}
+📁 Saved to: ${finalPath}
+⚠️  IMPORTANT: Use this path in your HTML/code: ${htmlPath}
 
 Example usage:
-<img src="${finalPath}" alt="${prompt.substring(0, 50)}...">
+<img src="${htmlPath}" alt="${prompt.substring(0, 50)}...">
 
 Details:
 - Prompt: "${prompt}"

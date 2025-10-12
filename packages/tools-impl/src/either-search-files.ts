@@ -75,6 +75,7 @@ export class EitherSearchFilesExecutor implements ToolExecutor {
 
           // Search for pattern
           for (let i = 0; i < lines.length; i++) {
+            // Reset regex lastIndex before each test to avoid missed matches
             searchPattern.lastIndex = 0;
             if (searchPattern.test(lines[i])) {
               const match: SearchMatch = {
@@ -83,6 +84,7 @@ export class EitherSearchFilesExecutor implements ToolExecutor {
                 snippet: lines[i]
               };
 
+              // Add context lines if requested
               if (context_lines > 0) {
                 const startIdx = Math.max(0, i - context_lines);
                 const endIdx = Math.min(lines.length - 1, i + context_lines);
@@ -126,6 +128,7 @@ export class EitherSearchFilesExecutor implements ToolExecutor {
         };
       }
 
+      // Format results with context
       const resultText = matches.map(m => {
         let output = `${m.path}:${m.line}: ${m.snippet}`;
 
@@ -180,6 +183,7 @@ export class EitherSearchFilesExecutor implements ToolExecutor {
     const { fileStore, appId } = context;
 
     try {
+      // Get all files from database for this app
       const allFiles = await fileStore.list(appId);
 
       // Convert glob to regex for matching
@@ -242,6 +246,7 @@ export class EitherSearchFilesExecutor implements ToolExecutor {
 
           // Search for pattern
           for (let i = 0; i < lines.length; i++) {
+            // Reset regex lastIndex before each test to avoid missed matches
             searchPattern.lastIndex = 0;
             if (searchPattern.test(lines[i])) {
               const match: SearchMatch = {
@@ -250,6 +255,7 @@ export class EitherSearchFilesExecutor implements ToolExecutor {
                 snippet: lines[i]
               };
 
+              // Add context lines if requested
               if (context_lines > 0) {
                 const startIdx = Math.max(0, i - context_lines);
                 const endIdx = Math.min(lines.length - 1, i + context_lines);
@@ -297,6 +303,7 @@ export class EitherSearchFilesExecutor implements ToolExecutor {
         };
       }
 
+      // Format results with context
       const resultText = matches.map(m => {
         let output = `${m.path}:${m.line}: ${m.snippet}`;
 

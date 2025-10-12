@@ -31,7 +31,7 @@ export class MetricsCollector {
 
     // Structured log output
     const level = metrics.success ? 'info' : 'error';
-    const status = metrics.success ? 'OK' : 'FAIL';
+    const status = metrics.success ? '✓' : '✗';
 
     this.log(
       level,
@@ -44,10 +44,16 @@ export class MetricsCollector {
     );
   }
 
+  /**
+   * Get all collected metrics
+   */
   getMetrics(): ToolMetrics[] {
     return [...this.metrics];
   }
 
+  /**
+   * Get summary statistics
+   */
   getSummary(): {
     totalCalls: number;
     successRate: number;
@@ -84,6 +90,9 @@ export class MetricsCollector {
     };
   }
 
+  /**
+   * Get summary as formatted string
+   */
   getSummaryString(): string {
     const summary = this.getSummary();
 
@@ -97,6 +106,7 @@ export class MetricsCollector {
       `Avg latency: ${summary.avgLatency.toFixed(0)}ms`
     ];
 
+    // Add per-tool breakdown
     const toolNames = Object.keys(summary.byTool).sort();
     if (toolNames.length > 0) {
       lines.push('Per-tool:');

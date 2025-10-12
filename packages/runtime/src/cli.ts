@@ -34,6 +34,7 @@ Configuration:
     process.exit(0);
   }
 
+  // Parse options
   let dryRun = false;
   let configDir = './configs';
   let request = '';
@@ -55,9 +56,11 @@ Configuration:
   }
 
   try {
+    // Load configuration
     const loader = new ConfigLoader(configDir);
     const { claudeConfig, agentConfig } = await loader.loadAll();
 
+    // Create agent
     const agent = new Agent({
       workingDir: process.cwd(),
       claudeConfig,
@@ -73,8 +76,10 @@ Configuration:
     console.log(`Request: ${request}`);
     console.log('======================\n');
 
+    // Process request
     const response = await agent.processRequest(request);
 
+    // Save transcript
     await agent.saveTranscript();
 
     console.log('\n======================');
@@ -83,7 +88,7 @@ Configuration:
     console.log('======================\n');
 
   } catch (error: any) {
-    console.error('\nError:', error.message);
+    console.error('\n❌ Error:', error.message);
     if (error.stack) {
       console.error('\nStack trace:');
       console.error(error.stack);

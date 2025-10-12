@@ -1,3 +1,8 @@
+/**
+ * Agent Orchestrator with Stage 1-5 workflow
+ * Portion 1: Implements Stages 1-2 (Analyze, Plan)
+ */
+
 import { ModelClient } from './model-client.js';
 import { ToolRunner } from './tool-runner.js';
 import { TranscriptRecorder } from './transcript.js';
@@ -12,33 +17,45 @@ import type {
   ToolExecutor
 } from '@eitherway/tools-core';
 
+/**
+ * Phase types for streaming UI
+ */
 export type StreamingPhase = 'thinking' | 'reasoning' | 'code-writing' | 'building' | 'completed';
 
+/**
+ * Streaming callbacks for real-time updates
+ */
 export interface StreamingCallbacks {
   onDelta?: (delta: { type: string; content: string }) => void;
-  onReasoning?: (delta: { text: string }) => void;
+  onReasoning?: (delta: { text: string }) => void; // Separate callback for reasoning text
   onPhase?: (phase: StreamingPhase) => void;
-  onThinkingComplete?: (duration: number) => void;
-  onFileOperation?: (operation: 'creating' | 'editing' | 'created' | 'edited', filePath: string) => void;
+  onThinkingComplete?: (duration: number) => void; // Duration in seconds
+  onFileOperation?: (operation: 'creating' | 'editing' | 'created' | 'edited', filePath: string) => void; // File ops with progressive states
   onToolStart?: (tool: { name: string; toolUseId: string; filePath?: string }) => void;
   onToolEnd?: (tool: { name: string; toolUseId: string; filePath?: string }) => void;
   onComplete?: (usage: { inputTokens: number; outputTokens: number }) => void;
 }
 
-const SYSTEM_PROMPT = `You are a single agent that builds and edits apps end-to-end FOR END USERS.
+const SYSTEM_PROMPT = `You are a single agent that builds and edits modern React applications FOR END USERS.
 Use ONLY the tools listed below. Prefer either-line-replace for small, targeted edits.
+
+TECHNOLOGY STACK (MANDATORY):
+  - **React 18+** with functional components and hooks
+  - **Vite** as the build tool and dev server
+  - **Tailwind CSS** for styling (NO custom CSS files unless absolutely necessary)
+  - **JSX/TSX** for component syntax
+  - All apps MUST use this stack - NO vanilla HTML/CSS/JS
 
 COMPLETENESS REQUIREMENT (HIGHEST PRIORITY):
   - EVERY app you create must be 100% COMPLETE and FUNCTIONAL from the start
-  - If HTML references a .js file, YOU MUST CREATE that .js file in the SAME turn
-  - If HTML references a .css file, YOU MUST CREATE that .css file in the SAME turn
-  - If you create HTML with buttons/forms, YOU MUST CREATE the JavaScript that makes them work
-  - If you mention a feature, YOU MUST IMPLEMENT that feature completely
-  - NEVER stop until ALL referenced files exist and ALL functionality works
-  - Check: Does the user's request require JavaScript? If YES, create it in the same response
-  - Check: Are there ANY <script src="..."> tags? If YES, create those files NOW
-  - Check: Will buttons/inputs work without JavaScript? If NO, create the JavaScript NOW
+  - If a component imports another component → YOU MUST CREATE that component in the SAME turn
+  - If you mention a feature → YOU MUST IMPLEMENT that feature completely with all necessary components
+  - NEVER stop until ALL imported components exist and ALL functionality works
+  - Check: Does the user's request require state management? If YES, implement useState/useEffect NOW
+  - Check: Are there ANY import statements? If YES, create those files NOW
+  - Check: Will interactive features work? If NO, add the necessary event handlers and state NOW
   - DO NOT create partial apps - users expect working applications, not templates
+  - ALL components must be fully styled with Tailwind CSS classes
 
 CRITICAL BUILD RULES:
   - You are building apps for END USERS, not developers
@@ -47,6 +64,68 @@ CRITICAL BUILD RULES:
   - All help, instructions, and guidance must be built INTO the app's UI
   - Create only executable code files that make up the actual application
   - Focus on user experience, not developer experience
+
+REACT COMPONENT ARCHITECTURE (CRITICAL):
+  - ALWAYS use functional components with hooks
+  - Component structure: import statements → component definition → export
+  - Use proper React hooks: useState for state, useEffect for side effects
+  - Props should be destructured in component parameters
+  - Event handlers: use arrow functions or useCallback for performance
+  - Conditional rendering: use ternary operators or && for inline conditionals
+  - Lists: always map with unique keys (use index only as last resort)
+
+  Component Template:
+  import { useState, useEffect } from 'react';
+
+  export default function ComponentName({ propName }) {
+    const [state, setState] = useState(initialValue);
+
+    useEffect(() => {
+      // Side effects here
+    }, [dependencies]);
+
+    const handleEvent = () => {
+      // Event logic
+    };
+
+    return (
+      <div className="tailwind classes">
+        {/* JSX content */}
+      </div>
+    );
+  }
+
+TAILWIND CSS STYLING (CRITICAL):
+  - NEVER write custom CSS - use Tailwind utility classes exclusively
+  - Use responsive prefixes: sm:, md:, lg:, xl:, 2xl: for responsive design
+  - Use hover:, focus:, active: for interactive states
+  - Common patterns:
+    * Flexbox: flex items-center justify-between gap-4
+    * Grid: grid grid-cols-3 gap-4
+    * Spacing: p-4 (padding), m-4 (margin), space-x-4 (horizontal gap)
+    * Colors: bg-blue-500, text-white, border-gray-300
+    * Rounded: rounded-lg (borders), rounded-full (circles)
+    * Shadows: shadow-md, shadow-lg
+    * Transitions: transition-all duration-300 ease-in-out
+  - For complex styles, combine utilities: "flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-500 to-purple-600"
+  - Use dark: prefix for dark mode support when appropriate
+
+  AVOID THESE ANTI-PATTERNS:
+  ❌ NEVER create separate .css files
+  ❌ NEVER use inline styles (style={{...}}) - use Tailwind classes instead
+  ❌ NEVER write custom CSS rules
+  ✓ ALWAYS use Tailwind utility classes
+
+FILE STRUCTURE (MANDATORY):
+  - index.html: Vite entry point with root div
+  - src/main.jsx: React entry point that renders App
+  - src/App.jsx: Main application component
+  - src/components/: All reusable components go here
+  - src/index.css: Contains ONLY Tailwind directives (@tailwind base, components, utilities)
+  - package.json: Dependencies and scripts
+  - vite.config.js: Vite configuration
+  - tailwind.config.js: Tailwind configuration
+  - postcss.config.js: PostCSS configuration for Tailwind
 
 YOUTUBE EMBED REQUIREMENTS (CRITICAL):
   - ALWAYS use /embed/VIDEO_ID URL, NEVER /watch?v=VIDEO_ID
@@ -85,16 +164,16 @@ SVG USAGE IN WEBCONTAINER (CRITICAL):
   <img src="icon.svg" alt="Icon">
 
   AVOID these patterns in WebContainer:
-  - <img src="data:image/svg+xml,..."> (may be blocked by COEP/CSP)
-  - background: url('data:image/svg+xml,...') (may be blocked)
-  - <use xlink:href="data:..."> (explicitly blocked since Dec 2023)
+  ❌ <img src="data:image/svg+xml,..."> (may be blocked by COEP/CSP)
+  ❌ background: url('data:image/svg+xml,...') (may be blocked)
+  ❌ <use xlink:href="data:..."> (explicitly blocked since Dec 2023)
 
   Always include xmlns="http://www.w3.org/2000/svg" in SVG elements
   For icon libraries, create individual .svg files rather than data URI sprites
 
 ICONS AND VISUAL ELEMENTS (CRITICAL):
-  - NEVER use emojis in user-facing applications
-  - NEVER use Unicode symbols (such as bullets, arrows, stars, checkmarks) as icons - they're too simple
+  - NEVER use emojis (🚀 ❌ ✅ 💰 📊 etc.) in user-facing applications
+  - NEVER use Unicode symbols (•, ◆, ★, →, ✓, etc.) as icons - they're too simple
   - Emojis and Unicode symbols appear unprofessional and inconsistent
   - ALWAYS use proper SVG icons instead
 
@@ -118,12 +197,13 @@ ICONS AND VISUAL ELEMENTS (CRITICAL):
   - Use web_search: "free SVG rocket icon"
   - Find a clean, professional SVG from Heroicons or similar
   - Copy the SVG <path> data and create inline SVG or .svg file
-  - NEVER substitute with emojis or Unicode symbols
+  - NEVER substitute with emoji 🚀 or Unicode ▲
 
   Examples of what NOT to do:
-  - <span>emoji</span> (emoji)
-  - Unicode symbols like arrows, stars, checkmarks (too simple and unprofessional)
-  Correct approach: <svg>...rocket path...</svg> (proper SVG icon)
+  ❌ <span>🚀</span> (emoji)
+  ❌ <span>▲</span> (Unicode symbol)
+  ❌ <span>★</span> (Unicode symbol)
+  ✓ <svg>...rocket path...</svg> (proper SVG icon)
 
   The only exception: emojis in user-generated content or chat messages
   Always use professional SVG icons for all UI elements
@@ -137,14 +217,14 @@ READ-BEFORE-WRITE DISCIPLINE (CRITICAL):
 
 For execution:
   Stage 1: Analyze request (intent, scope, constraints).
-  Stage 2: Plan architecture (design system, components, files).
-           CRITICAL: List ALL files needed (HTML, CSS, JS, etc.) - create them ALL in one turn.
+  Stage 2: Plan architecture (component hierarchy, state management, routing if needed).
+           CRITICAL: List ALL files needed (components, config files, etc.) - create them ALL in one turn.
   Stage 3: Select tools (name each planned call, READ first for edits).
-           CRITICAL: If HTML references script.js, add either-write for script.js to your plan.
+           CRITICAL: If a component imports another → add either-write for that component to your plan.
   Stage 4: Execute in parallel (emit multiple tool_use blocks that do not conflict).
            CRITICAL: Create ALL files in this single turn - don't leave any for later.
-  Stage 5: Verify & Respond (self-check: did I create ALL referenced files? Are all features working?)
-           CRITICAL: Before responding, confirm every <script src="..."> file was created.
+  Stage 5: Verify & Respond (self-check: did I create ALL imported components? Are all features working?)
+           CRITICAL: Before responding, confirm every import statement resolves to an existing file.
 
 Determinism:
   - Default temperature low (0.2); fix seeds where supported.
@@ -209,6 +289,7 @@ export class Agent {
   private conversationHistory: Message[];
   private options: AgentOptions;
 
+  // --- READ-before-WRITE enforcement constants ---
   private static readonly WRITE_TOOLS = new Set(['either-line-replace', 'either-write']);
   private static readonly READ_TOOL = 'either-view';
 
@@ -224,13 +305,23 @@ export class Agent {
     this.conversationHistory = [];
   }
 
+  /**
+   * Load conversation history (for restoring state)
+   */
   loadConversationHistory(messages: Message[]): void {
     this.conversationHistory = messages;
   }
 
+  /**
+   * Process a user request through the agent workflow
+   * @param userMessage - The user's prompt
+   * @param callbacks - Optional streaming callbacks for real-time updates
+   */
   async processRequest(userMessage: string, callbacks?: StreamingCallbacks): Promise<string> {
+    // Start transcript
     const transcriptId = this.recorder.startTranscript(userMessage);
 
+    // Add user message to history (content must be array for Claude API)
     this.conversationHistory.push({
       role: 'user',
       content: [{ type: 'text', text: userMessage }]
@@ -244,37 +335,46 @@ export class Agent {
 
     let finalResponse = '';
     let turnCount = 0;
-    const maxTurns = 20;
+    const maxTurns = 20; // Safety limit
     const changedFiles = new Set<string>();
     let hasExecutedTools = false;
 
+    // Track cumulative token usage across all turns
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
 
-    let justExecutedTools = false;
+    let justExecutedTools = false;  // Track if we executed tools in previous iteration
 
+    // Buffering for thinking → reasoning transition
     let thinkingBuffer = '';
     let thinkingStartTime: number | null = null;
     let isInThinkingPhase = false;
 
+    // Buffering for final summary (after tools)
     let summaryBuffer = '';
     let isInSummaryPhase = false;
 
+    // Track file operations across ALL turns (not just per-turn)
     const fileOpsThisRequest = new Map<string, 'create' | 'edit'>();
     const filesCreatedThisRequest = new Set<string>();
 
     while (turnCount < maxTurns) {
       turnCount++;
 
+      // Validate conversation history before sending to Claude
       this.validateConversationHistory();
 
+      // Track if we should skip thinking phase (for subsequent turns after tools)
       let hasEmittedThinking = false;
       if (justExecutedTools) {
+        // Skip thinking phase for summary turn (no need to show "Thinking..." again)
         hasEmittedThinking = true;
-        isInSummaryPhase = true;
+        isInSummaryPhase = true; // Buffer summary text for smooth streaming
         summaryBuffer = '';
         justExecutedTools = false;
       }
+
+      // Send message to Claude
       const response = await this.modelClient.sendMessage(
         this.conversationHistory,
         SYSTEM_PROMPT,
@@ -339,15 +439,17 @@ export class Agent {
       const { contentBlocks: enforcedAssistantBlocks, toolUses } =
         this.injectReadBeforeWriteBlocks(response.content);
 
-      // --- Handle thinking to reasoning transition ---
+      // --- Handle thinking → reasoning transition ---
       if (isInThinkingPhase && thinkingBuffer && toolUses.length > 0) {
         // Thinking phase complete, we have tools to execute
         isInThinkingPhase = false;
 
+        // Calculate thinking duration
         const thinkingDuration = thinkingStartTime
           ? Math.round((Date.now() - thinkingStartTime) / 1000)
           : 0;
 
+        // Emit thinking complete with duration
         if (callbacks?.onThinkingComplete) {
           callbacks.onThinkingComplete(thinkingDuration);
         }
@@ -355,6 +457,7 @@ export class Agent {
         // Small delay to let user read the "Thought for X seconds" message
         await new Promise(resolve => setTimeout(resolve, 800));
 
+        // Emit reasoning phase
         if (callbacks?.onPhase) {
           callbacks.onPhase('reasoning');
         }
@@ -403,6 +506,7 @@ export class Agent {
 
         // If we were in summary phase, stream the buffered summary smoothly
         if (isInSummaryPhase && summaryBuffer) {
+          // Emit 'building' phase
           if (callbacks?.onPhase) {
             callbacks.onPhase('building');
           }
@@ -432,7 +536,9 @@ export class Agent {
         break;
       }
 
+      // Emit 'code-writing' phase when we have tools to execute
       if (toolUses.length > 0 && callbacks?.onPhase) {
+        // Add delay before showing "Writing code..." for natural pacing
         await new Promise(resolve => setTimeout(resolve, 600));
         callbacks.onPhase('code-writing');
       }
@@ -452,13 +558,16 @@ export class Agent {
           content: `[DRY RUN] Would execute: ${tu.name} with input: ${JSON.stringify(tu.input, null, 2)}`
         }));
       } else {
+        // Track new file operations this turn (for emitting)
         const newFileOpsThisTurn = new Map<string, 'create' | 'edit'>();
 
+        // Emit tool start events and execute tools
         toolResults = [];
         for (const toolUse of toolUses) {
           // Extract file path for file operation tools
           const filePath = (toolUse.input as any)?.path;
 
+          // Track file operations (deduplicate and determine correct operation type)
           if (filePath && (toolUse.name === 'either-write' || toolUse.name === 'either-line-replace')) {
             // Determine operation: 'create' if new file, 'edit' if already exists
             let operation: 'create' | 'edit';
@@ -479,6 +588,7 @@ export class Agent {
               fileOpsThisRequest.set(filePath, operation);
               newFileOpsThisTurn.set(filePath, operation);
 
+              // Emit "Creating..." or "Editing..." message before execution
               if (callbacks?.onFileOperation) {
                 await new Promise(resolve => setTimeout(resolve, 200)); // Delay between file operations
                 const progressiveState: 'creating' | 'editing' = operation === 'create' ? 'creating' : 'editing';
@@ -487,6 +597,7 @@ export class Agent {
             }
           }
 
+          // Emit tool start (hidden for file operations, shown for others)
           if (callbacks?.onToolStart && !filePath) {
             callbacks.onToolStart({
               name: toolUse.name,
@@ -499,6 +610,7 @@ export class Agent {
           const result = await this.toolRunner.executeTools([toolUse]);
           toolResults.push(...result);
 
+          // Emit "Created" or "Edited" message after execution (only for new operations)
           if (filePath && newFileOpsThisTurn.has(filePath)) {
             if (callbacks?.onFileOperation) {
               await new Promise(resolve => setTimeout(resolve, 300)); // Delay before completion message
@@ -508,6 +620,7 @@ export class Agent {
             }
           }
 
+          // Emit tool end (hidden for file operations, shown for others)
           if (callbacks?.onToolEnd && !filePath) {
             callbacks.onToolEnd({
               name: toolUse.name,
@@ -519,6 +632,7 @@ export class Agent {
 
         hasExecutedTools = true;
 
+        // Track changed files and collect created file paths
         const createdFilesThisTurn = new Set<string>();
         for (const result of toolResults) {
           const metadata = (result as any).metadata;
@@ -528,9 +642,11 @@ export class Agent {
           }
         }
 
+        // Check for missing file references in newly created HTML files
         const missingRefs = await this.checkMissingFileReferences(toolUses, createdFilesThisTurn, toolResults);
         if (missingRefs.length > 0) {
-          const warningMessage = `\n\nWARNING: Missing file references detected:\n${missingRefs.map(ref => `  - ${ref.htmlFile} references <${ref.tag} ${ref.attr}="${ref.file}"> but ${ref.file} was not created`).join('\n')}\n\nYou MUST create these files in your next response to make the app functional.`;
+          // Add warning to the last tool result to inform the agent
+          const warningMessage = `\n\n⚠️ WARNING: Missing file references detected:\n${missingRefs.map(ref => `  - ${ref.htmlFile} references <${ref.tag} ${ref.attr}="${ref.file}"> but ${ref.file} was not created`).join('\n')}\n\nYou MUST create these files in your next response to make the app functional.`;
 
           // Append warning to the last tool result
           if (toolResults.length > 0) {
@@ -548,6 +664,7 @@ export class Agent {
         content: toolResults
       });
 
+      // Add tool results to conversation
       this.conversationHistory.push({
         role: 'user',
         content: toolResults
@@ -562,10 +679,12 @@ export class Agent {
     // End transcript
     this.recorder.endTranscript(transcriptId, finalResponse);
 
+    // Emit completed phase (only at the very end, after all turns)
     if (callbacks?.onPhase) {
       callbacks.onPhase('completed');
     }
 
+    // Emit completion with token usage
     if (callbacks?.onComplete) {
       callbacks.onComplete({
         inputTokens: totalInputTokens,
@@ -576,38 +695,58 @@ export class Agent {
     return finalResponse;
   }
 
+  /**
+   * Get conversation history
+   */
   getHistory(): Message[] {
     return [...this.conversationHistory];
   }
 
+  /**
+   * Reset conversation
+   */
   reset(): void {
     this.conversationHistory = [];
     this.toolRunner.clearCache();
   }
 
+  /**
+   * Save transcript to disk
+   */
   async saveTranscript(): Promise<void> {
     await this.recorder.saveCurrentTranscript();
   }
 
+  /**
+   * Set database context for file operations
+   */
   setDatabaseContext(fileStore: any, appId: string, sessionId?: string): void {
     this.toolRunner.setDatabaseContext(fileStore, appId, sessionId);
   }
 
+  /**
+   * Run verification and create summary
+   */
   private async runVerification(changedFiles: Set<string>): Promise<string> {
     const verifier = new VerifierRunner(this.options.workingDir);
 
+    // Create change summary
     const changeSummary = this.createChangeSummary(changedFiles);
 
     // Run verification
     const verifyResult = await verifier.run();
     const verifySummary = VerifierRunner.formatSummary(verifyResult);
 
+    // Get metrics summary
     const metrics = this.toolRunner.getMetrics();
     const metricsSummary = metrics.getSummaryString();
 
     return `\n\n---\n${changeSummary}${verifySummary}\n\n**Metrics:**\n${metricsSummary}`;
   }
 
+  /**
+   * Create a summary of changed files
+   */
   private createChangeSummary(changedFiles: Set<string>): string {
     if (changedFiles.size === 0) {
       return '';
@@ -621,10 +760,15 @@ export class Agent {
     return summary;
   }
 
+  /**
+   * Validate conversation history format and content
+   * Prevents API errors by ensuring all messages follow Claude API requirements
+   */
   private validateConversationHistory(): void {
     this.conversationHistory.forEach((msg, idx) => {
+      // Validate that content is always an array (Claude API requirement)
       if (!Array.isArray(msg.content)) {
-        console.error(`\nCONVERSATION HISTORY VALIDATION ERROR:`);
+        console.error(`\n❌ CONVERSATION HISTORY VALIDATION ERROR:`);
         console.error(`   Message [${idx}] (role: ${msg.role}) has non-array content`);
         console.error(`   Content type: ${typeof msg.content}`);
         console.error(`   Content value:`, msg.content);
@@ -638,10 +782,11 @@ export class Agent {
         );
       }
 
+      // Validate that content array is not empty (except for optional final assistant message)
       if (msg.content.length === 0) {
         const isFinalAssistant = idx === this.conversationHistory.length - 1 && msg.role === 'assistant';
         if (!isFinalAssistant) {
-          console.error(`\nCONVERSATION HISTORY VALIDATION ERROR:`);
+          console.error(`\n❌ CONVERSATION HISTORY VALIDATION ERROR:`);
           console.error(`   Message [${idx}] (role: ${msg.role}) has empty content array`);
           console.error(`\n   Claude API requires all messages to have non-empty content,`);
           console.error(`   except for the optional final assistant message.`);
@@ -655,6 +800,7 @@ export class Agent {
         }
       }
 
+      // Validate server_tool_use blocks are properly paired with web_search_tool_result
       if (msg.role === 'assistant' && Array.isArray(msg.content)) {
         const serverToolUses = msg.content.filter((b: any) => b.type === 'server_tool_use');
         const webSearchResults = msg.content.filter((b: any) => b.type === 'web_search_tool_result');
@@ -673,7 +819,7 @@ export class Agent {
             const hasMatchingResult = webSearchResults.some((wsr: any) => wsr.tool_use_id === stu.id);
 
             if (!hasMatchingResult) {
-              console.error(`\nWARNING: Message [${idx}] has server_tool_use (${stu.id}) without web_search_tool_result`);
+              console.error(`\n⚠️  WARNING: Message [${idx}] has server_tool_use (${stu.id}) without web_search_tool_result`);
               console.error(`   This might cause issues, but continuing anyway for debugging...`);
               console.error('');
 
@@ -714,6 +860,7 @@ export class Agent {
     };
 
     for (const blk of contentBlocks) {
+      // Track explicit reads
       if (blk?.type === 'tool_use' && blk.name === Agent.READ_TOOL) {
         const path = blk.input?.path;
         if (typeof path === 'string' && path.length > 0) {
@@ -768,6 +915,12 @@ export class Agent {
     return { contentBlocks: out, toolUses: executableToolUses };
   }
 
+  /**
+   * Check for missing file references in newly created files
+   * Detects:
+   * - HTML: <script src="..."> and <link href="..."> that reference non-existent files
+   * - React: import statements that reference non-existent components
+   */
   private async checkMissingFileReferences(
     toolUses: ToolUse[],
     createdFiles: Set<string>,
@@ -775,7 +928,7 @@ export class Agent {
   ): Promise<Array<{ htmlFile: string; tag: string; attr: string; file: string }>> {
     const missing: Array<{ htmlFile: string; tag: string; attr: string; file: string }> = [];
 
-    // Find all HTML files that were created this turn
+    // Check HTML files for script/link references
     const htmlWrites = toolUses.filter(tu =>
       (tu.name === 'either-write' || tu.name === 'either-line-replace') &&
       tu.input?.path?.toLowerCase().endsWith('.html')
@@ -789,7 +942,6 @@ export class Agent {
       const result = toolResults[resultIdx];
       if (!result || result.is_error) continue;
 
-      // For either-write, the content is in the input
       const htmlContent = htmlWrite.name === 'either-write'
         ? htmlWrite.input?.content
         : null;
@@ -797,11 +949,9 @@ export class Agent {
       if (!htmlContent || typeof htmlContent !== 'string') continue;
 
       // Extract script and link references using simple regex
-      // <script src="...">
       const scriptMatches = htmlContent.matchAll(/<script[^>]+src=["']([^"']+)["']/gi);
       for (const match of scriptMatches) {
         const scriptPath = match[1];
-        // Normalize path (remove leading ./ or /)
         const normalizedPath = scriptPath.replace(/^\.?\//, '');
         if (!createdFiles.has(normalizedPath) && !createdFiles.has(scriptPath)) {
           missing.push({
@@ -813,11 +963,9 @@ export class Agent {
         }
       }
 
-      // <link href="..." rel="stylesheet">
       const linkMatches = htmlContent.matchAll(/<link[^>]+href=["']([^"']+)["'][^>]*>/gi);
       for (const match of linkMatches) {
         const fullTag = match[0];
-        // Only check stylesheets, not other links
         if (fullTag.includes('stylesheet')) {
           const linkPath = match[1];
           const normalizedPath = linkPath.replace(/^\.?\//, '');
@@ -829,6 +977,75 @@ export class Agent {
               file: linkPath
             });
           }
+        }
+      }
+    }
+
+    // Check React/JSX/TSX files for import statements
+    const reactWrites = toolUses.filter(tu =>
+      (tu.name === 'either-write' || tu.name === 'either-line-replace') &&
+      (tu.input?.path?.endsWith('.jsx') ||
+       tu.input?.path?.endsWith('.tsx') ||
+       tu.input?.path?.endsWith('.js') ||
+       tu.input?.path?.endsWith('.ts'))
+    );
+
+    for (const reactWrite of reactWrites) {
+      const filePath = reactWrite.input?.path;
+      if (!filePath) continue;
+
+      const resultIdx = toolUses.indexOf(reactWrite);
+      const result = toolResults[resultIdx];
+      if (!result || result.is_error) continue;
+
+      const content = reactWrite.name === 'either-write'
+        ? reactWrite.input?.content
+        : null;
+
+      if (!content || typeof content !== 'string') continue;
+
+      // Extract import statements: import ... from './path'
+      const importMatches = content.matchAll(/import\s+(?:(?:\{[^}]+\}|[\w]+)(?:\s*,\s*(?:\{[^}]+\}|[\w]+))*)\s+from\s+['"]([^'"]+)['"]/g);
+
+      for (const match of importMatches) {
+        const importPath = match[1];
+
+        // Skip node_modules and external packages (e.g., 'react', '@vitejs/plugin-react')
+        if (!importPath.startsWith('.')) continue;
+
+        // Normalize path (remove leading ./)
+        let normalizedPath = importPath.replace(/^\.\//, '');
+
+        // Check multiple possible file paths (with/without extensions, index files)
+        const possiblePaths = [
+          normalizedPath,
+          `${normalizedPath}.jsx`,
+          `${normalizedPath}.tsx`,
+          `${normalizedPath}.js`,
+          `${normalizedPath}.ts`,
+          `${normalizedPath}/index.jsx`,
+          `${normalizedPath}/index.tsx`,
+          `${normalizedPath}/index.js`,
+          `${normalizedPath}/index.ts`
+        ];
+
+        // Also check paths relative to src/ directory
+        const srcPaths = possiblePaths.map(p => `src/${p}`);
+
+        // Check if any of the possible paths exist in createdFiles
+        const exists = [...possiblePaths, ...srcPaths].some(p =>
+          createdFiles.has(p) ||
+          createdFiles.has(`./${p}`) ||
+          createdFiles.has(`/${p}`)
+        );
+
+        if (!exists) {
+          missing.push({
+            htmlFile: filePath,
+            tag: 'import',
+            attr: 'from',
+            file: importPath
+          });
         }
       }
     }

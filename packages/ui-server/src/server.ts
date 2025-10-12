@@ -7,7 +7,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
-import multipart from '@fastify/multipart';
 import { Agent, DatabaseAgent, ConfigLoader, StreamingCallbacks } from '@eitherway/runtime';
 import { getAllExecutors } from '@eitherway/tools-impl';
 import { createDatabaseClient, FilesRepository, SessionsRepository, PostgresFileStore } from '@eitherway/database';
@@ -17,13 +16,7 @@ import { fileURLToPath } from 'url';
 import { maybeRewriteFile } from './cdn-rewriter.js';
 import { registerSessionRoutes } from './routes/sessions.js';
 import { registerSessionFileRoutes } from './routes/session-files.js';
-import { registerPlanRoutes } from './routes/plans.js';
-import { registerBrandKitRoutes } from './routes/brand-kits.js';
-import { registerPreviewRoutes } from './routes/preview.js';
-import { registerDeploymentRoutes } from './routes/deployments.js';
-import { registerNetlifyRoutes } from './routes/netlify.js';
 import { registerImageRoutes } from './routes/images.js';
-import { registerSecurityMiddleware } from './middleware/index.js';
 import { constants } from 'fs';
 import { randomUUID } from 'crypto';
 import { StreamEvents, createEventSender } from './events/index.js';
@@ -33,6 +26,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const PROJECT_ROOT = join(__dirname, '../../..');
 
+// Check for HTTPS certificates
 const CERTS_DIR = join(PROJECT_ROOT, '.certs');
 const CERT_PATH = join(CERTS_DIR, 'localhost-cert.pem');
 const KEY_PATH = join(CERTS_DIR, 'localhost-key.pem');
@@ -51,9 +45,9 @@ try {
 
   httpsOptions = { https: { cert, key } };
   useHttps = true;
-  console.log('Success: HTTPS certificates found - server will use HTTPS');
+  console.log('✓ HTTPS certificates found - server will use HTTPS');
 } catch (error) {
-  console.log('WARNING: No HTTPS certificates found - server will use HTTP');
+  console.log('⚠ No HTTPS certificates found - server will use HTTP');
   console.log('  Run: npm run setup:https to enable HTTPS for WebContainer preview compatibility');
 }
 
@@ -63,60 +57,41 @@ const fastify = Fastify({
 });
 
 // Enable CORS
-await fastify.register(cors as any, {
+await fastify.register(cors, {
   origin: true
 });
 
 // Enable WebSocket
-await fastify.register(websocket as any);
-
-// Enable Multipart (for file uploads)
-await fastify.register(multipart as any, {
-  limits: {
-    fileSize: 200 * 1024 * 1024 // 200MB max (for ZIP brand packages)
-  }
-});
+await fastify.register(websocket);
 
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || join(PROJECT_ROOT, 'workspace');
 const USE_LOCAL_FS = process.env.USE_LOCAL_FS === 'true';
 
+// Load configuration from project root
 const loader = new ConfigLoader(join(PROJECT_ROOT, 'configs'));
 const { claudeConfig, agentConfig } = await loader.loadAll();
 
+// Initialize database client (optional - will work without DB if not configured)
 let db: any = null;
 let dbConnected = false;
 try {
   db = createDatabaseClient();
   dbConnected = await db.healthCheck();
   if (dbConnected) {
-    console.log('Success: Database connected - using DB-backed VFS');
-
-    // Register security middleware (IP blocking, rate limiting, request validation, security headers)
-    await registerSecurityMiddleware(fastify, {
-      db,
-      enableRequestValidation: true,
-      enableRateLimiting: false, // Disabled for local development
-      enableSecurityHeaders: true,
-      enableIpRiskBlocking: process.env.NODE_ENV === 'production',
-      isDevelopment: process.env.NODE_ENV === 'development'
-    });
-
-    // Register API routes
+    console.log('✓ Database connected - using DB-backed VFS');
     await registerSessionRoutes(fastify, db);
     await registerSessionFileRoutes(fastify, db);
-    await registerPlanRoutes(fastify, db);
-    await registerBrandKitRoutes(fastify, db);
-    await registerPreviewRoutes(fastify, db);
-    await registerDeploymentRoutes(fastify, db, WORKSPACE_DIR);
-    await registerNetlifyRoutes(fastify, db, WORKSPACE_DIR);
     await registerImageRoutes(fastify, db);
   } else {
-    console.log('WARNING: Database not available - files will only be saved to filesystem');
+    console.log('⚠ Database not available - files will only be saved to filesystem');
   }
 } catch (error) {
-  console.log('WARNING: Database not configured - files will only be saved to filesystem');
+  console.log('⚠ Database not configured - files will only be saved to filesystem');
 }
 
+/**
+ * GET /api/health
+ */
 fastify.get('/api/health', async () => {
   return {
     status: 'ok',
@@ -147,6 +122,10 @@ function isSecureUrl(url: URL): { valid: boolean; error?: string } {
   return { valid: true };
 }
 
+/**
+ * GET /api/proxy-cdn
+ * Universal proxy for external CDN resources with CORS/COEP headers
+ */
 fastify.get<{ Querystring: { url: string } }>('/api/proxy-cdn', async (request, reply) => {
   const { url } = request.query;
 
@@ -197,6 +176,10 @@ const COINGECKO_PRO_KEY = process.env.COINGECKO_PRO_API_KEY || '';
 const apiCache = new Map<string, { t: number; body: Buffer; headers: Record<string, string>; status: number }>();
 const API_CACHE_TTL = 30_000;
 
+/**
+ * GET /api/proxy-api
+ * Universal proxy for external APIs with auth injection and caching
+ */
 fastify.get<{ Querystring: { url: string } }>('/api/proxy-api', async (request, reply) => {
   const { url } = request.query;
 
@@ -300,6 +283,7 @@ fastify.get<{ Params: { '*': string } }>('/api/files/*', async (request, reply) 
   try {
     const content = await readFile(fullPath, 'utf-8');
 
+    // Get server origin for absolute CDN proxy URLs
     const protocol = request.headers['x-forwarded-proto'] || 'http';
     const host = request.headers.host || `localhost:${PORT}`;
     const serverOrigin = `${protocol}://${host}`;
@@ -340,6 +324,7 @@ fastify.post<{
     // Write to filesystem
     await writeFile(fullPath, content, 'utf-8');
 
+    // Note: Files are saved to database only when switching workspaces
     // to ensure they're associated with the correct session's app_id
 
     return {
@@ -395,14 +380,17 @@ async function loadWorkspaceFromDatabase(sessionAppId: string): Promise<void> {
     await rm(fullPath, { recursive: true, force: true });
   }
 
+  // Load files from database
   const files = await filesRepo.findByApp(sessionAppId);
 
   for (const file of files) {
     const fullPath = join(WORKSPACE_DIR, file.path);
     const dirPath = dirname(fullPath);
 
+    // Create directory if needed
     await mkdir(dirPath, { recursive: true });
 
+    // Get file content from latest version
     const version = await filesRepo.getHeadVersion(file.id);
     if (version && version.content_text) {
       await writeFile(fullPath, version.content_text, 'utf-8');
@@ -427,6 +415,7 @@ fastify.post<{
   try {
     const sessionsRepo = new SessionsRepository(db);
 
+    // Save current workspace if there's a current session
     if (currentSessionId) {
       const currentSession = await sessionsRepo.findById(currentSessionId);
       if (currentSession && currentSession.app_id) {
@@ -434,6 +423,7 @@ fastify.post<{
       }
     }
 
+    // Load new workspace
     const newSession = await sessionsRepo.findById(newSessionId);
     if (!newSession) {
       return reply.code(404).send({ error: 'Session not found' });
@@ -443,6 +433,7 @@ fastify.post<{
       await loadWorkspaceFromDatabase(newSession.app_id);
     }
 
+    // Get updated file tree
     const files = await getFileTree(WORKSPACE_DIR);
 
     return {
@@ -460,9 +451,10 @@ fastify.post<{
 fastify.register(async (fastify) => {
   fastify.get<{
     Querystring: { sessionId?: string };
-  }>('/api/agent', { websocket: true } as any, async (connection: any, request: any) => {
+  }>('/api/agent', { websocket: true }, async (connection, request) => {
     const { sessionId } = request.query;
 
+    // Create event sender for this connection
     const sender = createEventSender(connection.socket);
 
     if (!sessionId && !USE_LOCAL_FS) {
@@ -491,6 +483,7 @@ fastify.register(async (fastify) => {
             }
 
             // Rate limiting disabled for local testing
+            // if (rateLimiter) {
             //   const rateLimitCheck = await rateLimiter.checkMessageSending(sessionId);
             //   if (!rateLimitCheck.allowed) {
             //     sendEvent(connection.socket, {
@@ -501,36 +494,10 @@ fastify.register(async (fastify) => {
             //   }
             // }
 
-            // CRITICAL FIX: Auto-create app_id if it doesn't exist
-            let appId = session.app_id;
-            if (!appId) {
-              console.log('[WebSocket Agent] WARNING: Session has no app_id, creating one...');
-
-              try {
-                // Import AppsRepository
-                const { AppsRepository } = await import('@eitherway/database');
-                const appsRepo = new AppsRepository(db);
-
-                const appTitle = session.title || 'Generated App';
-                const app = await appsRepo.create(session.user_id, appTitle, 'private');
-                appId = app.id;
-
-                await sessionsRepo.update(sessionId, { app_id: appId } as any);
-
-                console.log('[WebSocket Agent] Success: Created app:', appId, 'for session:', sessionId);
-              } catch (error: any) {
-                console.error('[WebSocket Agent] Error: Failed to create app:', error);
-                sender.send(StreamEvents.error(`Failed to create application workspace: ${error.message}`));
-                return;
-              }
-            } else {
-              console.log('[WebSocket Agent] Using existing app_id:', appId);
-            }
-
             const dbAgent = new DatabaseAgent({
               db,
               sessionId,
-              appId: appId,
+              appId: session.app_id || undefined,
               workingDir: WORKSPACE_DIR,
               claudeConfig,
               agentConfig,
@@ -539,14 +506,19 @@ fastify.register(async (fastify) => {
               webSearch: agentConfig.tools.webSearch
             });
 
-            dbAgent.setDatabaseContext(fileStore, appId, sessionId);
+            // Set database context for file operations
+            if (session.app_id) {
+              dbAgent.setDatabaseContext(fileStore, session.app_id, sessionId);
+            }
 
             // Use the messageId declared above
             let accumulatedText = '';
             let tokenUsage: { inputTokens: number; outputTokens: number } | undefined;
 
+            // Send stream_start event
             sender.send(StreamEvents.streamStart(messageId));
 
+            // Create streaming callbacks
             const streamingCallbacks: StreamingCallbacks = {
               onDelta: (delta) => {
                 if (delta.type === 'text') {
@@ -562,9 +534,11 @@ fastify.register(async (fastify) => {
                 sender.send(StreamEvents.phase(messageId, phase));
               },
               onThinkingComplete: (duration) => {
+                // Emit thinking complete with duration
                 sender.send(StreamEvents.thinkingComplete(messageId, duration));
               },
               onFileOperation: (operation, filePath) => {
+                // Emit deduplicated file operations
                 sender.send(StreamEvents.fileOperation(messageId, operation, filePath));
               },
               onToolStart: (tool) => {
@@ -578,61 +552,10 @@ fastify.register(async (fastify) => {
               }
             };
 
-            let enhancedPrompt = data.prompt;
-            console.log('[Brand Kit] Checking for brand-kit.json in app:', appId);
-            try {
-              const brandKitFile = await fileStore.read(appId, 'brand-kit.json');
-              if (brandKitFile && brandKitFile.content) {
-                const contentStr = typeof brandKitFile.content === 'string'
-                  ? brandKitFile.content
-                  : (brandKitFile.content as any).toString('utf-8');
+            // Process request with streaming
+            response = await dbAgent.processRequest(data.prompt, streamingCallbacks);
 
-                const brandKit = JSON.parse(contentStr);
-                console.log('[Brand Kit] Parsed brand kit:', JSON.stringify(brandKit).substring(0, 200));
-
-                if (brandKit.brandKit) {
-                  const { colors, assets } = brandKit.brandKit;
-
-                  let brandContext = '\n\nBRAND KIT AVAILABLE:\n';
-
-                  if (colors && colors.length > 0) {
-                    brandContext += '\nColor Palette:\n';
-                    colors.forEach((color: any) => {
-                      brandContext += `- ${color.hex}`;
-                      if (color.name) brandContext += ` (${color.name})`;
-                      if (color.role) brandContext += ` - ${color.role}`;
-                      if (color.prominence) brandContext += ` [${Math.round(color.prominence * 100)}% prominence]`;
-                      brandContext += '\n';
-                    });
-                  }
-
-                  if (assets && assets.length > 0) {
-                    brandContext += '\nBrand Assets:\n';
-                    assets.forEach((asset: any) => {
-                      if (asset.path) {
-                        brandContext += `- ${asset.fileName} (${asset.type}) at ${asset.path}\n`;
-                      }
-                    });
-                  }
-
-                  brandContext += '\nIMPORTANT: Use these brand colors and assets in your design. The color palette should be your primary color scheme, and brand assets should be integrated where appropriate.\n';
-
-                  // Prepend brand context to the user's prompt
-                  enhancedPrompt = brandContext + data.prompt;
-                  console.log('[Brand Kit] Success: Injected brand kit context into prompt!');
-                  console.log('[Brand Kit] Enhanced prompt preview:', enhancedPrompt.substring(0, 300));
-                }
-              } else {
-                console.log('[Brand Kit] No brand-kit.json found in workspace');
-              }
-            } catch (error) {
-              // Brand kit not found or error reading it - continue without it
-              console.log('[Brand Kit] Error reading brand kit:', error instanceof Error ? error.message : 'Unknown error');
-              console.error('[Brand Kit] Full error:', error);
-            }
-
-            response = await dbAgent.processRequest(enhancedPrompt, streamingCallbacks);
-
+            // Send stream_end event with token usage
             sender.send(StreamEvents.streamEnd(messageId, tokenUsage));
           } else {
             // Use regular Agent for local filesystem mode
@@ -649,8 +572,10 @@ fastify.register(async (fastify) => {
             let accumulatedText = '';
             let tokenUsage: { inputTokens: number; outputTokens: number } | undefined;
 
+            // Send stream_start event
             sender.send(StreamEvents.streamStart(messageId));
 
+            // Create streaming callbacks
             const streamingCallbacks: StreamingCallbacks = {
               onDelta: (delta) => {
                 if (delta.type === 'text') {
@@ -666,9 +591,11 @@ fastify.register(async (fastify) => {
                 sender.send(StreamEvents.phase(messageId, phase));
               },
               onThinkingComplete: (duration) => {
+                // Emit thinking complete with duration
                 sender.send(StreamEvents.thinkingComplete(messageId, duration));
               },
               onFileOperation: (operation, filePath) => {
+                // Emit deduplicated file operations
                 sender.send(StreamEvents.fileOperation(messageId, operation, filePath));
               },
               onToolStart: (tool) => {
@@ -684,9 +611,11 @@ fastify.register(async (fastify) => {
 
             response = await agent.processRequest(data.prompt, streamingCallbacks);
 
+            // Send stream_end event with token usage
             sender.send(StreamEvents.streamEnd(messageId, tokenUsage));
           }
 
+          // Send final response for backward compatibility
           sender.send(StreamEvents.response(response, messageId));
 
           // Rate limiting disabled for local testing
@@ -711,10 +640,13 @@ fastify.register(async (fastify) => {
           }
 
         } catch (error: any) {
+          // Log the full error for debugging
           console.error('[Agent Error]', error);
 
+          // Parse error message for better display
           let errorMessage = error.message || 'Unknown error occurred';
 
+          // Check if it's an Anthropic API error
           if (error.message && error.message.includes('"type":"api_error"')) {
             try {
               // Try to parse the JSON error
@@ -740,7 +672,7 @@ fastify.register(async (fastify) => {
     });
 
     connection.socket.on('close', () => {
-      console.log('[WebSocket] Client disconnected');
+      console.log('Client disconnected');
     });
   });
 });
@@ -800,12 +732,12 @@ const PORT = process.env.PORT || 3001;
 try {
   await fastify.listen({ port: Number(PORT), host: '0.0.0.0' });
   const protocol = useHttps ? 'https' : 'http';
-  console.log(`\nEitherWay UI Server running on ${protocol}://localhost:${PORT}`);
-  console.log(`Workspace: ${WORKSPACE_DIR}`);
+  console.log(`\n🚀 EitherWay UI Server running on ${protocol}://localhost:${PORT}`);
+  console.log(`📁 Workspace: ${WORKSPACE_DIR}`);
   if (useHttps) {
-    console.log(`HTTPS enabled - WebContainer previews will work without mixed content issues\n`);
+    console.log(`🔐 HTTPS enabled - WebContainer previews will work without mixed content issues\n`);
   } else {
-    console.log(`WARNING: Using HTTP - WebContainer previews may have mixed content issues`);
+    console.log(`⚠️  Using HTTP - WebContainer previews may have mixed content issues`);
     console.log(`   Run: npm run setup:https to enable HTTPS\n`);
   }
 } catch (err) {

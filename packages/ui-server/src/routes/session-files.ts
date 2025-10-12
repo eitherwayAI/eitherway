@@ -22,48 +22,17 @@ export async function registerSessionFileRoutes(
     const { sessionId } = request.params;
     const limit = parseInt(request.query.limit || '1000', 10);
 
-    console.log(`[Session Files] GET /files/tree - Session: ${sessionId}, Limit: ${limit}`);
-
     const session = await sessionsRepo.findById(sessionId);
 
     if (!session) {
-      console.error(`[Session Files] Session not found: ${sessionId}`);
       return reply.code(404).send({ error: 'Session not found' });
     }
 
     if (!session.app_id) {
-      console.log(`[Session Files] No app_id for session: ${sessionId}`);
       return reply.send({ files: [] });
     }
 
-    console.log(`[Session Files] Fetching file list for app: ${session.app_id}`);
     const files = await fileStore.list(session.app_id, limit);
-    console.log(`[Session Files] Success: File list returned: ${files.length} files`);
-
-    // Debug: Log all file paths
-    const flattenFiles = (nodes: any[], prefix = ''): string[] => {
-      const paths: string[] = [];
-      for (const node of nodes) {
-        const fullPath = prefix ? `${prefix}/${node.name}` : node.name;
-        if (node.type === 'file') {
-          paths.push(fullPath);
-        }
-        if (node.type === 'directory' && node.children) {
-          paths.push(...flattenFiles(node.children, fullPath));
-        }
-      }
-      return paths;
-    };
-
-    const allPaths = flattenFiles(files);
-    console.log(`[Session Files] Files in tree: ${allPaths.join(', ')}`);
-
-    const hasBrandAsset = allPaths.some(p => p.includes('public/assets/') && (p.endsWith('.png') || p.endsWith('.jpg')));
-    if (!hasBrandAsset) {
-      console.warn(`[Session Files] WARNING: No brand assets found in file tree!`);
-    } else {
-      console.log(`[Session Files] Success: Brand assets present in file tree`);
-    }
 
     return { files };
   });
@@ -75,8 +44,6 @@ export async function registerSessionFileRoutes(
     const { sessionId } = request.params;
     const { path } = request.query;
 
-    console.log(`[Session Files] GET /files/read - Session: ${sessionId}, Path: ${path}`);
-
     if (!path) {
       return reply.code(400).send({ error: 'path query parameter is required' });
     }
@@ -84,20 +51,15 @@ export async function registerSessionFileRoutes(
     const session = await sessionsRepo.findById(sessionId);
 
     if (!session) {
-      console.error(`[Session Files] Session not found: ${sessionId}`);
       return reply.code(404).send({ error: 'Session not found' });
     }
 
     if (!session.app_id) {
-      console.error(`[Session Files] No app_id for session: ${sessionId}`);
       return reply.code(404).send({ error: 'No app associated with session' });
     }
 
-    console.log(`[Session Files] Reading file from app: ${session.app_id}, path: ${path}`);
-
     try {
       const fileContent = await fileStore.read(session.app_id, path);
-      console.log(`[Session Files] Success: File read successfully: ${path} (${fileContent.mimeType}, ${typeof fileContent.content === 'string' ? fileContent.content.length : Buffer.byteLength(fileContent.content)} bytes)`);
 
       const protocol = request.headers['x-forwarded-proto'] || 'http';
       const host = request.headers.host || 'localhost:3001';
@@ -148,13 +110,6 @@ export async function registerSessionFileRoutes(
         version: fileContent.version
       };
     } catch (error: any) {
-      console.error(`[Session Files] Error: Error reading file: ${path}`, error);
-      console.error(`[Session Files] App ID: ${session.app_id}, Session: ${sessionId}`);
-      console.error(`[Session Files] Error details:`, {
-        message: error.message,
-        code: error.code,
-        stack: error.stack
-      });
       return reply.code(404).send({ error: error.message });
     }
   });
@@ -165,8 +120,6 @@ export async function registerSessionFileRoutes(
   }>('/api/sessions/:sessionId/files/write', async (request, reply) => {
     const { sessionId } = request.params;
     const { path, content, mimeType } = request.body;
-
-    console.log('[Session Files] POST /files/write - Session:', sessionId, 'Path:', path);
 
     if (!path) {
       return reply.code(400).send({ error: 'path is required' });
@@ -179,43 +132,19 @@ export async function registerSessionFileRoutes(
     const session = await sessionsRepo.findById(sessionId);
 
     if (!session) {
-      console.error('[Session Files] Session not found:', sessionId);
       return reply.code(404).send({ error: 'Session not found' });
     }
 
-    // CRITICAL FIX: Auto-create app_id if it doesn't exist
-    let appId = session.app_id;
-    if (!appId) {
-      console.log('[Session Files] WARNING: Session has no app_id, creating one...');
-
-      try {
-        // Import AppsRepository
-        const { AppsRepository } = await import('@eitherway/database');
-        const appsRepo = new AppsRepository(db);
-
-        const appTitle = session.title || 'Generated App';
-        const app = await appsRepo.create(session.user_id, appTitle, 'private');
-        appId = app.id;
-
-        await sessionsRepo.update(sessionId, { app_id: appId } as any);
-
-        console.log('[Session Files] Success: Created app:', appId, 'for session:', sessionId);
-      } catch (error: any) {
-        console.error('[Session Files] Error: Failed to create app:', error);
-        return reply.code(500).send({ error: `Failed to create application workspace: ${error.message}` });
-      }
-    } else {
-      console.log('[Session Files] Using existing app_id:', appId);
+    if (!session.app_id) {
+      return reply.code(400).send({ error: 'No app associated with session' });
     }
 
     try {
-      console.log('[Session Files] Writing file to database...', path);
-      await fileStore.write(appId, path, content, mimeType);
-      console.log('[Session Files] Success: File written successfully');
+      await fileStore.write(session.app_id, path, content, mimeType);
 
       await eventsRepo.log('file.updated', { path }, {
         sessionId,
-        appId,
+        appId: session.app_id,
         actor: 'user'
       });
 
@@ -225,84 +154,7 @@ export async function registerSessionFileRoutes(
         message: 'File saved successfully'
       };
     } catch (error: any) {
-      console.error('[Session Files] Error: Error writing file:', error);
-      return reply.code(500).send({ error: error.message });
-    }
-  });
-
-  // New: write-binary route for brand assets and other binary files
-  fastify.post<{
-    Params: { sessionId: string };
-    Body: { path: string; contentBase64: string; mimeType?: string };
-  }>('/api/sessions/:sessionId/files/write-binary', {
-    bodyLimit: 50 * 1024 * 1024 // 50MB limit for base64-encoded files
-  }, async (request, reply) => {
-    const { sessionId } = request.params;
-    const { path, contentBase64, mimeType } = request.body;
-
-    console.log('[Session Files] POST /files/write-binary - Session:', sessionId, 'Path:', path);
-
-    if (!path) {
-      return reply.code(400).send({ error: 'path is required' });
-    }
-
-    if (!contentBase64) {
-      return reply.code(400).send({ error: 'contentBase64 is required' });
-    }
-
-    const session = await sessionsRepo.findById(sessionId);
-
-    if (!session) {
-      console.error('[Session Files] Session not found:', sessionId);
-      return reply.code(404).send({ error: 'Session not found' });
-    }
-
-    // Auto-create app_id if it doesn't exist
-    let appId = session.app_id;
-    if (!appId) {
-      console.log('[Session Files] WARNING: Session has no app_id, creating one...');
-
-      try {
-        const { AppsRepository } = await import('@eitherway/database');
-        const appsRepo = new AppsRepository(db);
-
-        const appTitle = session.title || 'Generated App';
-        const app = await appsRepo.create(session.user_id, appTitle, 'private');
-        appId = app.id;
-
-        await sessionsRepo.update(sessionId, { app_id: appId } as any);
-
-        console.log('[Session Files] Success: Created app:', appId, 'for session:', sessionId);
-      } catch (error: any) {
-        console.error('[Session Files] Error: Failed to create app:', error);
-        return reply.code(500).send({ error: `Failed to create application workspace: ${error.message}` });
-      }
-    } else {
-      console.log('[Session Files] Using existing app_id:', appId);
-    }
-
-    try {
-      // Decode base64 to Buffer
-      const bytes = Buffer.from(contentBase64, 'base64');
-      console.log('[Session Files] Writing binary file to database...', path, 'Size:', bytes.length, 'bytes');
-
-      await fileStore.write(appId, path, bytes, mimeType);
-      console.log('[Session Files] Success: Binary file written successfully');
-
-      await eventsRepo.log('file.upserted', { path }, {
-        sessionId,
-        appId,
-        actor: 'user'
-      });
-
-      return {
-        success: true,
-        path,
-        size: bytes.length,
-        message: 'Binary file saved successfully'
-      };
-    } catch (error: any) {
-      console.error('[Session Files] Error: Error writing binary file:', error);
+      console.error('Error writing file:', error);
       return reply.code(500).send({ error: error.message });
     }
   });

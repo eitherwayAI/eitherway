@@ -40,8 +40,10 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
 
     const user = await usersRepo.findOrCreate(email);
 
+    // Rate limiting disabled for local testing
     // const rateLimitCheck = await rateLimiter.checkSessionCreation(user.id);
     // if (!rateLimitCheck.allowed) {
+    //   return reply.code(429).send({
     //     error: 'Rate limit exceeded',
     //     message: `You have reached your daily limit of ${rateLimitCheck.limit} chats. Please try again after ${rateLimitCheck.resetsAt.toISOString()}.`,
     //     current: rateLimitCheck.current,
@@ -50,6 +52,7 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
     //   });
     // }
 
+    // Create a unique app for each session to ensure isolated workspaces
     const app = await appsRepo.create(user.id, title, 'private');
     const session = await sessionsRepo.create(user.id, title, app.id);
 
@@ -81,15 +84,18 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
     const messages = rawMessages.map(msg => {
       let content = msg.content;
 
+      // Handle array of content blocks (Claude API format)
       if (Array.isArray(content)) {
         content = content
           .filter((block: any) => block.type === 'text')
           .map((block: any) => block.text)
           .join('\n');
       }
+      // Handle object with text property
       else if (typeof content === 'object' && content !== null && 'text' in content) {
         content = content.text;
       }
+      // Handle plain string or stringify other objects
       else if (typeof content !== 'string') {
         content = JSON.stringify(content);
       }
@@ -139,8 +145,10 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
     }
 
     // Rate limiting disabled for local testing
+    // if (role === 'user') {
     //   const rateLimitCheck = await rateLimiter.checkMessageSending(id);
     //   if (!rateLimitCheck.allowed) {
+    //     return reply.code(429).send({
     //       error: 'Rate limit exceeded',
     //       message: `You have reached your daily limit of ${rateLimitCheck.limit} messages per chat. Please try again after ${rateLimitCheck.resetsAt.toISOString()}.`,
     //       current: rateLimitCheck.current,
@@ -184,10 +192,13 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
   }>('/api/sessions/:id', async (request, reply) => {
     const { id } = request.params;
 
+    // Get session to find app_id before deleting
     const session = await sessionsRepo.findById(id);
 
+    // Delete session first (due to foreign key constraints)
     await sessionsRepo.delete(id);
 
+    // Delete associated app if it exists
     if (session?.app_id) {
       await appsRepo.delete(session.app_id);
     }

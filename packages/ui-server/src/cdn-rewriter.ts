@@ -72,6 +72,9 @@ export function rewriteCDNUrls(
   return rewritten;
 }
 
+/**
+ * Check if a file should have CDN URLs rewritten
+ */
 export function shouldRewriteFile(filename: string): boolean {
   const ext = filename.toLowerCase().split('.').pop() || '';
   return ['html', 'htm', 'js', 'jsx', 'ts', 'tsx', 'vue', 'svelte'].includes(ext);
