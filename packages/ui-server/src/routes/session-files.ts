@@ -1,15 +1,7 @@
 import { FastifyInstance } from 'fastify';
-import {
-  SessionsRepository,
-  PostgresFileStore,
-  DatabaseClient,
-  EventsRepository
-} from '@eitherway/database';
+import { SessionsRepository, PostgresFileStore, DatabaseClient, EventsRepository } from '@eitherway/database';
 
-export async function registerSessionFileRoutes(
-  fastify: FastifyInstance,
-  db: DatabaseClient
-) {
+export async function registerSessionFileRoutes(fastify: FastifyInstance, db: DatabaseClient) {
   const sessionsRepo = new SessionsRepository(db);
   const fileStore = new PostgresFileStore(db);
   const eventsRepo = new EventsRepository(db);
@@ -60,19 +52,15 @@ export async function registerSessionFileRoutes(
     try {
       const fileContent = await fileStore.read(session.app_id, path);
 
-      // Default to https for local development since our server runs on HTTPS
-      const protocol = request.headers['x-forwarded-proto'] || 'https';
-      const host = request.headers.host || 'localhost:3001';
-      const serverOrigin = `${protocol}://${host}`;
-
       // Detect if file is binary based on mime type
       const mimeType = fileContent.mimeType || 'text/plain';
-      const isBinary = mimeType.startsWith('image/') ||
-                       mimeType.startsWith('video/') ||
-                       mimeType.startsWith('audio/') ||
-                       mimeType.startsWith('application/octet-stream') ||
-                       mimeType.startsWith('application/pdf') ||
-                       mimeType.startsWith('application/zip');
+      const isBinary =
+        mimeType.startsWith('image/') ||
+        mimeType.startsWith('video/') ||
+        mimeType.startsWith('audio/') ||
+        mimeType.startsWith('application/octet-stream') ||
+        mimeType.startsWith('application/pdf') ||
+        mimeType.startsWith('application/zip');
 
       let content: string;
       if (isBinary) {
@@ -102,7 +90,7 @@ export async function registerSessionFileRoutes(
         content,
         mimeType,
         isBinary, // Include binary flag for frontend
-        version: fileContent.version
+        version: fileContent.version,
       };
     } catch (error: any) {
       return reply.code(404).send({ error: error.message });
@@ -137,16 +125,20 @@ export async function registerSessionFileRoutes(
     try {
       await fileStore.write(session.app_id, path, content, mimeType);
 
-      await eventsRepo.log('file.updated', { path }, {
-        sessionId,
-        appId: session.app_id,
-        actor: 'user'
-      });
+      await eventsRepo.log(
+        'file.updated',
+        { path },
+        {
+          sessionId,
+          appId: session.app_id,
+          actor: 'user',
+        },
+      );
 
       return {
         success: true,
         path,
-        message: 'File saved successfully'
+        message: 'File saved successfully',
       };
     } catch (error: any) {
       console.error('Error writing file:', error);
@@ -178,17 +170,21 @@ export async function registerSessionFileRoutes(
     try {
       await fileStore.rename(session.app_id, oldPath, newPath);
 
-      await eventsRepo.log('file.renamed', { oldPath, newPath }, {
-        sessionId,
-        appId: session.app_id,
-        actor: 'user'
-      });
+      await eventsRepo.log(
+        'file.renamed',
+        { oldPath, newPath },
+        {
+          sessionId,
+          appId: session.app_id,
+          actor: 'user',
+        },
+      );
 
       return {
         success: true,
         oldPath,
         newPath,
-        message: 'File renamed successfully'
+        message: 'File renamed successfully',
       };
     } catch (error: any) {
       console.error('Error renaming file:', error);
@@ -220,16 +216,20 @@ export async function registerSessionFileRoutes(
     try {
       await fileStore.delete(session.app_id, path);
 
-      await eventsRepo.log('file.deleted', { path }, {
-        sessionId,
-        appId: session.app_id,
-        actor: 'user'
-      });
+      await eventsRepo.log(
+        'file.deleted',
+        { path },
+        {
+          sessionId,
+          appId: session.app_id,
+          actor: 'user',
+        },
+      );
 
       return {
         success: true,
         path,
-        message: 'File deleted successfully'
+        message: 'File deleted successfully',
       };
     } catch (error: any) {
       console.error('Error deleting file:', error);
@@ -259,11 +259,7 @@ export async function registerSessionFileRoutes(
     }
 
     try {
-      const versions = await fileStore.getVersions(
-        session.app_id,
-        path,
-        parseInt(limit, 10)
-      );
+      const versions = await fileStore.getVersions(session.app_id, path, parseInt(limit, 10));
 
       return { versions };
     } catch (error: any) {

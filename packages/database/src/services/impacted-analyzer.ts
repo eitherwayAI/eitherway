@@ -15,11 +15,7 @@ export interface ImpactAnalysisResult {
 export class ImpactedFilesAnalyzer {
   constructor(private db: DatabaseClient) {}
 
-  async analyzeImpact(
-    appId: string,
-    fileId: string,
-    maxDepth = 10
-  ): Promise<ImpactAnalysisResult> {
+  async analyzeImpact(appId: string, fileId: string, maxDepth = 10): Promise<ImpactAnalysisResult> {
     const sourceFile = await this.getFile(fileId);
 
     const result = await this.db.query<{
@@ -58,31 +54,27 @@ export class ImpactedFilesAnalyzer {
       FROM impact
       GROUP BY src_file_id, src_path, ref_type
       ORDER BY depth, src_path`,
-      [appId, fileId, maxDepth]
+      [appId, fileId, maxDepth],
     );
 
-    const impactedFileIds = [...new Set(result.rows.map(r => r.src_file_id))];
+    const impactedFileIds = [...new Set(result.rows.map((r) => r.src_file_id))];
     const impactedFiles = await this.getFiles(impactedFileIds);
 
-    const impactPaths = result.rows.map(row => ({
+    const impactPaths = result.rows.map((row) => ({
       from: row.src_path,
       to: sourceFile.path,
-      refType: row.ref_type
+      refType: row.ref_type,
     }));
 
     return {
       sourceFile,
       impactedFiles,
       impactPaths,
-      depth: Math.max(...result.rows.map(r => r.depth), 0)
+      depth: Math.max(...result.rows.map((r) => r.depth), 0),
     };
   }
 
-  async findDependencies(
-    appId: string,
-    fileId: string,
-    maxDepth = 10
-  ): Promise<File[]> {
+  async findDependencies(appId: string, fileId: string, maxDepth = 10): Promise<File[]> {
     const result = await this.db.query<{ src_file_id: string }>(
       `WITH RECURSIVE deps AS (
         SELECT f.src_file_id
@@ -97,14 +89,17 @@ export class ImpactedFilesAnalyzer {
         WHERE (SELECT COUNT(*) FROM deps) < $3
       )
       SELECT DISTINCT src_file_id FROM deps`,
-      [appId, fileId, maxDepth * 100]
+      [appId, fileId, maxDepth * 100],
     );
 
-    const fileIds = result.rows.map(r => r.src_file_id);
+    const fileIds = result.rows.map((r) => r.src_file_id);
     return this.getFiles(fileIds);
   }
 
-  async getImpactSummary(appId: string, fileId: string): Promise<{
+  async getImpactSummary(
+    appId: string,
+    fileId: string,
+  ): Promise<{
     directImpacts: number;
     totalImpacts: number;
     affectedTypes: Record<string, number>;
@@ -129,18 +124,15 @@ export class ImpactedFilesAnalyzer {
       SELECT depth, ref_type, COUNT(DISTINCT src_file_id)::text as count
       FROM impact
       GROUP BY depth, ref_type`,
-      [appId, fileId]
+      [appId, fileId],
     );
 
-    const directImpacts = result.rows
-      .filter(r => r.depth === 1)
-      .reduce((sum, r) => sum + parseInt(r.count, 10), 0);
+    const directImpacts = result.rows.filter((r) => r.depth === 1).reduce((sum, r) => sum + parseInt(r.count, 10), 0);
 
-    const totalImpacts = result.rows
-      .reduce((sum, r) => sum + parseInt(r.count, 10), 0);
+    const totalImpacts = result.rows.reduce((sum, r) => sum + parseInt(r.count, 10), 0);
 
     const affectedTypes: Record<string, number> = {};
-    result.rows.forEach(r => {
+    result.rows.forEach((r) => {
       affectedTypes[r.ref_type] = (affectedTypes[r.ref_type] || 0) + parseInt(r.count, 10);
     });
 
@@ -148,10 +140,7 @@ export class ImpactedFilesAnalyzer {
   }
 
   private async getFile(fileId: string): Promise<File> {
-    const result = await this.db.query<File>(
-      `SELECT * FROM core.files WHERE id = $1`,
-      [fileId]
-    );
+    const result = await this.db.query<File>(`SELECT * FROM core.files WHERE id = $1`, [fileId]);
     if (!result.rows[0]) {
       throw new Error(`File ${fileId} not found`);
     }
@@ -161,10 +150,9 @@ export class ImpactedFilesAnalyzer {
   private async getFiles(fileIds: string[]): Promise<File[]> {
     if (fileIds.length === 0) return [];
 
-    const result = await this.db.query<File>(
-      `SELECT * FROM core.files WHERE id = ANY($1::uuid[]) ORDER BY path`,
-      [fileIds]
-    );
+    const result = await this.db.query<File>(`SELECT * FROM core.files WHERE id = ANY($1::uuid[]) ORDER BY path`, [
+      fileIds,
+    ]);
     return result.rows;
   }
 }

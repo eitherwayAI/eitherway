@@ -30,7 +30,9 @@ const start = async () => {
     app.log.info(``);
     app.log.info(`Example requests:`);
     app.log.info(`   curl -N "http://localhost:${port}/api/stream-test?chunkSize=10&delayMs=200"`);
-    app.log.info(`   curl -N -X POST http://localhost:${port}/api/stream-test -H "Content-Type: application/json" -d '{"prompt": "Build a todo app"}'`);
+    app.log.info(
+      `   curl -N -X POST http://localhost:${port}/api/stream-test -H "Content-Type: application/json" -d '{"prompt": "Build a todo app"}'`,
+    );
     app.log.info(`   curl -N "http://localhost:${port}/api/wizard/stream?brief=I+need+a+blog"`);
     app.log.info(``);
     app.log.info('='.repeat(60));

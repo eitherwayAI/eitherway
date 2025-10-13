@@ -214,8 +214,7 @@ export class WorkbenchStore {
     this.#filesStore.resetFileModifications();
   }
 
-  abortAllActions() {
-  }
+  abortAllActions() {}
 
   addArtifact({ messageId, title, id }: ArtifactCallbackData) {
     // Key artifacts by their artifact id, not message id, to allow multiple artifacts per message

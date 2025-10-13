@@ -70,7 +70,10 @@ export function useBackendHistory() {
         const { sessionData, filesData } = result;
         const { session, messages } = sessionData;
 
-        logger.info(`Loaded ${messages.length} messages and ${filesData.files?.length || 0} files from backend session:`, session.title);
+        logger.info(
+          `Loaded ${messages.length} messages and ${filesData.files?.length || 0} files from backend session:`,
+          session.title,
+        );
 
         // Transform backend messages to AI SDK format
         const transformedMessages: Message[] = messages.map((msg: BackendMessage) => ({

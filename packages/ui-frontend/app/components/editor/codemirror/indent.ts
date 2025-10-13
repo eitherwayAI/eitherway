@@ -38,8 +38,7 @@ function changeBySelectedLine(
     // just insert single indent unit at the current cursor position
     if (range.from === range.to) {
       cb(range.from, undefined, changes, line);
-    }
-    else if (range.from < range.to && range.to <= line.to) {
+    } else if (range.from < range.to && range.to <= line.to) {
       cb(range.from, range.to, changes, line);
     } else {
       let atLine = -1;

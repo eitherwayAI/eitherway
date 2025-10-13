@@ -10,7 +10,7 @@ export class SessionMemoryRepository {
       rollingSummary?: string;
       facts?: any;
       lastCompactedMessageId?: string;
-    }
+    },
   ): Promise<SessionMemory> {
     const result = await this.db.query<SessionMemory>(
       `INSERT INTO core.session_memory
@@ -27,24 +27,23 @@ export class SessionMemoryRepository {
         sessionId,
         data.rollingSummary ?? null,
         data.facts ? JSON.stringify(data.facts) : null,
-        data.lastCompactedMessageId ?? null
-      ]
+        data.lastCompactedMessageId ?? null,
+      ],
     );
     return result.rows[0];
   }
 
   async findBySession(sessionId: string): Promise<SessionMemory | null> {
-    const result = await this.db.query<SessionMemory>(
-      `SELECT * FROM core.session_memory WHERE session_id = $1`,
-      [sessionId]
-    );
+    const result = await this.db.query<SessionMemory>(`SELECT * FROM core.session_memory WHERE session_id = $1`, [
+      sessionId,
+    ]);
     return result.rows[0] ?? null;
   }
 
   async updateSummary(sessionId: string, summary: string, lastMessageId: string): Promise<SessionMemory> {
     return this.upsert(sessionId, {
       rollingSummary: summary,
-      lastCompactedMessageId: lastMessageId
+      lastCompactedMessageId: lastMessageId,
     });
   }
 
@@ -72,7 +71,7 @@ export class WorkingSetRepository {
     appId: string,
     fileId: string,
     reason?: string,
-    pinnedBy: 'agent' | 'user' = 'agent'
+    pinnedBy: 'agent' | 'user' = 'agent',
   ): Promise<WorkingSetItem> {
     const result = await this.db.query<WorkingSetItem>(
       `INSERT INTO core.working_set
@@ -82,7 +81,7 @@ export class WorkingSetRepository {
        SET reason = COALESCE($4, working_set.reason),
            pinned_by = $5
        RETURNING *`,
-      [sessionId, appId, fileId, reason ?? null, pinnedBy]
+      [sessionId, appId, fileId, reason ?? null, pinnedBy],
     );
     return result.rows[0];
   }
@@ -92,7 +91,7 @@ export class WorkingSetRepository {
       `SELECT * FROM core.working_set
        WHERE session_id = $1
        ORDER BY created_at ASC`,
-      [sessionId]
+      [sessionId],
     );
     return result.rows;
   }
@@ -104,29 +103,23 @@ export class WorkingSetRepository {
        JOIN core.files f ON ws.file_id = f.id
        WHERE ws.session_id = $1
        ORDER BY ws.created_at ASC`,
-      [sessionId]
+      [sessionId],
     );
     return result.rows;
   }
 
   async remove(sessionId: string, fileId: string): Promise<void> {
-    await this.db.query(
-      `DELETE FROM core.working_set WHERE session_id = $1 AND file_id = $2`,
-      [sessionId, fileId]
-    );
+    await this.db.query(`DELETE FROM core.working_set WHERE session_id = $1 AND file_id = $2`, [sessionId, fileId]);
   }
 
   async clear(sessionId: string): Promise<void> {
-    await this.db.query(
-      `DELETE FROM core.working_set WHERE session_id = $1`,
-      [sessionId]
-    );
+    await this.db.query(`DELETE FROM core.working_set WHERE session_id = $1`, [sessionId]);
   }
 
   async countBySession(sessionId: string): Promise<number> {
     const result = await this.db.query<{ count: string }>(
       `SELECT COUNT(*) as count FROM core.working_set WHERE session_id = $1`,
-      [sessionId]
+      [sessionId],
     );
     return parseInt(result.rows[0].count, 10);
   }

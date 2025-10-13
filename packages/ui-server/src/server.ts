@@ -20,6 +20,8 @@ import { registerImageRoutes } from './routes/images.js';
 import { constants } from 'fs';
 import { randomUUID } from 'crypto';
 import { StreamEvents, createEventSender } from './events/index.js';
+import { API_CACHE_TTL_MS, CDN_CACHE_MAX_AGE_SECONDS, DEFAULT_SERVER_PORT } from './constants.js';
+import { isSecureUrl } from './security/ssrf-guard.js';
 
 // Resolve project root (go up from packages/ui-server/src to project root)
 const __filename = fileURLToPath(import.meta.url);
@@ -38,10 +40,7 @@ try {
   await access(CERT_PATH, constants.R_OK);
   await access(KEY_PATH, constants.R_OK);
 
-  const [cert, key] = await Promise.all([
-    readFile(CERT_PATH, 'utf-8'),
-    readFile(KEY_PATH, 'utf-8')
-  ]);
+  const [cert, key] = await Promise.all([readFile(CERT_PATH, 'utf-8'), readFile(KEY_PATH, 'utf-8')]);
 
   httpsOptions = { https: { cert, key } };
   useHttps = true;
@@ -53,15 +52,17 @@ try {
 
 const fastify = Fastify({
   logger: true,
-  ...httpsOptions
+  ...httpsOptions,
 });
 
 // Enable CORS
+// @ts-expect-error Fastify plugin type compatibility issue with current version
 await fastify.register(cors, {
-  origin: true
+  origin: true,
 });
 
 // Enable WebSocket
+// @ts-expect-error Fastify plugin type compatibility issue with current version
 await fastify.register(websocket);
 
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || join(PROJECT_ROOT, 'workspace');
@@ -96,31 +97,9 @@ fastify.get('/api/health', async () => {
   return {
     status: 'ok',
     workspace: WORKSPACE_DIR,
-    database: dbConnected ? 'connected' : 'disconnected'
+    database: dbConnected ? 'connected' : 'disconnected',
   };
 });
-
-function isSecureUrl(url: URL): { valid: boolean; error?: string } {
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    return { valid: false, error: 'Only HTTP/HTTPS protocols allowed' };
-  }
-
-  const hostname = url.hostname.toLowerCase();
-
-  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0') {
-    return { valid: false, error: 'Local addresses not allowed' };
-  }
-
-  if (hostname.match(/^10\.|^172\.(1[6-9]|2[0-9]|3[01])\.|^192\.168\./)) {
-    return { valid: false, error: 'Private IP ranges not allowed' };
-  }
-
-  if (hostname.match(/^169\.254\.|^fc00:|^fe80:/)) {
-    return { valid: false, error: 'Link-local addresses not allowed' };
-  }
-
-  return { valid: true };
-}
 
 /**
  * GET /api/proxy-cdn
@@ -138,23 +117,30 @@ fastify.get<{ Querystring: { url: string } }>('/api/proxy-cdn', async (request, 
     const securityCheck = isSecureUrl(targetUrl);
 
     if (!securityCheck.valid) {
-      return reply.code(403).header('Content-Type', 'application/json').send({ error: securityCheck.error });
+      return reply.code(403).header('Content-Type', 'application/json').send({
+        error: securityCheck.errorMessage,
+        code: securityCheck.errorCode,
+      });
     }
 
     console.log('[Proxy CDN] Fetching:', url);
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': '*/*',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Accept: '*/*',
         'Accept-Language': 'en-US,en;q=0.9',
-        'Referer': targetUrl.origin + '/',
-        'Origin': targetUrl.origin
-      }
+        Referer: targetUrl.origin + '/',
+        Origin: targetUrl.origin,
+      },
     });
 
     if (!response.ok) {
       console.error('[Proxy CDN] Upstream error:', url, response.status);
-      return reply.code(response.status).header('Content-Type', 'application/json').send({ error: `Upstream returned ${response.status}` });
+      return reply
+        .code(response.status)
+        .header('Content-Type', 'application/json')
+        .send({ error: `Upstream returned ${response.status}` });
     }
 
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
@@ -162,16 +148,18 @@ fastify.get<{ Querystring: { url: string } }>('/api/proxy-cdn', async (request, 
 
     console.log('[Proxy CDN] Success:', url, 'Type:', contentType, 'Size:', buffer.byteLength);
 
-    reply
+    return reply
       .header('Content-Type', contentType)
       .header('Cross-Origin-Resource-Policy', 'cross-origin')
       .header('Access-Control-Allow-Origin', '*')
-      .header('Cache-Control', 'public, max-age=86400')
+      .header('Cache-Control', `public, max-age=${CDN_CACHE_MAX_AGE_SECONDS}`)
       .send(Buffer.from(buffer));
-
   } catch (error: any) {
     console.error('[Proxy CDN] Error:', url, error.message);
-    reply.code(500).header('Content-Type', 'application/json').send({ error: `Proxy error: ${error.message}` });
+    return reply
+      .code(500)
+      .header('Content-Type', 'application/json')
+      .send({ error: `Proxy error: ${error.message}` });
   }
 });
 
@@ -179,7 +167,6 @@ const COINGECKO_DEMO_KEY = process.env.COINGECKO_DEMO_API_KEY || '';
 const COINGECKO_PRO_KEY = process.env.COINGECKO_PRO_API_KEY || '';
 
 const apiCache = new Map<string, { t: number; body: Buffer; headers: Record<string, string>; status: number }>();
-const API_CACHE_TTL = 30_000;
 
 /**
  * GET /api/proxy-api
@@ -201,27 +188,30 @@ fastify.get<{ Querystring: { url: string } }>('/api/proxy-api', async (request, 
 
   const securityCheck = isSecureUrl(targetUrl);
   if (!securityCheck.valid) {
-    return reply.code(403).send({ error: securityCheck.error });
+    return reply.code(403).send({
+      error: securityCheck.errorMessage,
+      code: securityCheck.errorCode,
+    });
   }
 
   const cacheKey = `GET:${targetUrl.toString()}`;
   const hit = apiCache.get(cacheKey);
-  if (hit && (Date.now() - hit.t) < API_CACHE_TTL) {
+  if (hit && Date.now() - hit.t < API_CACHE_TTL_MS) {
     return reply
       .headers({
         ...hit.headers,
         'Access-Control-Allow-Origin': '*',
-        'Vary': 'Origin',
+        Vary: 'Origin',
         'Cross-Origin-Resource-Policy': 'cross-origin',
-        'X-Cache': 'HIT'
+        'X-Cache': 'HIT',
       })
       .code(hit.status)
       .send(hit.body);
   }
 
   const headers: Record<string, string> = {
-    'Accept': 'application/json',
-    'User-Agent': 'EitherWay-Proxy/1.0'
+    Accept: 'application/json',
+    'User-Agent': 'EitherWay-Proxy/1.0',
   };
 
   if (targetUrl.hostname === 'api.coingecko.com' && COINGECKO_DEMO_KEY) {
@@ -235,7 +225,7 @@ fastify.get<{ Querystring: { url: string } }>('/api/proxy-api', async (request, 
     const upstream = await fetch(targetUrl.toString(), {
       method: 'GET',
       headers,
-      credentials: 'omit'
+      credentials: 'omit',
     });
 
     const body = Buffer.from(await upstream.arrayBuffer());
@@ -250,14 +240,14 @@ fastify.get<{ Querystring: { url: string } }>('/api/proxy-api', async (request, 
       .headers({
         ...passthrough,
         'Access-Control-Allow-Origin': '*',
-        'Vary': 'Origin',
+        Vary: 'Origin',
         'Cross-Origin-Resource-Policy': 'cross-origin',
         'Cache-Control': passthrough['cache-control'] || 'public, max-age=30',
       })
       .code(status)
       .send(body);
   } catch (error: any) {
-    reply.code(500).send({ error: `API proxy error: ${error.message}` });
+    return reply.code(500).send({ error: `API proxy error: ${error.message}` });
   }
 });
 
@@ -296,7 +286,7 @@ fastify.get<{ Params: { '*': string } }>('/api/files/*', async (request, reply) 
     const rewrittenContent = maybeRewriteFile(filePath, content, { serverOrigin });
     return { path: filePath, content: rewrittenContent };
   } catch (error: any) {
-    reply.code(404).send({ error: error.message });
+    return reply.code(404).send({ error: error.message });
   }
 });
 
@@ -335,11 +325,11 @@ fastify.post<{
     return {
       success: true,
       path: filePath,
-      message: 'File saved successfully'
+      message: 'File saved successfully',
     };
   } catch (error: any) {
     console.error('Error saving file:', error);
-    reply.code(500).send({ error: error.message });
+    return reply.code(500).send({ error: error.message });
   }
 });
 
@@ -445,25 +435,29 @@ fastify.post<{
       success: true,
       sessionId: newSessionId,
       appId: newSession.app_id,
-      files
+      files,
     };
   } catch (error: any) {
     console.error('Error switching workspace:', error);
-    reply.code(500).send({ error: error.message });
+    return reply.code(500).send({ error: error.message });
   }
 });
 
-fastify.register(async (fastify) => {
+await fastify.register(async (fastify) => {
   fastify.get<{
     Querystring: { sessionId?: string };
+    // @ts-expect-error Fastify WebSocket type compatibility issue
   }>('/api/agent', { websocket: true }, async (connection, request) => {
+    // @ts-expect-error Fastify WebSocket request type issue
     const { sessionId } = request.query;
 
     // Create event sender for this connection
+    // @ts-expect-error Fastify WebSocket socket type issue
     const sender = createEventSender(connection.socket);
 
     if (!sessionId && !USE_LOCAL_FS) {
       sender.send(StreamEvents.error('sessionId query parameter is required'));
+      // @ts-expect-error Fastify WebSocket socket type issue
       connection.socket.close();
       return;
     }
@@ -474,7 +468,7 @@ fastify.register(async (fastify) => {
       if (data.type === 'prompt') {
         try {
           let response: string;
-          let messageId: string = randomUUID(); // Generate message ID for streaming
+          const messageId: string = randomUUID(); // Generate message ID for streaming
 
           // Use DatabaseAgent when in database mode
           if (!USE_LOCAL_FS && dbConnected && db && sessionId) {
@@ -508,7 +502,7 @@ fastify.register(async (fastify) => {
               agentConfig,
               executors: getAllExecutors(),
               dryRun: false,
-              webSearch: agentConfig.tools.webSearch
+              webSearch: agentConfig.tools.webSearch,
             });
 
             // Set database context for file operations
@@ -554,7 +548,7 @@ fastify.register(async (fastify) => {
               },
               onComplete: (usage) => {
                 tokenUsage = usage;
-              }
+              },
             };
 
             // Process request with streaming
@@ -570,7 +564,7 @@ fastify.register(async (fastify) => {
               agentConfig,
               executors: getAllExecutors(),
               dryRun: false,
-              webSearch: agentConfig.tools.webSearch
+              webSearch: agentConfig.tools.webSearch,
             });
 
             // Use the messageId declared above
@@ -611,7 +605,7 @@ fastify.register(async (fastify) => {
               },
               onComplete: (usage) => {
                 tokenUsage = usage;
-              }
+              },
             };
 
             response = await agent.processRequest(data.prompt, streamingCallbacks);
@@ -643,7 +637,6 @@ fastify.register(async (fastify) => {
             const files = await getFileTree(WORKSPACE_DIR);
             sender.send(StreamEvents.filesUpdated(files));
           }
-
         } catch (error: any) {
           // Log the full error for debugging
           console.error('[Agent Error]', error);
@@ -704,7 +697,7 @@ async function getFileTree(dir: string, basePath: string = ''): Promise<FileNode
         name: entry.name,
         path: relativePath,
         type: 'directory',
-        children
+        children,
       });
     } else {
       const stats = await stat(fullPath);
@@ -712,7 +705,7 @@ async function getFileTree(dir: string, basePath: string = ''): Promise<FileNode
         name: entry.name,
         path: relativePath,
         type: 'file',
-        size: stats.size
+        size: stats.size,
       });
     }
   }
@@ -732,7 +725,7 @@ interface FileNode {
 }
 
 // Start server
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || DEFAULT_SERVER_PORT;
 
 try {
   await fastify.listen({ port: Number(PORT), host: '0.0.0.0' });

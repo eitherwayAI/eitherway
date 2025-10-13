@@ -13,7 +13,7 @@ export class EmbeddingsRepository {
       chunkIdx?: number;
       contentPreview?: string;
       metadata?: any;
-    } = {}
+    } = {},
   ): Promise<DocEmbedding> {
     const result = await this.db.query<DocEmbedding>(
       `INSERT INTO core.doc_embeddings
@@ -27,8 +27,8 @@ export class EmbeddingsRepository {
         options.chunkIdx ?? null,
         JSON.stringify(vector),
         options.contentPreview ?? null,
-        options.metadata ? JSON.stringify(options.metadata) : null
-      ]
+        options.metadata ? JSON.stringify(options.metadata) : null,
+      ],
     );
     return result.rows[0];
   }
@@ -50,7 +50,7 @@ export class EmbeddingsRepository {
       scope?: EmbeddingScope;
       limit?: number;
       minSimilarity?: number;
-    } = {}
+    } = {},
   ): Promise<Array<DocEmbedding & { similarity: number }>> {
     const limit = options.limit ?? 10;
     const minSimilarity = options.minSimilarity ?? 0.7;
@@ -83,15 +83,9 @@ export class EmbeddingsRepository {
 
   async deleteByRef(refId: string, scope?: EmbeddingScope): Promise<void> {
     if (scope) {
-      await this.db.query(
-        `DELETE FROM core.doc_embeddings WHERE ref_id = $1 AND scope = $2`,
-        [refId, scope]
-      );
+      await this.db.query(`DELETE FROM core.doc_embeddings WHERE ref_id = $1 AND scope = $2`, [refId, scope]);
     } else {
-      await this.db.query(
-        `DELETE FROM core.doc_embeddings WHERE ref_id = $1`,
-        [refId]
-      );
+      await this.db.query(`DELETE FROM core.doc_embeddings WHERE ref_id = $1`, [refId]);
     }
   }
 
@@ -103,13 +97,13 @@ export class EmbeddingsRepository {
       chunkIdx: number;
       contentPreview: string;
       metadata?: any;
-    }>
+    }>,
   ): Promise<DocEmbedding[]> {
     return this.db.transaction(async (client) => {
-      await client.query(
-        `DELETE FROM core.doc_embeddings WHERE app_id = $1 AND ref_id = $2 AND scope = 'file'`,
-        [appId, fileId]
-      );
+      await client.query(`DELETE FROM core.doc_embeddings WHERE app_id = $1 AND ref_id = $2 AND scope = 'file'`, [
+        appId,
+        fileId,
+      ]);
 
       const created: DocEmbedding[] = [];
       for (const emb of embeddings) {
@@ -124,8 +118,8 @@ export class EmbeddingsRepository {
             emb.chunkIdx,
             JSON.stringify(emb.vector),
             emb.contentPreview,
-            emb.metadata ? JSON.stringify(emb.metadata) : null
-          ]
+            emb.metadata ? JSON.stringify(emb.metadata) : null,
+          ],
         );
         created.push(result.rows[0]);
       }
@@ -137,7 +131,7 @@ export class EmbeddingsRepository {
   async countByApp(appId: string): Promise<number> {
     const result = await this.db.query<{ count: string }>(
       `SELECT COUNT(*) as count FROM core.doc_embeddings WHERE app_id = $1`,
-      [appId]
+      [appId],
     );
     return parseInt(result.rows[0].count, 10);
   }

@@ -74,34 +74,37 @@ export function Menu() {
     }
   }, []);
 
-  const deleteItem = useCallback(async (event: React.UIEvent, item: ChatHistoryItem) => {
-    event.preventDefault();
+  const deleteItem = useCallback(
+    async (event: React.UIEvent, item: ChatHistoryItem) => {
+      event.preventDefault();
 
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/sessions/${item.id}`, {
-        method: 'DELETE',
-      });
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/sessions/${item.id}`, {
+          method: 'DELETE',
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to delete session');
+        if (!response.ok) {
+          throw new Error('Failed to delete session');
+        }
+
+        // Reload the list
+        await loadEntries();
+
+        // If we just deleted the current session, clear it and navigate home
+        const currentSessionId = localStorage.getItem('currentSessionId');
+        if (currentSessionId === item.id) {
+          localStorage.removeItem('currentSessionId');
+          window.location.pathname = '/';
+        }
+
+        toast.success('Chat deleted successfully');
+      } catch (error) {
+        toast.error('Failed to delete conversation');
+        logger.error(error);
       }
-
-      // Reload the list
-      await loadEntries();
-
-      // If we just deleted the current session, clear it and navigate home
-      const currentSessionId = localStorage.getItem('currentSessionId');
-      if (currentSessionId === item.id) {
-        localStorage.removeItem('currentSessionId');
-        window.location.pathname = '/';
-      }
-
-      toast.success('Chat deleted successfully');
-    } catch (error) {
-      toast.error('Failed to delete conversation');
-      logger.error(error);
-    }
-  }, [loadEntries]);
+    },
+    [loadEntries],
+  );
 
   const closeDialog = () => {
     setDialogContent(null);
@@ -164,7 +167,9 @@ export function Menu() {
         </div>
         <div className="text-eitherway-elements-textPrimary font-medium pl-6 pr-5 my-2">Your Chats</div>
         <div className={`flex-1 pl-4 pr-5 pb-5 ${list.length > 0 ? 'overflow-auto' : 'overflow-hidden'}`}>
-          {list.length === 0 && <div className="pl-2 text-eitherway-elements-textTertiary">No previous conversations</div>}
+          {list.length === 0 && (
+            <div className="pl-2 text-eitherway-elements-textTertiary">No previous conversations</div>
+          )}
           <DialogRoot open={dialogContent !== null}>
             {binDates(list).map(({ category, items }) => (
               <div key={category} className="mt-4 first:mt-0 space-y-1">

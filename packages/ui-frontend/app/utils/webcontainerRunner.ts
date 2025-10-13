@@ -7,22 +7,28 @@ import type { WebContainer } from '@webcontainer/api';
 import { createScopedLogger } from './logger';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { ensureDevHeaders } from '~/lib/webcontainer/ensure-dev-headers';
+import { PREVIEW_REGISTRATION_TIMEOUT_MS, WEBCONTAINER_DEFAULT_PORT } from './constants';
+import type { WebContainerProcess, ExtendedWebContainer } from '~/types/webcontainer';
+import serverTemplate from '~/templates/webcontainer-server.template.js?raw';
 
 const logger = createScopedLogger('WebContainerRunner');
 
-let devServerProcess: any = null;
+let devServerProcess: WebContainerProcess | null = null;
 let serverRunning = false; // Track if server is already running
 
 /**
  * Register preview URL with fallback if port event doesn't fire
  * WebContainer should automatically emit 'port' events, but this provides a safety net
  */
-async function ensurePreviewRegistered(webcontainer: WebContainer, port: number = 3000): Promise<void> {
+async function ensurePreviewRegistered(
+  webcontainer: WebContainer,
+  port: number = WEBCONTAINER_DEFAULT_PORT,
+): Promise<void> {
   // Wait for server to start and port event to fire
-  await new Promise(resolve => setTimeout(resolve, 3000));
+  await new Promise((resolve) => setTimeout(resolve, PREVIEW_REGISTRATION_TIMEOUT_MS));
 
   const previews = workbenchStore.previews.get();
-  const existingPreview = previews.find(p => p.port === port);
+  const existingPreview = previews.find((p) => p.port === port);
 
   if (existingPreview) {
     logger.info(`✅ Preview already registered for port ${port} via port event`);
@@ -34,15 +40,15 @@ async function ensurePreviewRegistered(webcontainer: WebContainer, port: number 
 
   try {
     // Try to get server URL - WebContainer exposes this through the origin property
-    const wcAny = webcontainer as any;
+    const wcExtended = webcontainer as ExtendedWebContainer;
     let url: string | undefined;
 
     // Try different methods to get the URL
-    if (typeof wcAny.origin === 'string') {
-      url = wcAny.origin;
+    if (typeof wcExtended.origin === 'string') {
+      url = wcExtended.origin;
       logger.debug('Got URL from webcontainer.origin:', url);
-    } else if (typeof wcAny.serverOrigin === 'string') {
-      url = wcAny.serverOrigin;
+    } else if (typeof wcExtended.serverOrigin === 'string') {
+      url = wcExtended.serverOrigin;
       logger.debug('Got URL from webcontainer.serverOrigin:', url);
     }
 
@@ -51,7 +57,10 @@ async function ensurePreviewRegistered(webcontainer: WebContainer, port: number 
       logger.info(`✅ Preview manually registered at ${url}`);
     } else {
       logger.error('❌ Could not determine WebContainer URL - preview may not load');
-      logger.error('   WebContainer properties:', Object.keys(wcAny).filter(k => !k.startsWith('_')));
+      logger.error(
+        '   WebContainer properties:',
+        Object.keys(wcExtended as any).filter((k) => !k.startsWith('_')),
+      );
     }
   } catch (error) {
     logger.error('❌ Error during manual preview registration:', error);
@@ -120,16 +129,27 @@ function findAnyHtmlFile(files: any[]): any | null {
 /**
  * Start a static server for simple HTML apps with proxy endpoints and binary file handling
  */
-async function startStaticServer(webcontainer: WebContainer, baseDir: string = '.', htmlFileName: string = 'index.html'): Promise<void> {
+async function startStaticServer(
+  webcontainer: WebContainer,
+  baseDir: string = '.',
+  htmlFileName: string = 'index.html',
+): Promise<void> {
   logger.info('Starting static server for directory:', baseDir, 'HTML file:', htmlFileName);
 
+  // Load server template and replace placeholders
+  const serverScript = serverTemplate
+    .replace(/__BASE_DIR__/g, baseDir)
+    .replace(/__HTML_FILE__/g, htmlFileName)
+    .replace(/__PORT__/g, String(WEBCONTAINER_DEFAULT_PORT));
+
+  /* OLD EMBEDDED SERVER - NOW EXTRACTED TO TEMPLATE FILE
   const serverScript = `
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
 const BASE_DIR = '${baseDir}';
-const PORT = 3000;
+const PORT = ${WEBCONTAINER_DEFAULT_PORT};
 const DEFAULT_FILE = '${htmlFileName}';
 
 const mimeTypes = {
@@ -274,6 +294,7 @@ server.listen(PORT, () => {
   console.log('[Server] Static server with proxy running on port ' + PORT);
 });
 `;
+  */ // END OLD EMBEDDED SERVER
 
   // Write the server script
   await webcontainer.fs.writeFile('server.js', serverScript);

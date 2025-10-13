@@ -1,9 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import {
-  ImageGenerationService,
-  EventsRepository,
-  DatabaseClient
-} from '@eitherway/database';
+import { ImageGenerationService, EventsRepository, DatabaseClient } from '@eitherway/database';
 
 export async function registerImageRoutes(fastify: FastifyInstance, db: DatabaseClient) {
   const imageService = new ImageGenerationService(db);
@@ -18,23 +14,27 @@ export async function registerImageRoutes(fastify: FastifyInstance, db: Database
       n?: number;
       sessionId?: string;
       appId?: string;
-    }
+    };
   }>('/api/images/generate', async (request, reply) => {
     const options = request.body;
 
     const jobId = await imageService.generateImage(options);
 
-    await eventsRepo.log('image.job.created', { jobId, prompt: options.prompt }, {
-      sessionId: options.sessionId,
-      appId: options.appId,
-      actor: 'user'
-    });
+    await eventsRepo.log(
+      'image.job.created',
+      { jobId, prompt: options.prompt },
+      {
+        sessionId: options.sessionId,
+        appId: options.appId,
+        actor: 'user',
+      },
+    );
 
     return { jobId };
   });
 
   fastify.get<{
-    Params: { jobId: string }
+    Params: { jobId: string };
   }>('/api/images/jobs/:jobId', async (request, reply) => {
     const { jobId } = request.params;
 
@@ -47,7 +47,7 @@ export async function registerImageRoutes(fastify: FastifyInstance, db: Database
   });
 
   fastify.get<{
-    Params: { assetId: string }
+    Params: { assetId: string };
   }>('/api/images/assets/:assetId', async (request, reply) => {
     const { assetId } = request.params;
 
@@ -57,13 +57,14 @@ export async function registerImageRoutes(fastify: FastifyInstance, db: Database
       return reply.code(404).send({ error: 'Asset not found' });
     }
 
-    reply.header('Content-Type', asset.mimeType);
-    reply.header('Cache-Control', 'public, max-age=31536000');
-    return reply.send(asset.bytes);
+    return reply
+      .header('Content-Type', asset.mimeType)
+      .header('Cache-Control', 'public, max-age=31536000')
+      .send(asset.bytes);
   });
 
   fastify.post<{
-    Body: { jobId: string; timeoutMs?: number }
+    Body: { jobId: string; timeoutMs?: number };
   }>('/api/images/poll', async (request, reply) => {
     const { jobId, timeoutMs = 60000 } = request.body;
 

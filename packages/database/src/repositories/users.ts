@@ -9,24 +9,18 @@ export class UsersRepository {
       `INSERT INTO core.users (email, display_name)
        VALUES ($1, $2)
        RETURNING *`,
-      [email, displayName ?? null]
+      [email, displayName ?? null],
     );
     return result.rows[0];
   }
 
   async findById(id: string): Promise<User | null> {
-    const result = await this.db.query<User>(
-      `SELECT * FROM core.users WHERE id = $1`,
-      [id]
-    );
+    const result = await this.db.query<User>(`SELECT * FROM core.users WHERE id = $1`, [id]);
     return result.rows[0] ?? null;
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    const result = await this.db.query<User>(
-      `SELECT * FROM core.users WHERE email = $1`,
-      [email]
-    );
+    const result = await this.db.query<User>(`SELECT * FROM core.users WHERE email = $1`, [email]);
     return result.rows[0] ?? null;
   }
 
@@ -42,7 +36,7 @@ export class UsersRepository {
        SET display_name = COALESCE($2, display_name)
        WHERE id = $1
        RETURNING *`,
-      [id, data.displayName ?? null]
+      [id, data.displayName ?? null],
     );
     return result.rows[0];
   }

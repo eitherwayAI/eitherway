@@ -34,7 +34,6 @@ export const FileTree = memo(
     className,
     unsavedFiles,
   }: Props) => {
-
     const computedHiddenFiles = useMemo(() => [...DEFAULT_HIDDEN_FILES, ...(hiddenFiles ?? [])], [hiddenFiles]);
 
     const fileList = useMemo(() => {
@@ -189,7 +188,8 @@ function File({ file: { depth, name }, onClick, selected, unsavedChanges = false
   return (
     <NodeButton
       className={classNames('group', {
-        'bg-transparent hover:bg-eitherway-elements-item-backgroundActive text-eitherway-elements-item-contentDefault': !selected,
+        'bg-transparent hover:bg-eitherway-elements-item-backgroundActive text-eitherway-elements-item-contentDefault':
+          !selected,
         'bg-eitherway-elements-item-backgroundAccent text-eitherway-elements-item-contentAccent': selected,
       })}
       depth={depth}

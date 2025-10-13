@@ -1,10 +1,5 @@
 import { describe, it, beforeAll, afterAll, expect } from 'vitest';
-import {
-  createDatabaseClient,
-  DatabaseClient,
-  ImageGenerationService,
-  ImageJobsRepository
-} from '../index.js';
+import { createDatabaseClient, DatabaseClient, ImageGenerationService, ImageJobsRepository } from '../index.js';
 
 describe('Image Generation Pipeline Smoke Tests', () => {
   let db: DatabaseClient;
@@ -30,7 +25,7 @@ describe('Image Generation Pipeline Smoke Tests', () => {
       model: 'dall-e-3',
       size: '1024x1024',
       quality: 'standard',
-      n: 1
+      n: 1,
     });
 
     expect(jobId).toBeDefined();
@@ -46,7 +41,7 @@ describe('Image Generation Pipeline Smoke Tests', () => {
       prompt: 'A simple geometric shape',
       model: 'dall-e-3',
       size: '1024x1024',
-      n: 1
+      n: 1,
     });
 
     const result = await imageService.pollJobUntilComplete(jobId, 60000);
@@ -64,13 +59,13 @@ describe('Image Generation Pipeline Smoke Tests', () => {
     expect(fullAsset?.bytes).toBeInstanceOf(Buffer);
     expect(fullAsset?.bytes.length).toBeGreaterThan(0);
 
-    const isPNG = fullAsset!.bytes[0] === 0x89 &&
-                  fullAsset!.bytes[1] === 0x50 &&
-                  fullAsset!.bytes[2] === 0x4E &&
-                  fullAsset!.bytes[3] === 0x47;
+    const isPNG =
+      fullAsset!.bytes[0] === 0x89 &&
+      fullAsset!.bytes[1] === 0x50 &&
+      fullAsset!.bytes[2] === 0x4e &&
+      fullAsset!.bytes[3] === 0x47;
 
-    const isJPEG = fullAsset!.bytes[0] === 0xFF &&
-                   fullAsset!.bytes[1] === 0xD8;
+    const isJPEG = fullAsset!.bytes[0] === 0xff && fullAsset!.bytes[1] === 0xd8;
 
     expect(isPNG || isJPEG).toBe(true);
   });
@@ -79,7 +74,7 @@ describe('Image Generation Pipeline Smoke Tests', () => {
     const jobId = await imageService.generateImage({
       prompt: 'A blue square',
       model: 'dall-e-3',
-      size: '1024x1024'
+      size: '1024x1024',
     });
 
     const result = await imageService.pollJobUntilComplete(jobId, 60000);
@@ -91,16 +86,16 @@ describe('Image Generation Pipeline Smoke Tests', () => {
 
     const bytes = fullAsset!.bytes;
 
-    const isPNG = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47;
+    const isPNG = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
 
     if (isPNG) {
       const hasIENDChunk = bytes.includes(Buffer.from('IEND'));
       expect(hasIENDChunk).toBe(true);
     } else {
-      const isJPEG = bytes[0] === 0xFF && bytes[1] === 0xD8;
+      const isJPEG = bytes[0] === 0xff && bytes[1] === 0xd8;
       expect(isJPEG).toBe(true);
 
-      const hasEOI = bytes[bytes.length - 2] === 0xFF && bytes[bytes.length - 1] === 0xD9;
+      const hasEOI = bytes[bytes.length - 2] === 0xff && bytes[bytes.length - 1] === 0xd9;
       expect(hasEOI).toBe(true);
     }
 
@@ -109,11 +104,7 @@ describe('Image Generation Pipeline Smoke Tests', () => {
   });
 
   it('should handle job state transitions', async () => {
-    const job = await jobsRepo.create(
-      'Test prompt',
-      'dall-e-3',
-      { size: '1024x1024', n: 1 }
-    );
+    const job = await jobsRepo.create('Test prompt', 'dall-e-3', { size: '1024x1024', n: 1 });
 
     expect(job.state).toBe('queued');
 
@@ -127,14 +118,11 @@ describe('Image Generation Pipeline Smoke Tests', () => {
   });
 
   it('should handle job failures', async () => {
-    const job = await jobsRepo.create(
-      'Test failure',
-      'dall-e-3'
-    );
+    const job = await jobsRepo.create('Test failure', 'dall-e-3');
 
     const failed = await jobsRepo.markFailed(job.id, {
       message: 'Test error',
-      code: 'TEST_ERROR'
+      code: 'TEST_ERROR',
     });
 
     expect(failed.state).toBe('failed');

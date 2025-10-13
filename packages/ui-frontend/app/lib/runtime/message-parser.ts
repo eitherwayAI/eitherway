@@ -132,7 +132,7 @@ export class StreamingMessageParser {
               state.insideAction = true;
 
               state.currentAction = this.#parseActionTag(input, actionOpenIndex, actionEndIndex);
-              
+
               this._options.callbacks?.onActionOpen?.({
                 artifactId: currentArtifact.id,
                 messageId,
@@ -244,15 +244,15 @@ export class StreamingMessageParser {
         logger.warn(`Message ${messageId} ended with unclosed action - response may have been truncated`);
       }
     });
-    
+
     this.#messages.clear();
   }
-  
+
   // Method to check if current parsing state has incomplete elements
   checkIncomplete(messageId: string): { insideArtifact: boolean; insideAction: boolean } | null {
     const state = this.#messages.get(messageId);
     if (!state) return null;
-    
+
     return {
       insideArtifact: state.insideArtifact,
       insideAction: state.insideAction,

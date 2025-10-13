@@ -30,7 +30,5 @@
     "**/.client/**/*.ts",
     "**/.client/**/*.tsx"
   ],
-  "exclude": [
-    "eitherwayalmostdone/**"
-  ]
+  "exclude": ["eitherwayalmostdone/**"]
 }

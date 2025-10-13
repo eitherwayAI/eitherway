@@ -27,12 +27,7 @@ export class RateLimiter {
    */
   private getNextUtcMidnight(): Date {
     const now = new Date();
-    const tomorrow = new Date(Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate() + 1,
-      0, 0, 0, 0
-    ));
+    const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0));
     return tomorrow;
   }
 
@@ -47,7 +42,7 @@ export class RateLimiter {
       `SELECT user_id, limit_date, sessions_created
        FROM core.user_daily_limits
        WHERE user_id = $1 AND limit_date = $2`,
-      [userId, currentDate]
+      [userId, currentDate],
     );
 
     const current = result.rows.length > 0 ? result.rows[0].sessions_created : 0;
@@ -57,7 +52,7 @@ export class RateLimiter {
       allowed,
       current,
       limit: MAX_SESSIONS_PER_DAY,
-      resetsAt: this.getNextUtcMidnight()
+      resetsAt: this.getNextUtcMidnight(),
     };
   }
 
@@ -73,7 +68,7 @@ export class RateLimiter {
        VALUES ($1, $2, 1)
        ON CONFLICT (user_id, limit_date)
        DO UPDATE SET sessions_created = core.user_daily_limits.sessions_created + 1`,
-      [userId, currentDate]
+      [userId, currentDate],
     );
   }
 
@@ -88,7 +83,7 @@ export class RateLimiter {
       `SELECT session_id, limit_date, messages_sent
        FROM core.session_daily_limits
        WHERE session_id = $1 AND limit_date = $2`,
-      [sessionId, currentDate]
+      [sessionId, currentDate],
     );
 
     const current = result.rows.length > 0 ? result.rows[0].messages_sent : 0;
@@ -98,7 +93,7 @@ export class RateLimiter {
       allowed,
       current,
       limit: MAX_MESSAGES_PER_SESSION_PER_DAY,
-      resetsAt: this.getNextUtcMidnight()
+      resetsAt: this.getNextUtcMidnight(),
     };
   }
 
@@ -114,7 +109,7 @@ export class RateLimiter {
        VALUES ($1, $2, 1)
        ON CONFLICT (session_id, limit_date)
        DO UPDATE SET messages_sent = core.session_daily_limits.messages_sent + 1`,
-      [sessionId, currentDate]
+      [sessionId, currentDate],
     );
   }
 
@@ -128,7 +123,7 @@ export class RateLimiter {
       `SELECT sessions_created
        FROM core.user_daily_limits
        WHERE user_id = $1 AND limit_date = $2`,
-      [userId, currentDate]
+      [userId, currentDate],
     );
 
     return result.rows.length > 0 ? result.rows[0].sessions_created : 0;
@@ -144,7 +139,7 @@ export class RateLimiter {
       `SELECT messages_sent
        FROM core.session_daily_limits
        WHERE session_id = $1 AND limit_date = $2`,
-      [sessionId, currentDate]
+      [sessionId, currentDate],
     );
 
     return result.rows.length > 0 ? result.rows[0].messages_sent : 0;

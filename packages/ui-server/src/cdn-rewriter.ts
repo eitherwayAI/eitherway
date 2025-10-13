@@ -39,20 +39,11 @@ export interface RewriteOptions {
 /**
  * Rewrite external CDN URLs in content to use our proxy
  */
-export function rewriteCDNUrls(
-  content: string,
-  options: RewriteOptions = {}
-): string {
-  const {
-    proxyBaseUrl = '/api/proxy-cdn',
-    skipFonts = false,
-    serverOrigin
-  } = options;
+export function rewriteCDNUrls(content: string, options: RewriteOptions = {}): string {
+  const { proxyBaseUrl = '/api/proxy-cdn', skipFonts = false, serverOrigin } = options;
 
   // If serverOrigin is provided, make URLs absolute
-  const proxyUrl = serverOrigin
-    ? `${serverOrigin}${proxyBaseUrl}`
-    : proxyBaseUrl;
+  const proxyUrl = serverOrigin ? `${serverOrigin}${proxyBaseUrl}` : proxyBaseUrl;
 
   let rewritten = content;
 
@@ -154,15 +145,11 @@ function generateInlineShim(_serverOrigin: string): string {
  *
  * 3. Normalizes YouTube embeds to use nocookie embed URLs
  */
-export function maybeRewriteFile(
-  filename: string,
-  content: string,
-  options: RewriteOptions = {}
-): string {
+export function maybeRewriteFile(filename: string, content: string, options: RewriteOptions = {}): string {
   const {
     serverOrigin,
     injectShim = false, // Default false for WebContainer safety
-    rewriteStaticUrls = true
+    rewriteStaticUrls = true,
   } = options;
 
   // Skip rewriting entirely only if explicitly disabled
@@ -178,7 +165,7 @@ export function maybeRewriteFile(
   if (rewriteStaticUrls && shouldRewriteFile(filename)) {
     processedContent = rewriteCDNUrls(processedContent, {
       serverOrigin, // undefined = relative URLs
-      skipFonts: options.skipFonts
+      skipFonts: options.skipFonts,
     });
   }
 
@@ -188,7 +175,8 @@ export function maybeRewriteFile(
     processedContent = processedContent.replace(
       /<iframe([^>]*?)src=["']https?:\/\/(www\.)?youtube\.com\/watch\?v=([A-Za-z0-9_-]{11})[^"']*["']([^>]*)><\/iframe>/gi,
       (_match, pre, _www, videoId, post) => {
-        const mustAllow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+        const mustAllow =
+          'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
         let attrs = `${pre}src="https://www.youtube-nocookie.com/embed/${videoId}"`;
 
         if (!/allow=/i.test(pre + post)) {
@@ -200,11 +188,11 @@ export function maybeRewriteFile(
         }
 
         return `<iframe${attrs}${post}></iframe>`;
-      }
+      },
     );
 
     // Inject runtime shim for dynamic requests (only if explicitly enabled)
-    if (injectShim) {
+    if (injectShim && serverOrigin) {
       const shimTag = generateInlineShim(serverOrigin);
 
       if (processedContent.includes('</head>')) {

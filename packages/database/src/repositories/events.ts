@@ -11,64 +11,46 @@ export class EventsRepository {
       sessionId?: string;
       appId?: string;
       actor?: string;
-    } = {}
+    } = {},
   ): Promise<Event> {
     const result = await this.db.query<Event>(
       `INSERT INTO core.events (session_id, app_id, actor, kind, payload)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [
-        options.sessionId ?? null,
-        options.appId ?? null,
-        options.actor ?? null,
-        kind,
-        JSON.stringify(payload)
-      ]
+      [options.sessionId ?? null, options.appId ?? null, options.actor ?? null, kind, JSON.stringify(payload)],
     );
     return result.rows[0];
   }
 
-  async findBySession(
-    sessionId: string,
-    limit = 100,
-    offset = 0
-  ): Promise<Event[]> {
+  async findBySession(sessionId: string, limit = 100, offset = 0): Promise<Event[]> {
     const result = await this.db.query<Event>(
       `SELECT * FROM core.events
        WHERE session_id = $1
        ORDER BY id DESC
        LIMIT $2 OFFSET $3`,
-      [sessionId, limit, offset]
+      [sessionId, limit, offset],
     );
     return result.rows;
   }
 
-  async findByApp(
-    appId: string,
-    limit = 100,
-    offset = 0
-  ): Promise<Event[]> {
+  async findByApp(appId: string, limit = 100, offset = 0): Promise<Event[]> {
     const result = await this.db.query<Event>(
       `SELECT * FROM core.events
        WHERE app_id = $1
        ORDER BY id DESC
        LIMIT $2 OFFSET $3`,
-      [appId, limit, offset]
+      [appId, limit, offset],
     );
     return result.rows;
   }
 
-  async findByKind(
-    kind: string,
-    limit = 100,
-    offset = 0
-  ): Promise<Event[]> {
+  async findByKind(kind: string, limit = 100, offset = 0): Promise<Event[]> {
     const result = await this.db.query<Event>(
       `SELECT * FROM core.events
        WHERE kind = $1
        ORDER BY created_at DESC
        LIMIT $2 OFFSET $3`,
-      [kind, limit, offset]
+      [kind, limit, offset],
     );
     return result.rows;
   }
@@ -78,7 +60,7 @@ export class EventsRepository {
       `SELECT * FROM core.events
        ORDER BY id DESC
        LIMIT $1`,
-      [limit]
+      [limit],
     );
     return result.rows;
   }
@@ -95,7 +77,7 @@ export class EventsRepository {
          RETURNING id
        )
        SELECT COUNT(*) as count FROM deleted`,
-      [daysAgo]
+      [daysAgo],
     );
     return parseInt(result.rows[0].count, 10);
   }

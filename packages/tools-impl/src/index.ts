@@ -25,6 +25,6 @@ export function getAllExecutors(): ToolExecutor[] {
     new EitherSearchFilesExecutor(),
     new EitherWriteExecutor(),
     new EitherLineReplaceExecutor(),
-    new ImageGenExecutor()
+    new ImageGenExecutor(),
   ];
 }

@@ -55,7 +55,6 @@ export const EditorPanel = memo(
     onFileSave,
     onFileReset,
   }: EditorPanelProps) => {
-
     const theme = useStore(themeStore);
     const showTerminal = useStore(workbenchStore.showTerminal);
 
@@ -209,7 +208,7 @@ export const EditorPanel = memo(
                           'bg-gray-200 text-eitherway-elements-textPrimary': isActive,
                           'bg-eitherway-elements-background-depth-2 text-eitherway-elements-textSecondary hover:bg-eitherway-elements-terminals-buttonBackground':
                             !isActive,
-                      },
+                        },
                       )}
                       onClick={() => setActiveTerminal(index)}
                     >

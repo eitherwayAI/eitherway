@@ -17,10 +17,12 @@ export interface ChatHistoryItem {
 const persistenceEnabled = !import.meta.env.VITE_DISABLE_PERSISTENCE;
 
 let dbInstance: IDBDatabase | undefined;
-const dbPromise = persistenceEnabled ? openDatabase().then(db => {
-  dbInstance = db;
-  return db;
-}) : Promise.resolve(undefined);
+const dbPromise = persistenceEnabled
+  ? openDatabase().then((db) => {
+      dbInstance = db;
+      return db;
+    })
+  : Promise.resolve(undefined);
 
 // Export for backward compatibility - will be undefined until promise resolves
 export const db = dbInstance;
@@ -49,13 +51,13 @@ export function useChatHistory() {
           // More helpful error message with actionable steps
           toast.info(
             'Chat history disabled. To enable:\n' +
-            '• Exit private/incognito mode\n' +
-            '• Allow site storage in browser settings\n' +
-            '• Clear browser data if storage is full',
+              '• Exit private/incognito mode\n' +
+              '• Allow site storage in browser settings\n' +
+              '• Clear browser data if storage is full',
             {
               autoClose: 8000,
               closeOnClick: true,
-            }
+            },
           );
         }
 

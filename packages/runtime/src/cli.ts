@@ -67,7 +67,7 @@ Configuration:
       agentConfig,
       executors: getAllExecutors(),
       dryRun,
-      webSearch: agentConfig.tools.webSearch
+      webSearch: agentConfig.tools.webSearch,
     });
 
     console.log('\n=== EitherWay Agent ===');
@@ -86,7 +86,6 @@ Configuration:
     console.log('Final Response:');
     console.log(response);
     console.log('======================\n');
-
   } catch (error: any) {
     console.error('\n❌ Error:', error.message);
     if (error.stack) {

@@ -31,11 +31,7 @@ export class DiffBuilder {
     this.filesRepo = new FilesRepository(db);
   }
 
-  async buildDiff(
-    _appId: string,
-    fileId: string,
-    newContent: string
-  ): Promise<FileDiff> {
+  async buildDiff(_appId: string, fileId: string, newContent: string): Promise<FileDiff> {
     const file = await this.filesRepo.findById(fileId);
     if (!file) {
       throw new Error(`File ${fileId} not found`);
@@ -44,18 +40,11 @@ export class DiffBuilder {
     const currentVersion = await this.filesRepo.getHeadVersion(fileId);
     const oldContent = currentVersion?.content_text || '';
 
-    const patch = createTwoFilesPatch(
-      file.path,
-      file.path,
-      oldContent,
-      newContent,
-      'current',
-      'proposed'
-    );
+    const patch = createTwoFilesPatch(file.path, file.path, oldContent, newContent, 'current', 'proposed');
 
     const lines = patch.split('\n');
-    const linesAdded = lines.filter(l => l.startsWith('+')).length;
-    const linesRemoved = lines.filter(l => l.startsWith('-')).length;
+    const linesAdded = lines.filter((l) => l.startsWith('+')).length;
+    const linesRemoved = lines.filter((l) => l.startsWith('-')).length;
 
     return {
       path: file.path,
@@ -63,13 +52,13 @@ export class DiffBuilder {
       newContent,
       patch,
       linesAdded,
-      linesRemoved
+      linesRemoved,
     };
   }
 
   async buildMultiFileDiff(
     appId: string,
-    changes: Array<{ fileId: string; newContent: string }>
+    changes: Array<{ fileId: string; newContent: string }>,
   ): Promise<DiffContext> {
     const changedFiles: FileDiff[] = [];
 
@@ -80,7 +69,7 @@ export class DiffBuilder {
 
     const impactedFileIds = await this.getImpactedFiles(
       appId,
-      changes.map(c => c.fileId)
+      changes.map((c) => c.fileId),
     );
 
     const impactedFiles = await Promise.all(
@@ -88,21 +77,21 @@ export class DiffBuilder {
         const file = await this.filesRepo.findById(id);
         return {
           path: file?.path || 'unknown',
-          reason: 'Referenced by changed file'
+          reason: 'Referenced by changed file',
         };
-      })
+      }),
     );
 
     const totalChanges = {
       filesChanged: changedFiles.length,
       linesAdded: changedFiles.reduce((sum, f) => sum + f.linesAdded, 0),
-      linesRemoved: changedFiles.reduce((sum, f) => sum + f.linesRemoved, 0)
+      linesRemoved: changedFiles.reduce((sum, f) => sum + f.linesRemoved, 0),
     };
 
     return {
       changedFiles,
       impactedFiles,
-      totalChanges
+      totalChanges,
     };
   }
 
@@ -138,7 +127,7 @@ export class DiffBuilder {
 
     if (diffContext.impactedFiles.length > 0) {
       sections.push('## Potentially Impacted Files\n');
-      diffContext.impactedFiles.slice(0, 10).forEach(f => {
+      diffContext.impactedFiles.slice(0, 10).forEach((f) => {
         sections.push(`- ${f.path} (${f.reason})`);
       });
 
@@ -167,9 +156,9 @@ export class DiffBuilder {
         WHERE (SELECT COUNT(*) FROM impact) < 100
       )
       SELECT DISTINCT dest_file_id FROM impact`,
-      [appId, sourceFileIds]
+      [appId, sourceFileIds],
     );
 
-    return result.rows.map(r => r.dest_file_id);
+    return result.rows.map((r) => r.dest_file_id);
   }
 }

@@ -107,9 +107,7 @@ export function PlanProgress({ planId, sessionId, onComplete, autoClose = false 
       <div className="plan-progress p-4 bg-black/50 border border-eitherway-elements-borderColor rounded-lg">
         <div className="flex items-center gap-2">
           <div className="i-ph:spinner animate-spin text-blue-400" />
-          <span className="text-sm text-eitherway-elements-textSecondary">
-            Loading plan execution status...
-          </span>
+          <span className="text-sm text-eitherway-elements-textSecondary">Loading plan execution status...</span>
         </div>
       </div>
     );
@@ -134,16 +132,17 @@ export function PlanProgress({ planId, sessionId, onComplete, autoClose = false 
   }
 
   const { execution, operations } = executionResult;
-  const progressPercent = execution.totalOps > 0
-    ? Math.round(((execution.succeededOps + execution.failedOps) / execution.totalOps) * 100)
-    : 0;
+  const progressPercent =
+    execution.totalOps > 0
+      ? Math.round(((execution.succeededOps + execution.failedOps) / execution.totalOps) * 100)
+      : 0;
 
   const statusColors = {
     pending: 'text-gray-400',
     running: 'text-blue-400',
     completed: 'text-green-400',
     failed: 'text-red-400',
-    partial: 'text-yellow-400'
+    partial: 'text-yellow-400',
   };
 
   const statusIcons = {
@@ -151,7 +150,7 @@ export function PlanProgress({ planId, sessionId, onComplete, autoClose = false 
     running: 'i-ph:spinner animate-spin',
     completed: 'i-ph:check-circle',
     failed: 'i-ph:x-circle',
-    partial: 'i-ph:warning-circle'
+    partial: 'i-ph:warning-circle',
   };
 
   return (
@@ -167,9 +166,7 @@ export function PlanProgress({ planId, sessionId, onComplete, autoClose = false 
 
         {execution.durationMs !== undefined && (
           <span className="text-xs text-eitherway-elements-textTertiary">
-            {execution.durationMs < 1000
-              ? `${execution.durationMs}ms`
-              : `${(execution.durationMs / 1000).toFixed(1)}s`}
+            {execution.durationMs < 1000 ? `${execution.durationMs}ms` : `${(execution.durationMs / 1000).toFixed(1)}s`}
           </span>
         )}
       </div>
@@ -180,10 +177,13 @@ export function PlanProgress({ planId, sessionId, onComplete, autoClose = false 
           <div
             className={classNames(
               'h-full transition-all duration-300',
-              execution.status === 'completed' ? 'bg-green-500' :
-                execution.status === 'failed' ? 'bg-red-500' :
-                  execution.status === 'partial' ? 'bg-yellow-500' :
-                    'bg-blue-500'
+              execution.status === 'completed'
+                ? 'bg-green-500'
+                : execution.status === 'failed'
+                  ? 'bg-red-500'
+                  : execution.status === 'partial'
+                    ? 'bg-yellow-500'
+                    : 'bg-blue-500',
             )}
             style={{ width: `${progressPercent}%` }}
           />
@@ -201,26 +201,20 @@ export function PlanProgress({ planId, sessionId, onComplete, autoClose = false 
       <div className="flex gap-4 text-xs">
         <div className="flex items-center gap-1">
           <div className="i-ph:check-circle text-green-400" />
-          <span className="text-eitherway-elements-textSecondary">
-            {execution.succeededOps} succeeded
-          </span>
+          <span className="text-eitherway-elements-textSecondary">{execution.succeededOps} succeeded</span>
         </div>
 
         {execution.failedOps > 0 && (
           <div className="flex items-center gap-1">
             <div className="i-ph:x-circle text-red-400" />
-            <span className="text-eitherway-elements-textSecondary">
-              {execution.failedOps} failed
-            </span>
+            <span className="text-eitherway-elements-textSecondary">{execution.failedOps} failed</span>
           </div>
         )}
 
         {execution.skippedOps > 0 && (
           <div className="flex items-center gap-1">
             <div className="i-ph:arrow-circle-right text-gray-400" />
-            <span className="text-eitherway-elements-textSecondary">
-              {execution.skippedOps} skipped
-            </span>
+            <span className="text-eitherway-elements-textSecondary">{execution.skippedOps} skipped</span>
           </div>
         )}
       </div>
@@ -232,18 +226,20 @@ export function PlanProgress({ planId, sessionId, onComplete, autoClose = false 
             key={op.index}
             className={classNames(
               'flex items-center justify-between px-3 py-2 rounded border text-xs',
-              op.status === 'success' ? 'bg-green-500/10 border-green-500/30' :
-                op.status === 'failed' ? 'bg-red-500/10 border-red-500/30' :
-                  op.status === 'running' ? 'bg-blue-500/10 border-blue-500/30' :
-                    op.status === 'skipped' ? 'bg-gray-500/10 border-gray-500/30' :
-                      'bg-gray-500/5 border-gray-500/20'
+              op.status === 'success'
+                ? 'bg-green-500/10 border-green-500/30'
+                : op.status === 'failed'
+                  ? 'bg-red-500/10 border-red-500/30'
+                  : op.status === 'running'
+                    ? 'bg-blue-500/10 border-blue-500/30'
+                    : op.status === 'skipped'
+                      ? 'bg-gray-500/10 border-gray-500/30'
+                      : 'bg-gray-500/5 border-gray-500/20',
             )}
           >
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <span className="text-eitherway-elements-textTertiary">#{op.index}</span>
-              <span className="font-mono text-eitherway-elements-textPrimary truncate">
-                {op.type}
-              </span>
+              <span className="font-mono text-eitherway-elements-textPrimary truncate">{op.type}</span>
 
               {/* Operation Status Icon */}
               {op.status === 'success' && <div className="i-ph:check text-green-400" />}
@@ -254,23 +250,24 @@ export function PlanProgress({ planId, sessionId, onComplete, autoClose = false 
 
             {/* Duration */}
             {op.durationMs !== undefined && (
-              <span className="text-eitherway-elements-textTertiary ml-2">
-                {op.durationMs}ms
-              </span>
+              <span className="text-eitherway-elements-textTertiary ml-2">{op.durationMs}ms</span>
             )}
           </div>
         ))}
       </div>
 
       {/* Error Details (if any operation failed) */}
-      {operations.some(op => op.error) && (
+      {operations.some((op) => op.error) && (
         <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded text-xs">
           <div className="font-medium text-red-400 mb-1">Error Details:</div>
           {operations
-            .filter(op => op.error)
-            .map(op => (
+            .filter((op) => op.error)
+            .map((op) => (
               <div key={op.index} className="text-red-300/80 mt-1">
-                <span className="font-mono">Op {op.index} ({op.type}):</span> {op.error}
+                <span className="font-mono">
+                  Op {op.index} ({op.type}):
+                </span>{' '}
+                {op.error}
               </div>
             ))}
         </div>

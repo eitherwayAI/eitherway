@@ -20,7 +20,6 @@ export function ContentBlock1() {
           </div>
         </div>
 
-        
         <div className="flex items-center justify-between gap-6 max-[768px]:flex-col max-[768px]:gap-8 box-border py-24 px-12 w-full h-[336px] max-[768px]:h-auto max-[768px]:py-12 bg-white/5 border border-white/15 rounded-2xl mx-auto">
           <div className="flex justify-center w-80 h-80 flex-shrink-0 max-[768px]:order-1 max-[768px]:w-64 max-[768px]:h-64">
             <img src="/icons/block1/noCodeJustAi.svg" alt="No Code, Just AI" className="w-full h-full" />

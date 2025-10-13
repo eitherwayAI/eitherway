@@ -53,7 +53,6 @@ const workbenchVariants = {
 } satisfies Variants;
 
 export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => {
-
   const hasPreview = useStore(computed(workbenchStore.previews, (previews) => previews.length > 0));
   const showWorkbench = useStore(workbenchStore.showWorkbench);
   const { showChat } = useStore(chatStore);
@@ -95,12 +94,13 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
 
     console.log('[Workbench] Saving file:', currentDoc?.filePath);
 
-    workbenchStore.saveCurrentDocument()
+    workbenchStore
+      .saveCurrentDocument()
       .then(() => {
         console.log('[Workbench] ✅ File saved successfully');
         toast.success(`Saved ${fileName}`, {
           position: 'bottom-right',
-          autoClose: 2000
+          autoClose: 2000,
         });
       })
       .catch((error) => {
@@ -109,7 +109,7 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
         if (!error.message.includes('Backend sync failed')) {
           toast.error(`Failed to save ${fileName}: ${error.message}`, {
             position: 'bottom-right',
-            autoClose: 5000
+            autoClose: 5000,
           });
         }
       });

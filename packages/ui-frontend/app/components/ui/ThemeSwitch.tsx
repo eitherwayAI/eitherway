@@ -18,12 +18,12 @@ export const ThemeSwitch = memo(({ className }: ThemeSwitchProps) => {
   return (
     domLoaded && (
       <IconButton
-  className={`${className} [&>*]:!text-4xl [&>*]:!w-8 [&>*]:!h-8`}
-  icon="i-ph-bug-duotone"
-  size="xl"
-  title="Report a Problem"
-  onClick={() => window.open('https://t.me/Eitherway_support', '_blank')}
-/>
+        className={`${className} [&>*]:!text-4xl [&>*]:!w-8 [&>*]:!h-8`}
+        icon="i-ph-bug-duotone"
+        size="xl"
+        title="Report a Problem"
+        onClick={() => window.open('https://t.me/Eitherway_support', '_blank')}
+      />
     )
   );
 });

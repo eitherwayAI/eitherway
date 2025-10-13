@@ -148,8 +148,18 @@ export interface DocEmbedding {
   updated_at: Date;
 }
 
-export type SymbolKind = 'function' | 'class' | 'interface' | 'type' | 'const' | 'variable' |
-                         'component' | 'hook' | 'endpoint' | 'model' | 'other';
+export type SymbolKind =
+  | 'function'
+  | 'class'
+  | 'interface'
+  | 'type'
+  | 'const'
+  | 'variable'
+  | 'component'
+  | 'hook'
+  | 'endpoint'
+  | 'model'
+  | 'other';
 
 export interface SymbolIndex {
   id: string;

@@ -25,19 +25,15 @@ async function ensureMigrationsTable(db: DatabaseClient): Promise<void> {
 }
 
 async function getAppliedMigrations(db: DatabaseClient): Promise<Set<string>> {
-  const result = await db.query<{ name: string }>(
-    'SELECT name FROM migrations ORDER BY id'
-  );
-  return new Set(result.rows.map(r => r.name));
+  const result = await db.query<{ name: string }>('SELECT name FROM migrations ORDER BY id');
+  return new Set(result.rows.map((r) => r.name));
 }
 
 async function loadMigrations(): Promise<Migration[]> {
   const migrationsDir = __dirname;
   const files = await readdir(migrationsDir);
 
-  const sqlFiles = files
-    .filter(f => f.endsWith('.sql'))
-    .sort();
+  const sqlFiles = files.filter((f) => f.endsWith('.sql')).sort();
 
   const migrations: Migration[] = [];
 
@@ -62,10 +58,7 @@ async function applyMigration(db: DatabaseClient, migration: Migration): Promise
   await db.transaction(async (client) => {
     await client.query(migration.sql);
 
-    await client.query(
-      'INSERT INTO migrations (name) VALUES ($1)',
-      [migration.name]
-    );
+    await client.query('INSERT INTO migrations (name) VALUES ($1)', [migration.name]);
   });
 
   console.log(`✓ Migration ${migration.id} applied successfully`);
@@ -87,7 +80,7 @@ async function runMigrations(): Promise<void> {
     const applied = await getAppliedMigrations(db);
     const migrations = await loadMigrations();
 
-    const pending = migrations.filter(m => !applied.has(m.name));
+    const pending = migrations.filter((m) => !applied.has(m.name));
 
     if (pending.length === 0) {
       console.log('No pending migrations');
@@ -101,7 +94,6 @@ async function runMigrations(): Promise<void> {
     }
 
     console.log(`\n✓ All migrations completed successfully`);
-
   } catch (error: any) {
     console.error('\n✗ Migration failed:', error.message);
     if (error.stack) {

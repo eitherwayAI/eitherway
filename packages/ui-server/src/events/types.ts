@@ -20,10 +20,12 @@ const StreamStartEventSchema = BaseEventSchema.extend({
 const StreamEndEventSchema = BaseEventSchema.extend({
   kind: z.literal('stream_end'),
   messageId: z.string(),
-  usage: z.object({
-    inputTokens: z.number(),
-    outputTokens: z.number(),
-  }).optional(),
+  usage: z
+    .object({
+      inputTokens: z.number(),
+      outputTokens: z.number(),
+    })
+    .optional(),
 });
 
 // Content delta event
@@ -142,7 +144,9 @@ export function validateStreamEvent(data: unknown): StreamEvent {
 /**
  * Safe validation that returns a result
  */
-export function safeValidateStreamEvent(data: unknown): { success: true; data: StreamEvent } | { success: false; error: z.ZodError } {
+export function safeValidateStreamEvent(
+  data: unknown,
+): { success: true; data: StreamEvent } | { success: false; error: z.ZodError } {
   const result = StreamEventSchema.safeParse(data);
   if (result.success) {
     return { success: true, data: result.data };
@@ -183,7 +187,13 @@ export const StreamEvents = {
     };
   },
 
-  toolStart(toolName: string, toolUseId?: string, messageId?: string, filePath?: string, requestId?: string): ToolEvent {
+  toolStart(
+    toolName: string,
+    toolUseId?: string,
+    messageId?: string,
+    filePath?: string,
+    requestId?: string,
+  ): ToolEvent {
     return {
       kind: 'tool',
       event: 'start',
@@ -209,7 +219,11 @@ export const StreamEvents = {
     };
   },
 
-  streamEnd(messageId: string, usage?: { inputTokens: number; outputTokens: number }, requestId?: string): StreamEndEvent {
+  streamEnd(
+    messageId: string,
+    usage?: { inputTokens: number; outputTokens: number },
+    requestId?: string,
+  ): StreamEndEvent {
     return {
       kind: 'stream_end',
       messageId,
@@ -279,7 +293,12 @@ export const StreamEvents = {
     };
   },
 
-  fileOperation(messageId: string, operation: 'creating' | 'editing' | 'created' | 'edited', filePath: string, requestId?: string): FileOperationEvent {
+  fileOperation(
+    messageId: string,
+    operation: 'creating' | 'editing' | 'created' | 'edited',
+    filePath: string,
+    requestId?: string,
+  ): FileOperationEvent {
     return {
       kind: 'file_operation',
       messageId,

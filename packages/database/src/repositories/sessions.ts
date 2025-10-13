@@ -9,16 +9,13 @@ export class SessionsRepository {
       `INSERT INTO core.sessions (user_id, title, app_id)
        VALUES ($1, $2, $3)
        RETURNING *`,
-      [userId, title, appId ?? null]
+      [userId, title, appId ?? null],
     );
     return result.rows[0];
   }
 
   async findById(id: string): Promise<Session | null> {
-    const result = await this.db.query<Session>(
-      `SELECT * FROM core.sessions WHERE id = $1`,
-      [id]
-    );
+    const result = await this.db.query<Session>(`SELECT * FROM core.sessions WHERE id = $1`, [id]);
     return result.rows[0] ?? null;
   }
 
@@ -28,7 +25,7 @@ export class SessionsRepository {
        WHERE user_id = $1
        ORDER BY updated_at DESC
        LIMIT $2 OFFSET $3`,
-      [userId, limit, offset]
+      [userId, limit, offset],
     );
     return result.rows;
   }
@@ -39,16 +36,19 @@ export class SessionsRepository {
        WHERE app_id = $1
        ORDER BY updated_at DESC
        LIMIT $2 OFFSET $3`,
-      [appId, limit, offset]
+      [appId, limit, offset],
     );
     return result.rows;
   }
 
-  async update(id: string, data: {
-    title?: string;
-    status?: 'active' | 'archived';
-    last_message_at?: Date;
-  }): Promise<Session> {
+  async update(
+    id: string,
+    data: {
+      title?: string;
+      status?: 'active' | 'archived';
+      last_message_at?: Date;
+    },
+  ): Promise<Session> {
     const result = await this.db.query<Session>(
       `UPDATE core.sessions
        SET title = COALESCE($2, title),
@@ -56,7 +56,7 @@ export class SessionsRepository {
            last_message_at = COALESCE($4, last_message_at)
        WHERE id = $1
        RETURNING *`,
-      [id, data.title ?? null, data.status ?? null, data.last_message_at ?? null]
+      [id, data.title ?? null, data.status ?? null, data.last_message_at ?? null],
     );
     return result.rows[0];
   }
@@ -70,9 +70,6 @@ export class SessionsRepository {
   }
 
   async touchLastMessage(id: string): Promise<void> {
-    await this.db.query(
-      `UPDATE core.sessions SET last_message_at = now() WHERE id = $1`,
-      [id]
-    );
+    await this.db.query(`UPDATE core.sessions SET last_message_at = now() WHERE id = $1`, [id]);
   }
 }

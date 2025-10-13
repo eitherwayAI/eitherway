@@ -48,9 +48,7 @@ export const PhaseIndicator = memo(({ phase, thinkingDuration }: PhaseIndicatorP
       <div className={`${config.icon} ${config.color} text-lg ${phase !== 'completed' ? 'animate-pulse' : ''}`} />
       <span className="text-white/90 font-medium">{config.label}</span>
       {phase === 'completed' && thinkingDuration !== null && thinkingDuration !== undefined && (
-        <span className="text-white/50 text-xs ml-1">
-          ({thinkingDuration.toFixed(1)}s)
-        </span>
+        <span className="text-white/50 text-xs ml-1">({thinkingDuration.toFixed(1)}s)</span>
       )}
     </div>
   );

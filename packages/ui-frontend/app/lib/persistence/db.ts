@@ -79,7 +79,6 @@ export async function openDatabase(): Promise<IDBDatabase | undefined> {
         logger.warn('IndexedDB blocked - close other tabs or restart browser');
         resolve(undefined);
       };
-
     } catch (error) {
       logger.error('Exception opening database:', error);
       resolve(undefined);

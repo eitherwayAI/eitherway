@@ -137,9 +137,7 @@ export class ActionRunner {
       }
 
       operationType = fileExists ? 'modify' : 'create';
-      actionDescription = fileExists
-        ? `Modifying file: ${action.filePath}`
-        : `Creating file: ${action.filePath}`;
+      actionDescription = fileExists ? `Modifying file: ${action.filePath}` : `Creating file: ${action.filePath}`;
 
       this.#updateAction(key, { operationType });
     } else {
@@ -278,15 +276,7 @@ export class ActionRunner {
 
   shouldUseModify(filePath: string): boolean {
     // Critical files that should always be modified, not recreated
-    const criticalFiles = [
-      'index.html',
-      'main.js',
-      'main.ts',
-      'app.js',
-      'app.ts',
-      'styles.css',
-      'base.css'
-    ];
+    const criticalFiles = ['index.html', 'main.js', 'main.ts', 'app.js', 'app.ts', 'styles.css', 'base.css'];
 
     const filename = filePath.split('/').pop() || '';
     return criticalFiles.includes(filename);
@@ -609,7 +599,6 @@ export class ActionRunner {
   }
 
   #injectDarkMode(htmlContent: string): string {
-
     const darkModeScript = `
 <script>
 // Dark Mode Implementation

@@ -14,23 +14,23 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
       properties: {
         path: {
           type: 'string',
-          description: 'Relative path to a file.'
+          description: 'Relative path to a file.',
         },
         max_bytes: {
           type: 'integer',
           minimum: 1,
           maximum: 1048576,
-          description: 'Maximum bytes to read (default: 1MB)'
+          description: 'Maximum bytes to read (default: 1MB)',
         },
         encoding: {
           type: 'string',
           description: 'File encoding (default: utf-8)',
-          default: 'utf-8'
-        }
+          default: 'utf-8',
+        },
       },
       required: ['path'],
-      additionalProperties: false
-    }
+      additionalProperties: false,
+    },
   },
 
   'either-search-files': {
@@ -41,35 +41,35 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
       properties: {
         query: {
           type: 'string',
-          description: 'Search pattern or text to find'
+          description: 'Search pattern or text to find',
         },
         glob: {
           type: 'string',
           description: 'File pattern to search in',
-          default: 'src/**/*'
+          default: 'src/**/*',
         },
         max_results: {
           type: 'integer',
           minimum: 1,
           maximum: 1000,
           description: 'Maximum number of results to return',
-          default: 100
+          default: 100,
         },
         regex: {
           type: 'boolean',
           description: 'Treat query as a regex pattern (default: false)',
-          default: false
+          default: false,
         },
         context_lines: {
           type: 'integer',
           minimum: 0,
           description: 'Number of context lines to show before/after matches',
-          default: 0
-        }
+          default: 0,
+        },
       },
       required: ['query'],
-      additionalProperties: false
-    }
+      additionalProperties: false,
+    },
   },
 
   'either-write': {
@@ -80,26 +80,26 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
       properties: {
         path: {
           type: 'string',
-          description: 'Relative path for the new file'
+          description: 'Relative path for the new file',
         },
         content: {
           type: 'string',
-          description: 'Content to write to the file'
+          description: 'Content to write to the file',
         },
         overwrite: {
           type: 'boolean',
           description: 'Allow overwriting existing file',
-          default: false
+          default: false,
         },
         create_dirs: {
           type: 'boolean',
           description: 'Create parent directories if needed',
-          default: true
-        }
+          default: true,
+        },
       },
       required: ['path', 'content'],
-      additionalProperties: false
-    }
+      additionalProperties: false,
+    },
   },
 
   'either-line-replace': {
@@ -110,7 +110,7 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
       properties: {
         path: {
           type: 'string',
-          description: 'Path to the file to edit'
+          description: 'Path to the file to edit',
         },
         locator: {
           type: 'object',
@@ -119,67 +119,70 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
             start_line: {
               type: 'integer',
               minimum: 1,
-              description: 'Starting line number (1-indexed)'
+              description: 'Starting line number (1-indexed)',
             },
             end_line: {
               type: 'integer',
               minimum: 1,
-              description: 'Ending line number (inclusive)'
+              description: 'Ending line number (inclusive)',
             },
             needle: {
               type: 'string',
-              description: 'Optional exact text to verify you are editing the intended block'
-            }
+              description: 'Optional exact text to verify you are editing the intended block',
+            },
           },
           required: ['start_line', 'end_line'],
-          additionalProperties: false
+          additionalProperties: false,
         },
         replacement: {
           type: 'string',
-          description: 'New content to replace the specified lines'
+          description: 'New content to replace the specified lines',
         },
         verify_after: {
           type: 'boolean',
           description: 'Verify the edit was applied correctly',
-          default: true
-        }
+          default: true,
+        },
       },
       required: ['path', 'locator', 'replacement'],
-      additionalProperties: false
-    }
+      additionalProperties: false,
+    },
   },
 
   'eithergen--generate_image': {
     name: 'eithergen--generate_image',
-    description: 'Generate high-quality images using DALL-E 3 and save to database-backed VFS. This tool WAITS for generation to complete and validates the image before returning. The tool response includes the EXACT file path - you MUST use this exact path when referencing the image in HTML/code (e.g., if saved to "/public/hero.png", use src="/public/hero.png" not src="/hero.png"). Generation takes 10-30 seconds.',
+    description:
+      'Generate high-quality images using DALL-E 3 and save to database-backed VFS. This tool WAITS for generation to complete and validates the image before returning. The tool response includes the EXACT file path - you MUST use this exact path when referencing the image in HTML/code (e.g., if saved to "/public/hero.png", use src="/public/hero.png" not src="/hero.png"). Generation takes 10-30 seconds.',
     input_schema: {
       type: 'object',
       properties: {
         prompt: {
           type: 'string',
-          description: 'Detailed image generation prompt. Be specific about style, composition, colors, and content.'
+          description: 'Detailed image generation prompt. Be specific about style, composition, colors, and content.',
         },
         path: {
           type: 'string',
-          description: 'Path where the image should be saved (e.g., "/public/hero.png"). You MUST use this exact same path when referencing the image in HTML/code. Extension will be added automatically if missing.'
+          description:
+            'Path where the image should be saved (e.g., "/public/hero.png"). You MUST use this exact same path when referencing the image in HTML/code. Extension will be added automatically if missing.',
         },
         size: {
           type: 'string',
           pattern: '^[0-9]+x[0-9]+$',
-          description: 'Image size. Supports: "1024x1024" (square), "1792x1024" (landscape), "1024x1792" (portrait). Default: "1024x1024"',
-          default: '1024x1024'
+          description:
+            'Image size. Supports: "1024x1024" (square), "1792x1024" (landscape), "1024x1792" (portrait). Default: "1024x1024"',
+          default: '1024x1024',
         },
         quality: {
           type: 'string',
           enum: ['standard', 'hd'],
           description: 'Image quality. "hd" creates finer details and greater consistency. Default: "standard"',
-          default: 'standard'
-        }
+          default: 'standard',
+        },
       },
       required: ['prompt', 'path'],
-      additionalProperties: false
-    }
-  }
+      additionalProperties: false,
+    },
+  },
 };
 
 // Export individual schemas for direct access

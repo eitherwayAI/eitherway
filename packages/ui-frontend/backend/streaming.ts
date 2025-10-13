@@ -16,11 +16,7 @@ export interface StreamOptions {
  * Mimics the RequirementsExtractor.streamSuggestions pattern from robust backend
  */
 export async function* streamLoremChunks(options: StreamOptions = {}): AsyncGenerator<string, void, unknown> {
-  const {
-    chunkSize = 20,
-    delayMs = 300,
-    text = LOREM_TEXT
-  } = options;
+  const { chunkSize = 20, delayMs = 300, text = LOREM_TEXT } = options;
 
   // Split text into chunks
   for (let i = 0; i < text.length; i += chunkSize) {
@@ -29,7 +25,7 @@ export async function* streamLoremChunks(options: StreamOptions = {}): AsyncGene
 
     // Simulate processing delay
     if (i + chunkSize < text.length) {
-      await new Promise(resolve => setTimeout(resolve, delayMs));
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
 }
@@ -38,15 +34,18 @@ export async function* streamLoremChunks(options: StreamOptions = {}): AsyncGene
  * Agent simulation: Input → Output streaming
  * Replaces complex @openai/agents SDK with simple async generator
  */
-export async function* streamAgentResponse(prompt: string, options: StreamOptions = {}): AsyncGenerator<any, void, unknown> {
+export async function* streamAgentResponse(
+  prompt: string,
+  options: StreamOptions = {},
+): AsyncGenerator<any, void, unknown> {
   // Phase 1: Yield initial acknowledgment
   yield {
     type: 'start',
     prompt,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   };
 
-  await new Promise(resolve => setTimeout(resolve, 500));
+  await new Promise((resolve) => setTimeout(resolve, 500));
 
   // Phase 2: Stream response chunks
   const responseText = `[Agent processing: "${prompt}"]\n\n${options.text || LOREM_TEXT}`;
@@ -55,7 +54,7 @@ export async function* streamAgentResponse(prompt: string, options: StreamOption
     yield {
       type: 'chunk',
       data: chunk,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
@@ -63,7 +62,7 @@ export async function* streamAgentResponse(prompt: string, options: StreamOption
   yield {
     type: 'complete',
     prompt,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   };
 }
 

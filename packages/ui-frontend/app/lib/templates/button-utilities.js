@@ -13,11 +13,13 @@ if (typeof document !== 'undefined') {
   // Global click handler to close dropdowns when clicking outside
   document.addEventListener('click', (e) => {
     if (!e.target.closest('[data-selector-initialized], .dropdown-menu, .dropdown-content, .options, .menu')) {
-      document.querySelectorAll('.dropdown-menu, .dropdown-content, .options, .menu, ul[role="menu"]').forEach(dropdown => {
-        dropdown.style.display = 'none';
-        dropdown.classList.remove('show', 'open');
-        dropdown.hidden = true;
-      });
+      document
+        .querySelectorAll('.dropdown-menu, .dropdown-content, .options, .menu, ul[role="menu"]')
+        .forEach((dropdown) => {
+          dropdown.style.display = 'none';
+          dropdown.classList.remove('show', 'open');
+          dropdown.hidden = true;
+        });
     }
   });
 }
@@ -34,9 +36,11 @@ function initializeButtonUtilities() {
 // Dropdown positioning fix
 function fixDropdownPositioning() {
   // Fix all select elements and custom dropdowns including token selectors
-  const selects = document.querySelectorAll('select, .dropdown, .select-wrapper, [data-dropdown], .token-select, .token-selector, button[class*="token"], button[class*="select"]');
+  const selects = document.querySelectorAll(
+    'select, .dropdown, .select-wrapper, [data-dropdown], .token-select, .token-selector, button[class*="token"], button[class*="select"]',
+  );
 
-  selects.forEach(element => {
+  selects.forEach((element) => {
     const parent = element.parentElement;
 
     if (parent && getComputedStyle(parent).position === 'static') {
@@ -44,7 +48,9 @@ function fixDropdownPositioning() {
     }
 
     // Fix custom dropdown menus
-    const dropdownMenu = element.querySelector('.dropdown-menu, .dropdown-content, .options, .select-options, .token-list, .token-options');
+    const dropdownMenu = element.querySelector(
+      '.dropdown-menu, .dropdown-content, .options, .select-options, .token-list, .token-options',
+    );
     if (dropdownMenu) {
       dropdownMenu.style.position = 'absolute';
       dropdownMenu.style.zIndex = '9999';
@@ -72,7 +78,7 @@ function fixDropdownPositioning() {
         const isOpen = menu.style.display === 'block';
 
         // Close all other dropdowns
-        document.querySelectorAll('.dropdown-menu, .dropdown-content, .options, .select-options').forEach(m => {
+        document.querySelectorAll('.dropdown-menu, .dropdown-content, .options, .select-options').forEach((m) => {
           if (m !== menu) m.style.display = 'none';
         });
 
@@ -94,7 +100,7 @@ function fixDropdownPositioning() {
       }
     } else {
       // Close all dropdowns when clicking outside
-      document.querySelectorAll('.dropdown-menu, .dropdown-content, .options, .select-options').forEach(m => {
+      document.querySelectorAll('.dropdown-menu, .dropdown-content, .options, .select-options').forEach((m) => {
         m.style.display = 'none';
       });
     }
@@ -106,15 +112,15 @@ function setupTokenSelectors() {
   // Find all potential token selector buttons
   const selectors = document.querySelectorAll(
     'button[class*="token"], button[class*="select"], ' +
-    '.token-button, .token-select, .token-selector, ' +
-    '.swap-token, .send-token, .currency-select, ' +
-    'div[role="button"][class*="token"], ' +
-    '[class*="select"][class*="token"], ' +
-    '.dropdown-trigger, [data-dropdown-trigger], ' +
-    'button'  // Check all buttons
+      '.token-button, .token-select, .token-selector, ' +
+      '.swap-token, .send-token, .currency-select, ' +
+      'div[role="button"][class*="token"], ' +
+      '[class*="select"][class*="token"], ' +
+      '.dropdown-trigger, [data-dropdown-trigger], ' +
+      'button', // Check all buttons
   );
 
-  selectors.forEach(button => {
+  selectors.forEach((button) => {
     // Skip if already initialized
     if (button.hasAttribute('data-selector-initialized')) return;
 
@@ -158,14 +164,16 @@ function findAssociatedDropdown(button) {
 
   // 2. Next sibling
   dropdown = button.nextElementSibling;
-  if (dropdown && (
-    dropdown.classList.contains('dropdown-menu') ||
-    dropdown.classList.contains('dropdown-content') ||
-    dropdown.classList.contains('options') ||
-    dropdown.classList.contains('menu') ||
-    dropdown.tagName === 'UL' ||
-    dropdown.getAttribute('role') === 'menu'
-  )) return dropdown;
+  if (
+    dropdown &&
+    (dropdown.classList.contains('dropdown-menu') ||
+      dropdown.classList.contains('dropdown-content') ||
+      dropdown.classList.contains('options') ||
+      dropdown.classList.contains('menu') ||
+      dropdown.tagName === 'UL' ||
+      dropdown.getAttribute('role') === 'menu')
+  )
+    return dropdown;
 
   // 3. Within parent container
   const parent = button.parentElement;
@@ -194,13 +202,14 @@ function findAssociatedDropdown(button) {
 
 // Toggle existing dropdown visibility
 function toggleExistingDropdown(button, dropdown) {
-  const isVisible = dropdown.style.display === 'block' ||
-                    dropdown.classList.contains('show') ||
-                    dropdown.classList.contains('open') ||
-                    !dropdown.hidden;
+  const isVisible =
+    dropdown.style.display === 'block' ||
+    dropdown.classList.contains('show') ||
+    dropdown.classList.contains('open') ||
+    !dropdown.hidden;
 
   // Close all other dropdowns first
-  document.querySelectorAll('.dropdown-menu, .dropdown-content, .options, .menu, ul[role="menu"]').forEach(d => {
+  document.querySelectorAll('.dropdown-menu, .dropdown-content, .options, .menu, ul[role="menu"]').forEach((d) => {
     if (d !== dropdown) {
       d.style.display = 'none';
       d.classList.remove('show', 'open');
@@ -258,7 +267,7 @@ function ensureDropdownPosition(button, dropdown) {
 function setupDropdownOptions(button, dropdown) {
   const options = dropdown.querySelectorAll('li, .option, .item, [role="option"], button, a');
 
-  options.forEach(option => {
+  options.forEach((option) => {
     // Skip if already has handler
     if (option.hasAttribute('data-option-initialized')) return;
     option.setAttribute('data-option-initialized', 'true');
@@ -301,7 +310,8 @@ function setupMutationObserver() {
     mutations.forEach((mutation) => {
       if (mutation.type === 'childList') {
         mutation.addedNodes.forEach((node) => {
-          if (node.nodeType === 1) { // Element node
+          if (node.nodeType === 1) {
+            // Element node
             // Re-run handlers for new elements
             setTimeout(() => {
               attachDefaultHandlers();
@@ -315,16 +325,18 @@ function setupMutationObserver() {
 
   observer.observe(document.body, {
     childList: true,
-    subtree: true
+    subtree: true,
   });
 }
 
 // Default button handlers - only for buttons with NO functionality
 function attachDefaultHandlers() {
   // Only handle buttons that have absolutely no functionality
-  const buttons = document.querySelectorAll('button:not([onclick]), a[href="#"], a[href=""], a:not([href]), [role="button"]');
+  const buttons = document.querySelectorAll(
+    'button:not([onclick]), a[href="#"], a[href=""], a:not([href]), [role="button"]',
+  );
 
-  buttons.forEach(element => {
+  buttons.forEach((element) => {
     // Skip theme toggle button - it has its own handler
     if (element.id === 'theme-toggle' || element.classList.contains('theme-toggle')) {
       return;
@@ -337,7 +349,8 @@ function attachDefaultHandlers() {
 
     // Check if element has ANY handler (inline, property, or event listeners)
     const hasOnclick = element.hasAttribute('onclick') || element.onclick;
-    const hasHref = element.hasAttribute('href') && element.getAttribute('href') !== '#' && element.getAttribute('href') !== '';
+    const hasHref =
+      element.hasAttribute('href') && element.getAttribute('href') !== '#' && element.getAttribute('href') !== '';
     const isFormElement = element.closest('form') && (element.type === 'submit' || element.type === 'button');
     const hasDataAction = element.hasAttribute('data-action') || element.hasAttribute('data-click');
 
@@ -364,40 +377,35 @@ function attachDefaultHandlers() {
         window.open('https://twitter.com', '_blank');
       };
       element.dataset.handlerAttached = 'true';
-    }
-    else if (text.includes('facebook') || className.includes('facebook') || href.includes('facebook')) {
+    } else if (text.includes('facebook') || className.includes('facebook') || href.includes('facebook')) {
       element.onclick = (e) => {
         e.preventDefault();
         showToast('Opening Facebook...', 'info');
         window.open('https://facebook.com', '_blank');
       };
       element.dataset.handlerAttached = 'true';
-    }
-    else if (text.includes('linkedin') || className.includes('linkedin') || href.includes('linkedin')) {
+    } else if (text.includes('linkedin') || className.includes('linkedin') || href.includes('linkedin')) {
       element.onclick = (e) => {
         e.preventDefault();
         showToast('Opening LinkedIn...', 'info');
         window.open('https://linkedin.com', '_blank');
       };
       element.dataset.handlerAttached = 'true';
-    }
-    else if (text.includes('instagram') || className.includes('instagram') || href.includes('instagram')) {
+    } else if (text.includes('instagram') || className.includes('instagram') || href.includes('instagram')) {
       element.onclick = (e) => {
         e.preventDefault();
         showToast('Opening Instagram...', 'info');
         window.open('https://instagram.com', '_blank');
       };
       element.dataset.handlerAttached = 'true';
-    }
-    else if (text.includes('github') || className.includes('github') || href.includes('github')) {
+    } else if (text.includes('github') || className.includes('github') || href.includes('github')) {
       element.onclick = (e) => {
         e.preventDefault();
         showToast('Opening GitHub...', 'info');
         window.open('https://github.com', '_blank');
       };
       element.dataset.handlerAttached = 'true';
-    }
-    else if (text.includes('youtube') || className.includes('youtube') || href.includes('youtube')) {
+    } else if (text.includes('youtube') || className.includes('youtube') || href.includes('youtube')) {
       element.onclick = (e) => {
         e.preventDefault();
         showToast('Opening YouTube...', 'info');
@@ -411,20 +419,20 @@ function attachDefaultHandlers() {
         e.preventDefault();
         showModal({
           title: 'Privacy Policy',
-          content: '<p>Your privacy is important to us. This application does not collect any personal data.</p><p>All data is stored locally in your browser.</p>'
+          content:
+            '<p>Your privacy is important to us. This application does not collect any personal data.</p><p>All data is stored locally in your browser.</p>',
         });
       };
-    }
-    else if (text.includes('terms') || text.includes('service')) {
+    } else if (text.includes('terms') || text.includes('service')) {
       element.onclick = (e) => {
         e.preventDefault();
         showModal({
           title: 'Terms of Service',
-          content: '<p>By using this application, you agree to use it responsibly.</p><p>This is a demo application for educational purposes.</p>'
+          content:
+            '<p>By using this application, you agree to use it responsibly.</p><p>This is a demo application for educational purposes.</p>',
         });
       };
-    }
-    else if (text.includes('contact')) {
+    } else if (text.includes('contact')) {
       element.onclick = (e) => {
         e.preventDefault();
         showModal({
@@ -441,11 +449,11 @@ function attachDefaultHandlers() {
               </div>
             </form>
           `,
-          footer: '<button class="btn btn-primary" onclick="showToast(\'Message sent!\', \'success\'); closeModal(this.closest(\'.modal-overlay\').id)">Send</button>'
+          footer:
+            "<button class=\"btn btn-primary\" onclick=\"showToast('Message sent!', 'success'); closeModal(this.closest('.modal-overlay').id)\">Send</button>",
         });
       };
-    }
-    else if (text.includes('about')) {
+    } else if (text.includes('about')) {
       element.onclick = (e) => {
         e.preventDefault();
         navigateTo('about');
@@ -457,26 +465,22 @@ function attachDefaultHandlers() {
         e.preventDefault();
         navigateTo('home');
       };
-    }
-    else if (text.includes('profile')) {
+    } else if (text.includes('profile')) {
       element.onclick = (e) => {
         e.preventDefault();
         navigateTo('profile');
       };
-    }
-    else if (text.includes('settings')) {
+    } else if (text.includes('settings')) {
       element.onclick = (e) => {
         e.preventDefault();
         navigateTo('settings');
       };
-    }
-    else if (text.includes('dashboard')) {
+    } else if (text.includes('dashboard')) {
       element.onclick = (e) => {
         e.preventDefault();
         navigateTo('dashboard');
       };
-    }
-    else if (text.includes('swap') || text.includes('history') || text.includes('send') || text.includes('receive')) {
+    } else if (text.includes('swap') || text.includes('history') || text.includes('send') || text.includes('receive')) {
       // For Web3/financial buttons, try to find their actual functionality
       element.onclick = (e) => {
         e.preventDefault();
@@ -487,7 +491,7 @@ function attachDefaultHandlers() {
           `open${action.charAt(0).toUpperCase() + action.slice(1)}Modal`,
           `show${action.charAt(0).toUpperCase() + action.slice(1)}`,
           action,
-          `handle${action.charAt(0).toUpperCase() + action.slice(1)}`
+          `handle${action.charAt(0).toUpperCase() + action.slice(1)}`,
         ];
 
         for (const funcName of possibleFunctions) {
@@ -503,7 +507,7 @@ function attachDefaultHandlers() {
           `.${action}-modal`,
           `#${action}`,
           `.${action}-section`,
-          `[data-section="${action}"]`
+          `[data-section="${action}"]`,
         ];
 
         for (const selector of possibleSelectors) {
@@ -520,12 +524,17 @@ function attachDefaultHandlers() {
       };
     }
     // Check if it looks like a navigation item (sidebar, nav, menu context)
-    else if (element.closest('.sidebar, nav, .navigation, .menu, .nav-menu, aside') ||
-             element.closest('[class*="sidebar"], [class*="navigation"], [class*="nav-"]')) {
+    else if (
+      element.closest('.sidebar, nav, .navigation, .menu, .nav-menu, aside') ||
+      element.closest('[class*="sidebar"], [class*="navigation"], [class*="nav-"]')
+    ) {
       // For navigation context, assume the button text is a section name
       element.onclick = (e) => {
         e.preventDefault();
-        const sectionName = element.textContent.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        const sectionName = element.textContent
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '');
         navigateTo(sectionName);
       };
     }
@@ -535,62 +544,52 @@ function attachDefaultHandlers() {
         e.preventDefault();
         handleSaveAction(element);
       };
-    }
-    else if (text.includes('delete')) {
+    } else if (text.includes('delete')) {
       element.onclick = (e) => {
         e.preventDefault();
         handleDeleteAction(element);
       };
-    }
-    else if (text.includes('edit')) {
+    } else if (text.includes('edit')) {
       element.onclick = (e) => {
         e.preventDefault();
         handleEditAction(element);
       };
-    }
-    else if (text.includes('create') || text.includes('add') || text.includes('new')) {
+    } else if (text.includes('create') || text.includes('add') || text.includes('new')) {
       element.onclick = (e) => {
         e.preventDefault();
         handleCreateAction(element);
       };
-    }
-    else if (text.includes('cancel') || text.includes('close')) {
+    } else if (text.includes('cancel') || text.includes('close')) {
       element.onclick = (e) => {
         e.preventDefault();
         handleCancelAction(element);
       };
-    }
-    else if (text.includes('download')) {
+    } else if (text.includes('download')) {
       element.onclick = (e) => {
         e.preventDefault();
         showToast('Download starting...', 'info');
       };
-    }
-    else if (text.includes('upload')) {
+    } else if (text.includes('upload')) {
       element.onclick = (e) => {
         e.preventDefault();
         showToast('Opening file selector...', 'info');
       };
-    }
-    else if (text.includes('share')) {
+    } else if (text.includes('share')) {
       element.onclick = (e) => {
         e.preventDefault();
         handleShareAction(element);
       };
-    }
-    else if (text.includes('like') || className.includes('like')) {
+    } else if (text.includes('like') || className.includes('like')) {
       element.onclick = (e) => {
         e.preventDefault();
         handleLikeAction(element);
       };
-    }
-    else if (text.includes('follow')) {
+    } else if (text.includes('follow')) {
       element.onclick = (e) => {
         e.preventDefault();
         handleFollowAction(element);
       };
-    }
-    else if (text.includes('subscribe')) {
+    } else if (text.includes('subscribe')) {
       element.onclick = (e) => {
         e.preventDefault();
         showToast('Subscribed successfully!', 'success');
@@ -603,26 +602,28 @@ function attachDefaultHandlers() {
     // Only add minimal feedback for completely orphaned buttons
     else if (!element.onclick && !element.hasAttribute('onclick')) {
       // Skip icon-only buttons
-      const hasOnlyIcon = element.querySelector('svg, i, .icon') && (!element.textContent.trim() || element.textContent.trim().length <= 1);
+      const hasOnlyIcon =
+        element.querySelector('svg, i, .icon') &&
+        (!element.textContent.trim() || element.textContent.trim().length <= 1);
       if (hasOnlyIcon) return;
 
       // Only add visual feedback, no toast spam
       element.onclick = (e) => {
         e.preventDefault();
         element.style.transform = 'scale(0.95)';
-        setTimeout(() => element.style.transform = '', 100);
+        setTimeout(() => (element.style.transform = ''), 100);
       };
       element.dataset.handlerAttached = 'true';
     }
   });
 
   // Only handle explicitly clickable elements with no functionality
-  document.querySelectorAll('[onclick=""], .clickable').forEach(element => {
+  document.querySelectorAll('[onclick=""], .clickable').forEach((element) => {
     if (!element.onclick || element.onclick.toString() === 'function onclick(event) {\n\n}') {
       element.style.cursor = 'pointer';
       element.onclick = () => {
         element.style.transform = 'scale(0.98)';
-        setTimeout(() => element.style.transform = '', 100);
+        setTimeout(() => (element.style.transform = ''), 100);
       };
     }
   });
@@ -1072,7 +1073,7 @@ function navigateTo(section) {
   const targetSection = document.querySelector(`[data-section="${section}"], #${section}, .${section}-section`);
 
   if (targetSection) {
-    allSections.forEach(s => s.style.display = 'none');
+    allSections.forEach((s) => (s.style.display = 'none'));
     targetSection.style.display = 'block';
     window.location.hash = `#${section}`;
     showToast(`Navigated to ${section}`, 'success');
@@ -1087,7 +1088,7 @@ function setupNavigationHandling() {
     if (hash) {
       const section = document.querySelector(`[data-section="${hash}"], #${hash}`);
       if (section) {
-        document.querySelectorAll('[data-section], .section, .view').forEach(s => {
+        document.querySelectorAll('[data-section], .section, .view').forEach((s) => {
           s.style.display = 'none';
         });
         section.style.display = 'block';
@@ -1138,11 +1139,12 @@ function handleSaveAction(button) {
 function handleDeleteAction(button) {
   showModal({
     title: 'Confirm Deletion',
-    content: '<p>Are you sure you want to delete this item?</p><p class="text-sm opacity-75">This action cannot be undone.</p>',
+    content:
+      '<p>Are you sure you want to delete this item?</p><p class="text-sm opacity-75">This action cannot be undone.</p>',
     footer: `
       <button class="btn btn-danger" onclick="confirmDelete(this)">Delete</button>
       <button class="btn btn-secondary" onclick="closeModal(this.closest('.modal-overlay').id)">Cancel</button>
-    `
+    `,
   });
 }
 
@@ -1173,7 +1175,7 @@ function handleEditAction(button) {
     footer: `
       <button class="btn btn-primary" onclick="showToast('Changes saved!', 'success'); closeModal(this.closest('.modal-overlay').id)">Save</button>
       <button class="btn btn-secondary" onclick="closeModal(this.closest('.modal-overlay').id)">Cancel</button>
-    `
+    `,
   });
 }
 
@@ -1195,7 +1197,7 @@ function handleCreateAction(button) {
     footer: `
       <button class="btn btn-primary" onclick="showToast('Item created!', 'success'); closeModal(this.closest('.modal-overlay').id)">Create</button>
       <button class="btn btn-secondary" onclick="closeModal(this.closest('.modal-overlay').id)">Cancel</button>
-    `
+    `,
   });
 }
 
@@ -1210,15 +1212,18 @@ function handleCancelAction(button) {
 
 function handleShareAction(button) {
   if (navigator.share) {
-    navigator.share({
-      title: 'Check this out!',
-      text: 'I found something interesting',
-      url: window.location.href
-    }).then(() => {
-      showToast('Shared successfully!', 'success');
-    }).catch(() => {
-      showToast('Share cancelled', 'info');
-    });
+    navigator
+      .share({
+        title: 'Check this out!',
+        text: 'I found something interesting',
+        url: window.location.href,
+      })
+      .then(() => {
+        showToast('Shared successfully!', 'success');
+      })
+      .catch(() => {
+        showToast('Share cancelled', 'info');
+      });
   } else {
     showToast('Link copied to clipboard!', 'success');
     navigator.clipboard.writeText(window.location.href);
@@ -1270,7 +1275,7 @@ if (typeof module !== 'undefined' && module.exports) {
     hideLoadingOverlay,
     setButtonLoading,
     navigateTo,
-    fixDropdownPositioning
+    fixDropdownPositioning,
   };
 }
 
@@ -1283,5 +1288,5 @@ window.buttonUtils = {
   hideLoadingOverlay,
   setButtonLoading,
   navigateTo,
-  fixDropdownPositioning
+  fixDropdownPositioning,
 };

@@ -177,22 +177,23 @@ export function Header() {
       </DialogRoot>
 
       {/* Deployment Panel Modal - Rendered via Portal to document.body */}
-      {typeof document !== 'undefined' && showDeployPanel && createPortal(
-        <DeploymentPanel
-          appId={appId}
-          sessionId={sessionId}
-          userId={userId}
-          initialTab={deployPanelTab}
-          onClose={() => setShowDeployPanel(false)}
-        />,
-        document.body
-      )}
+      {typeof document !== 'undefined' &&
+        showDeployPanel &&
+        createPortal(
+          <DeploymentPanel
+            appId={appId}
+            sessionId={sessionId}
+            userId={userId}
+            initialTab={deployPanelTab}
+            onClose={() => setShowDeployPanel(false)}
+          />,
+          document.body,
+        )}
 
       {/* Brand Kit Panel Modal - Rendered via Portal to document.body */}
-      {typeof document !== 'undefined' && showBrandKitPanel && createPortal(
-        <BrandKitPanel onClose={() => setShowBrandKitPanel(false)} />,
-        document.body
-      )}
+      {typeof document !== 'undefined' &&
+        showBrandKitPanel &&
+        createPortal(<BrandKitPanel onClose={() => setShowBrandKitPanel(false)} />, document.body)}
     </header>
   );
 }

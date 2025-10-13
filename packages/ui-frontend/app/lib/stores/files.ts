@@ -131,14 +131,16 @@ export class FilesStore {
 
         // Show error toast to user
         if (typeof window !== 'undefined') {
-          import('react-toastify').then(({ toast }) => {
-            toast.error(`Failed to save ${filePath.split('/').pop()} to server: ${error.message}`, {
-              autoClose: 5000,
-              position: 'bottom-right'
+          import('react-toastify')
+            .then(({ toast }) => {
+              toast.error(`Failed to save ${filePath.split('/').pop()} to server: ${error.message}`, {
+                autoClose: 5000,
+                position: 'bottom-right',
+              });
+            })
+            .catch(() => {
+              console.error('[FilesStore] Could not import toast library');
             });
-          }).catch(() => {
-            console.error('[FilesStore] Could not import toast library');
-          });
         }
 
         // Still throw so caller knows it failed
@@ -146,9 +148,11 @@ export class FilesStore {
       }
 
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('webcontainer:file-updated', {
-          detail: { filePath: relativePath }
-        }));
+        window.dispatchEvent(
+          new CustomEvent('webcontainer:file-updated', {
+            detail: { filePath: relativePath },
+          }),
+        );
       }
     } catch (error) {
       console.error('[FilesStore] ❌ File save failed:', error);
@@ -203,7 +207,7 @@ export class FilesStore {
           // For 5xx errors, retry
           if (response.status >= 500 && attempt < retries) {
             console.warn(`[FilesStore] ⚠️  Server error (attempt ${attempt}/${retries}), retrying in ${attempt}s...`);
-            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+            await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
             continue;
           }
 
@@ -214,14 +218,13 @@ export class FilesStore {
         console.log('[FilesStore] ✅ Success:', result.message);
         logger.info(`File ${filePath} synced to backend successfully`);
         return result;
-
       } catch (error: any) {
         console.error(`[FilesStore] ❌ Attempt ${attempt}/${retries} failed:`, error.message);
 
         // If it's a network error and we have retries left, try again
         if (attempt < retries && (error.name === 'TypeError' || error.message.includes('fetch'))) {
           console.warn(`[FilesStore] ⚠️  Network error, retrying in ${attempt}s...`);
-          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+          await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
           continue;
         }
 

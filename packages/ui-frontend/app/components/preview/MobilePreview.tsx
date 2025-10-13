@@ -40,12 +40,13 @@ interface MobilePreviewProps {
 
 const IPHONE_17_PRO_MAX = {
   name: 'iPhone 17 Pro Max',
-  width: 430,  // Logical pixels (portrait)
+  width: 430, // Logical pixels (portrait)
   height: 932, // Logical pixels (portrait)
   pixelRatio: 3.0,
-  userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+  userAgent:
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
   borderRadius: 60,
-  notchHeight: 30
+  notchHeight: 30,
 };
 
 // MOBILE PREVIEW COMPONENT
@@ -60,11 +61,7 @@ export function MobilePreview({ previewUrl, appId, sessionId, onClose }: MobileP
   const height = orientation === 'portrait' ? IPHONE_17_PRO_MAX.height : IPHONE_17_PRO_MAX.width;
 
   // Scale factor to fit on screen (max 90% of viewport)
-  const scale = Math.min(
-    (window.innerWidth * 0.5) / width,
-    (window.innerHeight * 0.85) / height,
-    1
-  );
+  const scale = Math.min((window.innerWidth * 0.5) / width, (window.innerHeight * 0.85) / height, 1);
 
   /**
    * Run PWA validation
@@ -77,8 +74,8 @@ export function MobilePreview({ previewUrl, appId, sessionId, onClose }: MobileP
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: sessionId,
-          url: previewUrl
-        })
+          url: previewUrl,
+        }),
       });
 
       const data = await response.json();
@@ -98,7 +95,7 @@ export function MobilePreview({ previewUrl, appId, sessionId, onClose }: MobileP
           validation_errors: data.validation.validation_errors,
           manifest_errors: data.validation.manifest_errors,
           manifest_warnings: data.validation.manifest_warnings,
-          service_worker_errors: data.validation.service_worker_errors
+          service_worker_errors: data.validation.service_worker_errors,
         });
       }
     } catch (error: any) {
@@ -133,7 +130,9 @@ export function MobilePreview({ previewUrl, appId, sessionId, onClose }: MobileP
           <div className="mb-6 flex items-center justify-between w-full max-w-2xl">
             <div>
               <h2 className="text-2xl font-bold text-white">{IPHONE_17_PRO_MAX.name}</h2>
-              <p className="text-sm text-gray-400">{width}×{height} @ {IPHONE_17_PRO_MAX.pixelRatio}x</p>
+              <p className="text-sm text-gray-400">
+                {width}×{height} @ {IPHONE_17_PRO_MAX.pixelRatio}x
+              </p>
             </div>
 
             <div className="flex gap-2">
@@ -143,7 +142,12 @@ export function MobilePreview({ previewUrl, appId, sessionId, onClose }: MobileP
                 className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors flex items-center gap-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
                 </svg>
                 {orientation === 'portrait' ? 'Portrait' : 'Landscape'}
               </button>
@@ -165,7 +169,7 @@ export function MobilePreview({ previewUrl, appId, sessionId, onClose }: MobileP
               width: `${width}px`,
               height: `${height}px`,
               transform: `scale(${scale})`,
-              transformOrigin: 'center'
+              transformOrigin: 'center',
             }}
           >
             {/* Notch (portrait only) */}
@@ -208,20 +212,26 @@ export function MobilePreview({ previewUrl, appId, sessionId, onClose }: MobileP
               <div className="bg-gray-900 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-gray-400">Overall Score</span>
-                  <span className={`text-2xl font-bold ${
-                    pwaValidation.overall_score >= 90 ? 'text-green-400' :
-                    pwaValidation.overall_score >= 60 ? 'text-yellow-400' :
-                    'text-red-400'
-                  }`}>
+                  <span
+                    className={`text-2xl font-bold ${
+                      pwaValidation.overall_score >= 90
+                        ? 'text-green-400'
+                        : pwaValidation.overall_score >= 60
+                          ? 'text-yellow-400'
+                          : 'text-red-400'
+                    }`}
+                  >
                     {pwaValidation.overall_score}/100
                   </span>
                 </div>
                 <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
                   <div
                     className={`h-full transition-all duration-500 ${
-                      pwaValidation.overall_score >= 90 ? 'bg-green-500' :
-                      pwaValidation.overall_score >= 60 ? 'bg-yellow-500' :
-                      'bg-red-500'
+                      pwaValidation.overall_score >= 90
+                        ? 'bg-green-500'
+                        : pwaValidation.overall_score >= 60
+                          ? 'bg-yellow-500'
+                          : 'bg-red-500'
                     }`}
                     style={{ width: `${pwaValidation.overall_score}%` }}
                   ></div>
@@ -230,11 +240,15 @@ export function MobilePreview({ previewUrl, appId, sessionId, onClose }: MobileP
 
               {/* Status Badge */}
               <div className="flex items-center gap-2">
-                <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  pwaValidation.status === 'passed' ? 'bg-green-900 text-green-200' :
-                  pwaValidation.status === 'warning' ? 'bg-yellow-900 text-yellow-200' :
-                  'bg-red-900 text-red-200'
-                }`}>
+                <div
+                  className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    pwaValidation.status === 'passed'
+                      ? 'bg-green-900 text-green-200'
+                      : pwaValidation.status === 'warning'
+                        ? 'bg-yellow-900 text-yellow-200'
+                        : 'bg-red-900 text-red-200'
+                  }`}
+                >
                   {pwaValidation.status.toUpperCase()}
                 </div>
               </div>
@@ -263,7 +277,11 @@ export function MobilePreview({ previewUrl, appId, sessionId, onClose }: MobileP
                 <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
                   <h4 className="text-sm font-semibold text-red-400 mb-2">Errors</h4>
                   <ul className="text-xs text-red-300 space-y-1">
-                    {[...pwaValidation.validation_errors, ...pwaValidation.manifest_errors, ...pwaValidation.service_worker_errors].map((error, i) => (
+                    {[
+                      ...pwaValidation.validation_errors,
+                      ...pwaValidation.manifest_errors,
+                      ...pwaValidation.service_worker_errors,
+                    ].map((error, i) => (
                       <li key={i}>• {error}</li>
                     ))}
                   </ul>
@@ -291,9 +309,7 @@ export function MobilePreview({ previewUrl, appId, sessionId, onClose }: MobileP
 
               {showPwaDetails && (
                 <div className="bg-gray-900 rounded-lg p-4 text-xs text-gray-300 font-mono">
-                  <pre className="whitespace-pre-wrap overflow-x-auto">
-                    {JSON.stringify(pwaValidation, null, 2)}
-                  </pre>
+                  <pre className="whitespace-pre-wrap overflow-x-auto">{JSON.stringify(pwaValidation, null, 2)}</pre>
                 </div>
               )}
             </div>
@@ -301,8 +317,18 @@ export function MobilePreview({ previewUrl, appId, sessionId, onClose }: MobileP
 
           {!pwaValidation && !isValidating && (
             <div className="text-center text-gray-500 mt-8">
-              <svg className="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              <svg
+                className="w-16 h-16 mx-auto mb-4 text-gray-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
               </svg>
               <p>Run PWA validation to check your app</p>
             </div>
@@ -320,13 +346,12 @@ function ScoreBar({ label, score, max }: { label: string; score: number; max: nu
     <div>
       <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
         <span>{label}</span>
-        <span>{score}/{max}</span>
+        <span>
+          {score}/{max}
+        </span>
       </div>
       <div className="w-full bg-gray-700 rounded-full h-1.5 overflow-hidden">
-        <div
-          className="h-full bg-blue-500 transition-all duration-500"
-          style={{ width: `${percentage}%` }}
-        ></div>
+        <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${percentage}%` }}></div>
       </div>
     </div>
   );
@@ -335,9 +360,7 @@ function ScoreBar({ label, score, max }: { label: string; score: number; max: nu
 function CheckItem({ label, checked }: { label: string; checked: boolean }) {
   return (
     <div className="flex items-center gap-2 text-sm">
-      <div className={`w-5 h-5 rounded flex items-center justify-center ${
-        checked ? 'bg-green-600' : 'bg-red-600'
-      }`}>
+      <div className={`w-5 h-5 rounded flex items-center justify-center ${checked ? 'bg-green-600' : 'bg-red-600'}`}>
         {checked ? (
           <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />

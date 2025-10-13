@@ -16,10 +16,7 @@ export interface PageManifest {
 }
 
 export class ArtifactValidator {
-  validateGeneratedArtifact(
-    files: FileMap,
-    manifest?: PageManifest
-  ): ValidationResult {
+  validateGeneratedArtifact(files: FileMap, manifest?: PageManifest): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -35,9 +32,11 @@ export class ArtifactValidator {
         errors.push('Found inline <style> tags in HTML - all styles must be in styles.css');
       }
 
-      if (!content.includes('<link rel="stylesheet" href="/styles.css">') &&
-          !content.includes('<link rel="stylesheet" href="styles.css">') &&
-          !content.includes('<link rel="stylesheet" href="./styles.css">')) {
+      if (
+        !content.includes('<link rel="stylesheet" href="/styles.css">') &&
+        !content.includes('<link rel="stylesheet" href="styles.css">') &&
+        !content.includes('<link rel="stylesheet" href="./styles.css">')
+      ) {
         warnings.push('index.html does not link to styles.css');
       }
     }
@@ -58,9 +57,7 @@ export class ArtifactValidator {
       this.validateManifest(files, manifest, errors, warnings);
     }
 
-    const htmlFiles = Object.keys(files).filter(
-      path => path.endsWith('.html') && files[path]?.type === 'file'
-    );
+    const htmlFiles = Object.keys(files).filter((path) => path.endsWith('.html') && files[path]?.type === 'file');
 
     for (const htmlPath of htmlFiles) {
       const htmlFile = files[htmlPath];
@@ -82,22 +79,14 @@ export class ArtifactValidator {
     return { success, errors, warnings };
   }
 
-  private validateManifest(
-    files: FileMap,
-    manifest: PageManifest,
-    errors: string[],
-    warnings: string[]
-  ): void {
+  private validateManifest(files: FileMap, manifest: PageManifest, errors: string[], warnings: string[]): void {
     if (manifest.router === 'mpa') {
       for (const page of manifest.pages) {
         if (page.slug === 'index') continue;
 
-        const expectedPaths = [
-          `/pages/${page.slug}.html`,
-          `pages/${page.slug}.html`
-        ];
+        const expectedPaths = [`/pages/${page.slug}.html`, `pages/${page.slug}.html`];
 
-        const exists = expectedPaths.some(path => files[path]?.type === 'file');
+        const exists = expectedPaths.some((path) => files[path]?.type === 'file');
         if (!exists) {
           errors.push(`Missing page file for route: ${page.route} (expected /pages/${page.slug}.html)`);
         }
@@ -109,12 +98,7 @@ export class ArtifactValidator {
     }
   }
 
-  private validateHtmlFile(
-    path: string,
-    content: string,
-    errors: string[],
-    warnings: string[]
-  ): void {
+  private validateHtmlFile(path: string, content: string, errors: string[], warnings: string[]): void {
     const hasStyleTags = /<style[^>]*>[\s\S]*?<\/style>/i.test(content);
     if (hasStyleTags) {
       errors.push(`${path}: Contains inline <style> tags - move to styles.css`);
@@ -159,7 +143,7 @@ export class ArtifactValidator {
     }
 
     const jsFiles = Object.keys(files).filter(
-      path => (path.endsWith('.js') || path.endsWith('.ts')) && files[path]?.type === 'file'
+      (path) => (path.endsWith('.js') || path.endsWith('.ts')) && files[path]?.type === 'file',
     );
 
     let hasWalletConnect = false;
@@ -167,13 +151,10 @@ export class ArtifactValidator {
       const jsFile = files[jsPath];
       if (jsFile?.type === 'file') {
         const content = jsFile.content;
-        if (content.includes('createAppKit') ||
-            content.includes('wagmi') ||
-            content.includes('WalletConnect')) {
+        if (content.includes('createAppKit') || content.includes('wagmi') || content.includes('WalletConnect')) {
           hasWalletConnect = true;
 
-          if (content.includes('Math.random()') &&
-              (content.includes('walletAddress') || content.includes('0x'))) {
+          if (content.includes('Math.random()') && (content.includes('walletAddress') || content.includes('0x'))) {
             errors.push(`${jsPath}: Using Math.random() for wallet addresses - use real wallet connection`);
           }
         }
@@ -186,32 +167,34 @@ export class ArtifactValidator {
 
   validateChangeSet(
     changeSet: { operations: Array<{ kind: string; path: string }> },
-    intent: 'MODIFY' | 'CREATE' | 'REWRITE'
+    intent: 'MODIFY' | 'CREATE' | 'REWRITE',
   ): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
 
     const criticalFiles = new Set([
-      'index.html', '/index.html',
-      'main.js', '/main.js',
-      'styles.css', '/styles.css',
-      'base.css', '/base.css'
+      'index.html',
+      '/index.html',
+      'main.js',
+      '/main.js',
+      'styles.css',
+      '/styles.css',
+      'base.css',
+      '/base.css',
     ]);
 
     if (intent === 'MODIFY') {
-      const recreatedFiles = changeSet.operations.filter(op =>
-        op.kind === 'create' && criticalFiles.has(op.path)
-      );
+      const recreatedFiles = changeSet.operations.filter((op) => op.kind === 'create' && criticalFiles.has(op.path));
 
       if (recreatedFiles.length > 0) {
         errors.push(
-          `Refusing to recreate existing critical files during MODIFY: ${recreatedFiles.map(f => f.path).join(', ')}`
+          `Refusing to recreate existing critical files during MODIFY: ${recreatedFiles.map((f) => f.path).join(', ')}`,
         );
       }
     }
 
-    const touchedCss = changeSet.operations.some(op =>
-      op.path.endsWith('.css') && (op.kind === 'modify' || op.kind === 'create')
+    const touchedCss = changeSet.operations.some(
+      (op) => op.path.endsWith('.css') && (op.kind === 'modify' || op.kind === 'create'),
     );
 
     if (touchedCss && !this.changedCssVariables(changeSet)) {
@@ -226,10 +209,7 @@ export class ArtifactValidator {
     return true;
   }
 
-  validateDataCorrectness(
-    portfolioData: any,
-    isDemoMode: boolean
-  ): ValidationResult {
+  validateDataCorrectness(portfolioData: any, isDemoMode: boolean): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -265,11 +245,7 @@ export class ArtifactValidator {
     return { success, errors, warnings };
   }
 
-  validateStyleChanges(
-    originalCss: string,
-    modifiedCss: string,
-    changeRequest: string
-  ): ValidationResult {
+  validateStyleChanges(originalCss: string, modifiedCss: string, changeRequest: string): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -279,16 +255,14 @@ export class ArtifactValidator {
       const originalVars = this.extractCssVariables(originalCss);
       const modifiedVars = this.extractCssVariables(modifiedCss);
 
-      const changedVars = Object.keys(modifiedVars).filter(
-        key => originalVars[key] !== modifiedVars[key]
-      );
+      const changedVars = Object.keys(modifiedVars).filter((key) => originalVars[key] !== modifiedVars[key]);
 
       if (changedVars.length === 0) {
         errors.push('Color change requested but no CSS variables were modified');
       }
 
       const nonColorVarsChanged = changedVars.filter(
-        v => !v.includes('color') && !v.includes('bg') && !v.includes('text') && !v.includes('accent')
+        (v) => !v.includes('color') && !v.includes('bg') && !v.includes('text') && !v.includes('accent'),
       );
 
       if (nonColorVarsChanged.length > 0) {

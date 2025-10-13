@@ -35,7 +35,6 @@ const contextMenuVariants = {
 } satisfies Variants;
 
 export const FileBreadcrumb = memo<FileBreadcrumbProps>(({ files, pathSegments = [], onFileSelect }) => {
-
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
   const contextMenuRef = useRef<HTMLDivElement | null>(null);

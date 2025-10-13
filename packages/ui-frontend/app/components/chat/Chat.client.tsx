@@ -34,9 +34,7 @@ const logger = createScopedLogger('Chat');
  */
 function generateTitleFromPrompt(prompt: string): string {
   // Normalize whitespace: trim and collapse multiple spaces/newlines into single spaces
-  let title = prompt
-    .trim()
-    .replace(/\s+/g, ' ');
+  let title = prompt.trim().replace(/\s+/g, ' ');
 
   // Truncate at 100 characters with ellipsis for readability
   if (title.length > 100) {
@@ -171,7 +169,9 @@ async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: st
     logger.info('✓ WebContainer instance obtained, starting asset sync...');
 
     const result = await syncBrandAssetsToWebContainer(wc, assets);
-    logger.info(`✅ Client WebContainer sync complete: ${result.synced} synced, ${result.failed} failed, ${result.skipped} skipped`);
+    logger.info(
+      `✅ Client WebContainer sync complete: ${result.synced} synced, ${result.failed} failed, ${result.skipped} skipped`,
+    );
 
     if (result.failed > 0) {
       logger.warn(`⚠️  ${result.failed} assets failed to sync to WebContainer`);
@@ -203,7 +203,9 @@ async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: st
         for (let attempt = 1; attempt <= 3; attempt++) {
           try {
             logger.debug(`Attempt ${attempt}/3: Fetching ${asset.storageKey}`);
-            const assetRes = await fetch(`${BACKEND_URL}/api/brand-assets/download/${encodeURIComponent(asset.storageKey)}`);
+            const assetRes = await fetch(
+              `${BACKEND_URL}/api/brand-assets/download/${encodeURIComponent(asset.storageKey)}`,
+            );
 
             if (!assetRes.ok) {
               throw new Error(`HTTP ${assetRes.status}: ${assetRes.statusText}`);
@@ -217,7 +219,7 @@ async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: st
             logger.warn(`Attempt ${attempt}/3 failed for ${asset.fileName}: ${err.message}`);
             if (attempt < 3) {
               // Wait before retry (exponential backoff)
-              await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+              await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
             }
           }
         }
@@ -239,8 +241,8 @@ async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: st
           body: JSON.stringify({
             path: destPath,
             contentBase64: base64Content,
-            mimeType: asset.mimeType
-          })
+            mimeType: asset.mimeType,
+          }),
         });
 
         logger.debug(`Write response status: ${writeRes.status}`);
@@ -284,14 +286,14 @@ async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: st
             hex: c.hex,
             name: c.name,
             role: c.role,
-            prominence: c.prominence
+            prominence: c.prominence,
           })),
           assets: assets.map((a: any) => ({
             fileName: sanitizeFilename(a.fileName),
             type: a.assetType,
-            path: getAssetDestinationPath(a)
-          }))
-        }
+            path: getAssetDestinationPath(a),
+          })),
+        },
       };
 
       const manifestJson = JSON.stringify(manifest, null, 2);
@@ -303,8 +305,8 @@ async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: st
           body: JSON.stringify({
             path: 'brand-kit.json',
             content: manifestJson,
-            mimeType: 'application/json'
-          })
+            mimeType: 'application/json',
+          }),
         });
 
         if (manifestRes.ok) {
@@ -325,12 +327,19 @@ async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: st
 }
 
 export function Chat() {
-
   const { ready, initialMessages, files, sessionTitle, sessionId, storeMessageHistory } = useBackendHistory();
 
   return (
     <>
-      {ready && <ChatImpl initialMessages={initialMessages} files={files} sessionTitle={sessionTitle} sessionId={sessionId} storeMessageHistory={storeMessageHistory} />}
+      {ready && (
+        <ChatImpl
+          initialMessages={initialMessages}
+          files={files}
+          sessionTitle={sessionTitle}
+          sessionId={sessionId}
+          storeMessageHistory={storeMessageHistory}
+        />
+      )}
       <ToastContainer
         closeButton={({ closeToast }) => {
           return (
@@ -413,7 +422,9 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
   const streamControllerRef = useRef<StreamController | null>(null);
 
   // Phase 2: Enhanced streaming state (for current message only)
-  const [currentPhase, setCurrentPhase] = useState<'pending' | 'thinking' | 'reasoning' | 'code-writing' | 'building' | 'completed' | null>(null);
+  const [currentPhase, setCurrentPhase] = useState<
+    'pending' | 'thinking' | 'reasoning' | 'code-writing' | 'building' | 'completed' | null
+  >(null);
   const [reasoningText, setReasoningText] = useState('');
   const [thinkingDuration, setThinkingDuration] = useState<number | null>(null);
   const [fileOperations, setFileOperations] = useState<Array<{ operation: string; filePath: string }>>([]);
@@ -637,7 +648,7 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
           await fetch(`/api/sessions/${session.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: generatedTitle })
+            body: JSON.stringify({ title: generatedTitle }),
           });
           logger.info('✅ Session title updated');
         } catch (error) {
@@ -750,7 +761,9 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
               if (treeRes.ok) {
                 const treeData = await treeRes.json();
                 if (treeData.files && treeData.files.length > 0) {
-                  logger.info(`✓ Fetched complete file tree: ${treeData.files.length} total files (agent provided ${files.length})`);
+                  logger.info(
+                    `✓ Fetched complete file tree: ${treeData.files.length} total files (agent provided ${files.length})`,
+                  );
 
                   // Debug: Log all file paths in the tree
                   const flattenFiles = (nodes: any[], prefix = ''): string[] => {
@@ -770,7 +783,7 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
                   const allPaths = flattenFiles(treeData.files);
                   logger.debug(`📁 File tree contains: ${allPaths.join(', ')}`);
 
-                  const hasBrandAsset = allPaths.some(p => p.includes('public/assets/') && p.endsWith('.png'));
+                  const hasBrandAsset = allPaths.some((p) => p.includes('public/assets/') && p.endsWith('.png'));
                   if (!hasBrandAsset) {
                     logger.warn('⚠️  Brand asset NOT found in file tree! This will cause 404 errors.');
                     logger.warn('Files in tree:', allPaths);

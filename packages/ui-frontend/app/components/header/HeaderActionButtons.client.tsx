@@ -125,21 +125,22 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
       </div>
 
       {/* Modals - Rendered via Portal to document.body */}
-      {typeof document !== 'undefined' && showDeployPanel && createPortal(
-        <DeploymentPanel
-          appId={appId}
-          sessionId={sessionId}
-          userId={userId}
-          initialTab={deployPanelTab}
-          onClose={() => setShowDeployPanel(false)}
-        />,
-        document.body
-      )}
+      {typeof document !== 'undefined' &&
+        showDeployPanel &&
+        createPortal(
+          <DeploymentPanel
+            appId={appId}
+            sessionId={sessionId}
+            userId={userId}
+            initialTab={deployPanelTab}
+            onClose={() => setShowDeployPanel(false)}
+          />,
+          document.body,
+        )}
 
-      {typeof document !== 'undefined' && showBrandKitPanel && createPortal(
-        <BrandKitPanel onClose={() => setShowBrandKitPanel(false)} />,
-        document.body
-      )}
+      {typeof document !== 'undefined' &&
+        showBrandKitPanel &&
+        createPortal(<BrandKitPanel onClose={() => setShowBrandKitPanel(false)} />, document.body)}
     </>
   );
 }

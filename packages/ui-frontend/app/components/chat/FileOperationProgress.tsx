@@ -35,10 +35,13 @@ export const FileOperationProgress = memo(({ operations }: FileOperationProgress
   if (operations.length === 0) return null;
 
   // Group operations by file path and keep only the latest operation per file
-  const latestOperations = operations.reduce((acc, op) => {
-    acc[op.filePath] = op;
-    return acc;
-  }, {} as Record<string, { operation: string; filePath: string }>);
+  const latestOperations = operations.reduce(
+    (acc, op) => {
+      acc[op.filePath] = op;
+      return acc;
+    },
+    {} as Record<string, { operation: string; filePath: string }>,
+  );
 
   const displayOperations = Object.values(latestOperations).slice(-5); // Show last 5 files
 
@@ -55,9 +58,7 @@ export const FileOperationProgress = memo(({ operations }: FileOperationProgress
 
         return (
           <div key={`${op.filePath}-${index}`} className="flex items-center gap-2">
-            <div
-              className={`${config.icon} ${config.color} text-base ${config.inProgress ? 'animate-pulse' : ''}`}
-            />
+            <div className={`${config.icon} ${config.color} text-base ${config.inProgress ? 'animate-pulse' : ''}`} />
             <span className="text-white/60 text-xs truncate flex-1" title={op.filePath}>
               {op.filePath}
             </span>

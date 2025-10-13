@@ -5,17 +5,8 @@
     "parallelTools": true
   },
   "security": {
-    "allowedWorkspaces": [
-      "**",
-      "workspace/**"
-    ],
-    "deniedPaths": [
-      ".env",
-      "*.key",
-      "*.pem",
-      "configs/anthropic.json",
-      "node_modules/**"
-    ],
+    "allowedWorkspaces": ["**", "workspace/**"],
+    "deniedPaths": [".env", "*.key", "*.pem", "configs/anthropic.json", "node_modules/**"],
     "maxFileSize": 1048576,
     "secretPatterns": [
       "sk-ant-[a-zA-Z0-9-_]+",

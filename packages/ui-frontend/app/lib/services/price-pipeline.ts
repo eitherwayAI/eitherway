@@ -19,10 +19,7 @@ export class PricePipeline {
   private cacheTTL = 60 * 1000; // 60 seconds
   private negativeCacheTTL = 15 * 1000; // 15 seconds for failures
 
-  async getPrice(
-    chainId: number,
-    tokenAddress: string
-  ): Promise<PriceResult | undefined> {
+  async getPrice(chainId: number, tokenAddress: string): Promise<PriceResult | undefined> {
     const cacheKey = `${chainId}:${tokenAddress}`;
 
     const cached = this.getFromCache(cacheKey);
@@ -34,7 +31,7 @@ export class PricePipeline {
     const tiers = [
       () => this.tryChainlink(chainId, tokenAddress),
       () => this.tryHttpProvider(chainId, tokenAddress),
-      () => this.tryDexTwap(chainId, tokenAddress)
+      () => this.tryDexTwap(chainId, tokenAddress),
     ];
 
     for (const [index, tier] of tiers.entries()) {
@@ -55,10 +52,7 @@ export class PricePipeline {
     return undefined;
   }
 
-  private async tryChainlink(
-    chainId: number,
-    tokenAddress: string
-  ): Promise<PriceResult | undefined> {
+  private async tryChainlink(chainId: number, tokenAddress: string): Promise<PriceResult | undefined> {
     if (!this.isChainlinkSupported(chainId)) {
       return undefined;
     }
@@ -80,10 +74,7 @@ export class PricePipeline {
     return this.fetchFromCoinGecko(chainId, tokenAddress);
   }
 
-  private async tryHttpProvider(
-    chainId: number,
-    tokenAddress: string
-  ): Promise<PriceResult | undefined> {
+  private async tryHttpProvider(chainId: number, tokenAddress: string): Promise<PriceResult | undefined> {
     const providers = this.getAvailableHttpProviders();
 
     for (const provider of providers) {
@@ -92,7 +83,7 @@ export class PricePipeline {
         if (result) {
           return {
             ...result,
-            confidence: 0.7
+            confidence: 0.7,
           };
         }
       } catch (error) {
@@ -103,14 +94,8 @@ export class PricePipeline {
     return undefined;
   }
 
-  private async tryDexTwap(
-    chainId: number,
-    tokenAddress: string,
-    timeoutMs = 1500
-  ): Promise<PriceResult | undefined> {
-    const timeout = new Promise<undefined>(resolve =>
-      setTimeout(() => resolve(undefined), timeoutMs)
-    );
+  private async tryDexTwap(chainId: number, tokenAddress: string, timeoutMs = 1500): Promise<PriceResult | undefined> {
+    const timeout = new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs));
 
     const twapPromise = this.fetchDexTwap(chainId, tokenAddress);
 
@@ -119,7 +104,7 @@ export class PricePipeline {
     if (result) {
       return {
         ...result,
-        confidence: 0.5
+        confidence: 0.5,
       };
     }
 
@@ -129,7 +114,7 @@ export class PricePipeline {
   private async fetchFromProvider(
     provider: string,
     chainId: number,
-    tokenAddress: string
+    tokenAddress: string,
   ): Promise<PriceResult | undefined> {
     switch (provider) {
       case 'coingecko':
@@ -141,15 +126,12 @@ export class PricePipeline {
     }
   }
 
-  private async fetchFromCoinGecko(
-    chainId: number,
-    tokenAddress: string
-  ): Promise<PriceResult | undefined> {
+  private async fetchFromCoinGecko(chainId: number, tokenAddress: string): Promise<PriceResult | undefined> {
     const platformMap: Record<number, string> = {
       1: 'ethereum',
       137: 'polygon-pos',
       56: 'binance-smart-chain',
-      42161: 'arbitrum-one'
+      42161: 'arbitrum-one',
     };
 
     const platform = platformMap[chainId];
@@ -164,7 +146,7 @@ export class PricePipeline {
           1: 'ethereum',
           137: 'matic-network',
           56: 'binancecoin',
-          42161: 'ethereum'
+          42161: 'ethereum',
         };
 
         id = nativeIds[chainId];
@@ -186,7 +168,7 @@ export class PricePipeline {
       }
 
       const headers: HeadersInit = {
-        'Accept': 'application/json'
+        Accept: 'application/json',
       };
 
       if (process.env.COINGECKO_API_KEY) {
@@ -195,7 +177,7 @@ export class PricePipeline {
 
       const response = await fetch(apiUrl, {
         headers,
-        signal: AbortSignal.timeout(5000) // 5 second timeout
+        signal: AbortSignal.timeout(5000), // 5 second timeout
       });
 
       if (!response.ok) {
@@ -221,7 +203,7 @@ export class PricePipeline {
         value: priceData.usd,
         source: 'coingecko',
         confidence: 0.8,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     } catch (error) {
       logger.error(`CoinGecko API error for ${tokenAddress}:`, error);
@@ -229,17 +211,11 @@ export class PricePipeline {
     }
   }
 
-  private async fetchFromCryptoCompare(
-    chainId: number,
-    tokenAddress: string
-  ): Promise<PriceResult | undefined> {
+  private async fetchFromCryptoCompare(chainId: number, tokenAddress: string): Promise<PriceResult | undefined> {
     return undefined;
   }
 
-  private async fetchDexTwap(
-    chainId: number,
-    tokenAddress: string
-  ): Promise<PriceResult | undefined> {
+  private async fetchDexTwap(chainId: number, tokenAddress: string): Promise<PriceResult | undefined> {
     return undefined;
   }
 
@@ -283,7 +259,7 @@ export class PricePipeline {
   private setCache(key: string, data: PriceResult): void {
     this.cache.set(key, {
       data,
-      expires: Date.now() + this.cacheTTL
+      expires: Date.now() + this.cacheTTL,
     });
   }
 
@@ -293,9 +269,9 @@ export class PricePipeline {
         value: 0,
         source: 'none',
         confidence: 0,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       },
-      expires: Date.now() + this.negativeCacheTTL
+      expires: Date.now() + this.negativeCacheTTL,
     });
   }
 }

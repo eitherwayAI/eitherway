@@ -82,7 +82,7 @@ export async function streamFromWebSocket(options: StreamOptions): Promise<Strea
     const delay = BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttempts - 1);
     console.log(`[WebSocket] Reconnection attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms...`);
 
-    await new Promise(resolve => setTimeout(resolve, delay));
+    await new Promise((resolve) => setTimeout(resolve, delay));
 
     try {
       await connectWebSocket();

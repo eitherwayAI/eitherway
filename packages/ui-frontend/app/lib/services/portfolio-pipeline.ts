@@ -46,8 +46,7 @@ export class PortfolioPipeline {
   private checkDemoMode(): boolean {
     const envDemoMode = process.env.DEMO_MODE === 'true';
     const hasRequiredKeys = Boolean(
-      process.env.WALLETCONNECT_PROJECT_ID &&
-      process.env.WALLETCONNECT_PROJECT_ID !== 'your-project-id-here'
+      process.env.WALLETCONNECT_PROJECT_ID && process.env.WALLETCONNECT_PROJECT_ID !== 'your-project-id-here',
     );
 
     if (envDemoMode) {
@@ -71,10 +70,10 @@ export class PortfolioPipeline {
       fallbacks: [],
       errors: [],
       demo: false,
-      confidenceReason: ''
+      confidenceReason: '',
     };
 
-    if (!addresses?.length || addresses.every(addr => !addr)) {
+    if (!addresses?.length || addresses.every((addr) => !addr)) {
       logger.info('No addresses provided, returning empty portfolio');
       return this.emptyPortfolio('no-addresses', provenance);
     }
@@ -95,11 +94,9 @@ export class PortfolioPipeline {
 
       const pricedHoldings = await this.attachPrices(rawHoldings, provenance);
 
-      const valuedHoldings = pricedHoldings.map(h => ({
+      const valuedHoldings = pricedHoldings.map((h) => ({
         ...h,
-        valueUsd: h.confidence >= this.confidenceThreshold && h.priceUsd
-          ? h.priceUsd * h.balance
-          : 0
+        valueUsd: h.confidence >= this.confidenceThreshold && h.priceUsd ? h.priceUsd * h.balance : 0,
       }));
 
       const totalUsd = valuedHoldings.reduce((sum, h) => {
@@ -117,7 +114,7 @@ export class PortfolioPipeline {
         holdings: valuedHoldings,
         confidence: overallConfidence,
         provenance,
-        isDemo: false
+        isDemo: false,
       };
     } catch (error) {
       logger.error('Portfolio computation failed:', error);
@@ -133,10 +130,7 @@ export class PortfolioPipeline {
     }
   }
 
-  private async collectHoldingsFromProviders(
-    addresses: string[],
-    provenance: ProvenanceData
-  ): Promise<Holding[]> {
+  private async collectHoldingsFromProviders(addresses: string[], provenance: ProvenanceData): Promise<Holding[]> {
     const holdings: Map<string, Holding> = new Map();
     const providers = this.getAvailableProviders();
 
@@ -165,35 +159,34 @@ export class PortfolioPipeline {
     return Array.from(holdings.values());
   }
 
-  private async attachPrices(
-    holdings: Holding[],
-    provenance: ProvenanceData
-  ): Promise<Holding[]> {
-    const priceService = await import('./price-pipeline').then(m => new m.PricePipeline());
+  private async attachPrices(holdings: Holding[], provenance: ProvenanceData): Promise<Holding[]> {
+    const priceService = await import('./price-pipeline').then((m) => new m.PricePipeline());
 
-    return Promise.all(holdings.map(async holding => {
-      const priceResult = await priceService.getPrice(
-        holding.chainId,
-        holding.tokenAddress === 'native' ? 'native' : holding.tokenAddress
-      );
+    return Promise.all(
+      holdings.map(async (holding) => {
+        const priceResult = await priceService.getPrice(
+          holding.chainId,
+          holding.tokenAddress === 'native' ? 'native' : holding.tokenAddress,
+        );
 
-      if (priceResult) {
-        provenance.sources.push(`price:${priceResult.source}`);
+        if (priceResult) {
+          provenance.sources.push(`price:${priceResult.source}`);
+          return {
+            ...holding,
+            priceUsd: priceResult.value,
+            priceSource: priceResult.source,
+            confidence: Math.min(1, holding.confidence + priceResult.confidence * 0.3),
+          };
+        }
+
+        logger.debug(`No price found for ${holding.symbol} on chain ${holding.chainId}`);
         return {
           ...holding,
-          priceUsd: priceResult.value,
-          priceSource: priceResult.source,
-          confidence: Math.min(1, holding.confidence + priceResult.confidence * 0.3)
+          priceUsd: undefined,
+          confidence: Math.max(0, holding.confidence - 0.3),
         };
-      }
-
-      logger.debug(`No price found for ${holding.symbol} on chain ${holding.chainId}`);
-      return {
-        ...holding,
-        priceUsd: undefined,
-        confidence: Math.max(0, holding.confidence - 0.3)
-      };
-    }));
+      }),
+    );
   }
 
   private getAvailableProviders(): string[] {
@@ -239,7 +232,7 @@ export class PortfolioPipeline {
         valueUsd: 0,
         sources: ['alchemy'],
         confidence: 0.7,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
       holdings.push(mockBalance);
     }
@@ -266,10 +259,7 @@ export class PortfolioPipeline {
     return 'none';
   }
 
-  private getConfidenceReason(
-    confidence: 'high' | 'medium' | 'low' | 'none',
-    holdings: Holding[]
-  ): string {
+  private getConfidenceReason(confidence: 'high' | 'medium' | 'low' | 'none', holdings: Holding[]): string {
     switch (confidence) {
       case 'high':
         return `Multiple sources confirmed ${holdings.length} holdings`;
@@ -289,7 +279,7 @@ export class PortfolioPipeline {
       holdings: [],
       confidence: 'none',
       provenance,
-      isDemo: false
+      isDemo: false,
     };
   }
 
@@ -311,7 +301,7 @@ export class PortfolioPipeline {
         sources: ['demo'],
         priceSource: 'demo',
         confidence: 0.1,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       },
       {
         chainId: 1,
@@ -320,13 +310,13 @@ export class PortfolioPipeline {
         decimals: 6,
         balanceRaw: '1250000000',
         balance: 1250,
-        priceUsd: 1.00,
+        priceUsd: 1.0,
         valueUsd: 1250,
         sources: ['demo'],
         priceSource: 'demo',
         confidence: 0.1,
-        timestamp: Date.now()
-      }
+        timestamp: Date.now(),
+      },
     ];
 
     return {
@@ -334,7 +324,7 @@ export class PortfolioPipeline {
       holdings: demoHoldings,
       confidence: 'none',
       provenance,
-      isDemo: true
+      isDemo: true,
     };
   }
 }

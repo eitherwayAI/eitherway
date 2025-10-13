@@ -130,7 +130,6 @@ export const CodeMirrorEditor = memo(
     settings,
     className = '',
   }: Props) => {
-
     const [languageCompartment] = useState(new Compartment());
 
     const containerRef = useRef<HTMLDivElement | null>(null);

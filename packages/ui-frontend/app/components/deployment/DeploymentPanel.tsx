@@ -65,8 +65,8 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId,
-          token: netlifyToken
-        })
+          token: netlifyToken,
+        }),
       });
 
       const validateData = await validateResponse.json();
@@ -90,8 +90,8 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
           sessionId,
           siteName: siteName || undefined,
           deployTitle: siteName ? `Deploy ${siteName}` : 'Deploy from EitherWay',
-          includeNodeModules: false
-        })
+          includeNodeModules: false,
+        }),
       });
 
       const deployData = await deployResponse.json();
@@ -106,7 +106,6 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
 
       setDeployResult(deployData.data);
       setIsDeploying(false);
-
     } catch (error: any) {
       console.error('Deployment error:', error);
       setError(`Failed to deploy: ${error.message}`);
@@ -155,8 +154,18 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
             <div className="space-y-3 mb-6">
               <div className="bg-[#0e0e0e] border border-gray-800 rounded-xl p-4">
                 <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-[#00c7b7] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                  <svg
+                    className="w-5 h-5 text-[#00c7b7] flex-shrink-0 mt-0.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
+                    />
                   </svg>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-gray-400 mb-1">Production URL</p>
@@ -174,9 +183,24 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
 
               <div className="bg-[#0e0e0e] border border-gray-800 rounded-xl p-4">
                 <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <svg
+                    className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
                   </svg>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-gray-400 mb-1">Netlify Admin</p>
@@ -200,7 +224,12 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
                 className="flex-1 py-3 bg-gradient-to-r from-[#00c7b7] to-[#00a896] hover:from-[#00b3a6] hover:to-[#009688] text-white rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#00c7b7]/20"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                  />
                 </svg>
                 Open Site
               </button>
@@ -282,9 +311,7 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
                   {/* Form Fields */}
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Access Token *
-                      </label>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Access Token *</label>
                       <input
                         type="password"
                         value={netlifyToken}
@@ -306,9 +333,7 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Site Name (Optional)
-                      </label>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Site Name (Optional)</label>
                       <input
                         type="text"
                         value={siteName}
@@ -316,9 +341,7 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
                         placeholder="my-awesome-site"
                         className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#00c7b7] focus:border-transparent"
                       />
-                      <p className="mt-1.5 text-xs text-gray-500">
-                        Leave empty for auto-generated name
-                      </p>
+                      <p className="mt-1.5 text-xs text-gray-500">Leave empty for auto-generated name</p>
                     </div>
                   </div>
 
@@ -326,8 +349,18 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
                   {error && (
                     <div className="mt-3 bg-red-500/10 border border-red-500/30 rounded-lg p-3">
                       <div className="flex gap-2">
-                        <svg className="w-5 h-5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        <svg
+                          className="w-5 h-5 text-red-400 flex-shrink-0"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
                         </svg>
                         <p className="text-sm text-red-300">{error}</p>
                       </div>
@@ -344,14 +377,23 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
                       <>
                         <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          />
                         </svg>
                         <span>Deploying...</span>
                       </>
                     ) : (
                       <>
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                          />
                         </svg>
                         <span>Deploy to Netlify</span>
                       </>
@@ -365,8 +407,18 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
           {/* Info Box */}
           <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
             <div className="flex gap-3">
-              <svg className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <svg
+                className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
               </svg>
               <div>
                 <h4 className="text-sm font-semibold text-blue-300 mb-1">Before deploying</h4>
@@ -400,8 +452,8 @@ function DownloadModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPan
         body: JSON.stringify({
           userId,
           sessionId,
-          includeNodeModules
-        })
+          includeNodeModules,
+        }),
       });
 
       if (response.ok) {
@@ -506,14 +558,23 @@ function DownloadModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPan
               <>
                 <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
                 </svg>
                 <span>Preparing download...</span>
               </>
             ) : (
               <>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  />
                 </svg>
                 <span>Download ZIP</span>
               </>
@@ -523,8 +584,18 @@ function DownloadModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPan
           {/* What's Included Section */}
           <div className="mt-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4">
             <div className="flex gap-3">
-              <svg className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              <svg
+                className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+                />
               </svg>
               <div>
                 <h4 className="text-sm font-semibold text-emerald-300 mb-2">What's Included</h4>

@@ -16,23 +16,14 @@ export interface StreamController {
   abort: () => void;
 }
 
-const BACKEND_URL = typeof window !== 'undefined'
-  ? 'http://localhost:4000'
-  : 'http://localhost:4000';
+const BACKEND_URL = typeof window !== 'undefined' ? 'http://localhost:4000' : 'http://localhost:4000';
 
 /**
  * Stream from Fastify backend using fetch + ReadableStream
  * POST to /api/stream-test with JSON body
  */
 export async function streamFromFastify(options: StreamOptions): Promise<StreamController> {
-  const {
-    prompt,
-    chunkSize = 20,
-    delayMs = 150,
-    onChunk,
-    onComplete,
-    onError,
-  } = options;
+  const { prompt, chunkSize = 20, delayMs = 150, onChunk, onComplete, onError } = options;
 
   let aborted = false;
   let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;

@@ -45,4 +45,3 @@ async function applyColorChange(instruction: string) {
 if (typeof window !== 'undefined') {
   window.applyColorChange = applyColorChange;
 }
-

@@ -5,10 +5,14 @@ import { logStreamEvent } from './logger.js';
 /**
  * Centralized event sender with validation and logging
  */
-export function sendStreamEvent(socket: WebSocket, event: StreamEvent, options?: {
-  skipValidation?: boolean;
-  skipLogging?: boolean;
-}): boolean {
+export function sendStreamEvent(
+  socket: WebSocket,
+  event: StreamEvent,
+  options?: {
+    skipValidation?: boolean;
+    skipLogging?: boolean;
+  },
+): boolean {
   const { skipValidation = false, skipLogging = false } = options || {};
 
   // Validate event schema
@@ -24,7 +28,8 @@ export function sendStreamEvent(socket: WebSocket, event: StreamEvent, options?:
   }
 
   // Check socket state
-  if (socket.readyState !== 1) { // WebSocket.OPEN
+  if (socket.readyState !== 1) {
+    // WebSocket.OPEN
     console.warn('[StreamEvent] Socket not open, cannot send event:', event.kind);
     return false;
   }

@@ -4,7 +4,7 @@ import {
   FilesRepository,
   FileReferencesRepository,
   EventsRepository,
-  DatabaseClient
+  DatabaseClient,
 } from '@eitherway/database';
 
 export async function registerAppRoutes(fastify: FastifyInstance, db: DatabaseClient) {
@@ -14,22 +14,26 @@ export async function registerAppRoutes(fastify: FastifyInstance, db: DatabaseCl
   const eventsRepo = new EventsRepository(db);
 
   fastify.post<{
-    Body: { ownerId: string; name: string; visibility?: 'private' | 'team' | 'public' }
+    Body: { ownerId: string; name: string; visibility?: 'private' | 'team' | 'public' };
   }>('/api/apps', async (request, reply) => {
     const { ownerId, name, visibility } = request.body;
 
     const app = await appsRepo.create(ownerId, name, visibility);
 
-    await eventsRepo.log('app.created', { appId: app.id, name }, {
-      appId: app.id,
-      actor: 'user'
-    });
+    await eventsRepo.log(
+      'app.created',
+      { appId: app.id, name },
+      {
+        appId: app.id,
+        actor: 'user',
+      },
+    );
 
     return app;
   });
 
   fastify.get<{
-    Params: { id: string }
+    Params: { id: string };
   }>('/api/apps/:id', async (request, reply) => {
     const app = await appsRepo.findById(request.params.id);
 
@@ -41,7 +45,7 @@ export async function registerAppRoutes(fastify: FastifyInstance, db: DatabaseCl
   });
 
   fastify.get<{
-    Querystring: { ownerId: string; limit?: string; offset?: string }
+    Querystring: { ownerId: string; limit?: string; offset?: string };
   }>('/api/apps', async (request, reply) => {
     const { ownerId, limit = '50', offset = '0' } = request.query;
 
@@ -49,18 +53,14 @@ export async function registerAppRoutes(fastify: FastifyInstance, db: DatabaseCl
       return reply.code(400).send({ error: 'ownerId is required' });
     }
 
-    const apps = await appsRepo.findByOwner(
-      ownerId,
-      parseInt(limit, 10),
-      parseInt(offset, 10)
-    );
+    const apps = await appsRepo.findByOwner(ownerId, parseInt(limit, 10), parseInt(offset, 10));
 
     return { apps };
   });
 
   fastify.patch<{
-    Params: { id: string }
-    Body: { name?: string; visibility?: 'private' | 'team' | 'public'; default_session_id?: string | null }
+    Params: { id: string };
+    Body: { name?: string; visibility?: 'private' | 'team' | 'public'; default_session_id?: string | null };
   }>('/api/apps/:id', async (request, reply) => {
     const { id } = request.params;
     const data = request.body;
@@ -71,7 +71,7 @@ export async function registerAppRoutes(fastify: FastifyInstance, db: DatabaseCl
   });
 
   fastify.delete<{
-    Params: { id: string }
+    Params: { id: string };
   }>('/api/apps/:id', async (request, reply) => {
     const { id } = request.params;
 
@@ -81,8 +81,8 @@ export async function registerAppRoutes(fastify: FastifyInstance, db: DatabaseCl
   });
 
   fastify.get<{
-    Params: { appId: string }
-    Querystring: { limit?: string }
+    Params: { appId: string };
+    Querystring: { limit?: string };
   }>('/api/apps/:appId/files', async (request, reply) => {
     const { appId } = request.params;
     const { limit = '1000' } = request.query;
@@ -93,29 +93,33 @@ export async function registerAppRoutes(fastify: FastifyInstance, db: DatabaseCl
   });
 
   fastify.post<{
-    Params: { appId: string }
+    Params: { appId: string };
     Body: {
       path: string;
       content: string;
       userId?: string;
       mimeType?: string;
-    }
+    };
   }>('/api/apps/:appId/files', async (request, reply) => {
     const { appId } = request.params;
     const { path, content, userId, mimeType } = request.body;
 
     const file = await filesRepo.upsertFile(appId, path, content, userId, mimeType);
 
-    await eventsRepo.log('file.upserted', { fileId: file.id, path }, {
-      appId,
-      actor: userId ? 'user' : 'agent'
-    });
+    await eventsRepo.log(
+      'file.upserted',
+      { fileId: file.id, path },
+      {
+        appId,
+        actor: userId ? 'user' : 'agent',
+      },
+    );
 
     return file;
   });
 
   fastify.get<{
-    Params: { appId: string; fileId: string }
+    Params: { appId: string; fileId: string };
   }>('/api/apps/:appId/files/:fileId', async (request, reply) => {
     const { fileId } = request.params;
 
@@ -130,8 +134,8 @@ export async function registerAppRoutes(fastify: FastifyInstance, db: DatabaseCl
   });
 
   fastify.get<{
-    Params: { appId: string; fileId: string }
-    Querystring: { limit?: string }
+    Params: { appId: string; fileId: string };
+    Querystring: { limit?: string };
   }>('/api/apps/:appId/files/:fileId/versions', async (request, reply) => {
     const { fileId } = request.params;
     const { limit = '50' } = request.query;
@@ -142,7 +146,7 @@ export async function registerAppRoutes(fastify: FastifyInstance, db: DatabaseCl
   });
 
   fastify.delete<{
-    Params: { appId: string; fileId: string }
+    Params: { appId: string; fileId: string };
   }>('/api/apps/:appId/files/:fileId', async (request, reply) => {
     const { fileId } = request.params;
 
@@ -152,7 +156,7 @@ export async function registerAppRoutes(fastify: FastifyInstance, db: DatabaseCl
   });
 
   fastify.get<{
-    Params: { appId: string }
+    Params: { appId: string };
   }>('/api/apps/:appId/references', async (request, reply) => {
     const { appId } = request.params;
 

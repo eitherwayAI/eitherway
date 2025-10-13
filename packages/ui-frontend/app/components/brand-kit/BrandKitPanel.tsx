@@ -120,39 +120,38 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
       setUploadProgress([`Deleting ${fileName}...`]);
 
       const deleteResponse = await fetch(`/api/brand-kits/${currentBrandKitId}/assets/${assetId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
       });
 
       if (!deleteResponse.ok) {
         throw new Error(`Failed to delete asset: ${deleteResponse.statusText}`);
       }
 
-      setUploadProgress(prev => [...prev, `✓ ${fileName} deleted`]);
+      setUploadProgress((prev) => [...prev, `✓ ${fileName} deleted`]);
 
       // Re-aggregate colors after deletion
-      setUploadProgress(prev => [...prev, 'Updating color palette...']);
+      setUploadProgress((prev) => [...prev, 'Updating color palette...']);
       const aggregateResponse = await fetch(`/api/brand-kits/${currentBrandKitId}/aggregate-colors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify({}),
       });
 
       if (aggregateResponse.ok) {
         const aggregateData = await aggregateResponse.json();
-        setUploadProgress(prev => [...prev, `✓ Palette updated: ${aggregateData.colorsExtracted || 0} colors`]);
+        setUploadProgress((prev) => [...prev, `✓ Palette updated: ${aggregateData.colorsExtracted || 0} colors`]);
       } else {
-        setUploadProgress(prev => [...prev, '⚠️ Color update failed']);
+        setUploadProgress((prev) => [...prev, '⚠️ Color update failed']);
       }
 
       // Refresh brand kit data
       const kitData = await fetchBrandKitData(currentBrandKitId);
       setBrandKitData(kitData);
 
-      setUploadProgress(prev => [...prev, '✓ Complete!']);
+      setUploadProgress((prev) => [...prev, '✓ Complete!']);
 
       // Clear progress after 2 seconds
       setTimeout(() => setUploadProgress([]), 2000);
-
     } catch (err: any) {
       console.error('[BrandKitPanel] Delete failed:', err);
       setError(err.message || 'Failed to delete asset');
@@ -186,8 +185,8 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
           body: JSON.stringify({
             userId: userId,
             name: brandKitName,
-            description: 'Auto-generated brand kit from upload'
-          })
+            description: 'Auto-generated brand kit from upload',
+          }),
         });
 
         console.log('[BrandKitPanel] Create response status:', createResponse.status);
@@ -218,11 +217,11 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
         const formData = new FormData();
         formData.append('file', file);
 
-        setUploadProgress(prev => [...prev, `Uploading ${file.name}...`]);
+        setUploadProgress((prev) => [...prev, `Uploading ${file.name}...`]);
 
         const uploadResponse = await fetch(`/api/brand-kits/${brandKitId}/assets`, {
           method: 'POST',
-          body: formData
+          body: formData,
         });
 
         if (!uploadResponse.ok) {
@@ -243,40 +242,42 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
         }
 
         const result = await uploadResponse.json();
-        setUploadProgress(prev => [...prev, `✓ ${file.name} uploaded successfully`]);
+        setUploadProgress((prev) => [...prev, `✓ ${file.name} uploaded successfully`]);
         return result;
       });
 
       await Promise.all(uploadPromises);
 
-      setUploadProgress(prev => [...prev, '✓ All files uploaded!']);
+      setUploadProgress((prev) => [...prev, '✓ All files uploaded!']);
 
       // Aggregate colors across all assets
-      setUploadProgress(prev => [...prev, 'Extracting brand color palette...']);
+      setUploadProgress((prev) => [...prev, 'Extracting brand color palette...']);
       const aggregateResponse = await fetch(`/api/brand-kits/${brandKitId}/aggregate-colors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify({}),
       });
 
       if (!aggregateResponse.ok) {
         console.error('[BrandKitPanel] Color aggregation failed:', aggregateResponse.statusText);
-        setUploadProgress(prev => [...prev, '⚠️ Color extraction failed, but assets uploaded successfully']);
+        setUploadProgress((prev) => [...prev, '⚠️ Color extraction failed, but assets uploaded successfully']);
       } else {
         const aggregateData = await aggregateResponse.json();
         console.log('[BrandKitPanel] Color aggregation complete:', aggregateData);
-        setUploadProgress(prev => [...prev, `✓ Extracted ${aggregateData.colorsExtracted || 0} colors from ${aggregateData.assetsProcessed || 0} assets`]);
+        setUploadProgress((prev) => [
+          ...prev,
+          `✓ Extracted ${aggregateData.colorsExtracted || 0} colors from ${aggregateData.assetsProcessed || 0} assets`,
+        ]);
       }
 
       // Fetch updated brand kit data to show assets and colors
       const kitData = await fetchBrandKitData(brandKitId);
 
-      setUploadProgress(prev => [...prev, '✓ Brand kit ready!']);
+      setUploadProgress((prev) => [...prev, '✓ Brand kit ready!']);
 
       // Mark assets pending for sync. We'll materialize them at the next prompt.
       brandKitStore.setKey('pendingBrandKitId', brandKitId);
       brandKitStore.setKey('dirty', true);
-
     } catch (err: any) {
       console.error('Brand kit upload error:', err);
       setError(err.message || 'Upload failed');
@@ -302,8 +303,18 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
           <div className="space-y-4">
             {/* Upload Area */}
             <div className="p-6 bg-gray-800 rounded-lg border-2 border-dashed border-gray-600 text-center">
-              <svg className="w-16 h-16 mx-auto mb-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              <svg
+                className="w-16 h-16 mx-auto mb-4 text-gray-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                />
               </svg>
               <p className="text-white font-medium mb-2">Upload Your Brand Assets</p>
               <p className="text-sm text-gray-400 mb-4">Drag and drop or click to upload logos, colors, and fonts</p>
@@ -320,9 +331,7 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
                 htmlFor="brand-kit-upload"
                 title={agentWorking ? 'Wait for the agent to finish before uploading' : 'Choose files'}
                 className={`inline-block px-6 py-3 rounded-lg cursor-pointer transition-colors ${
-                  (isUploading || agentWorking)
-                    ? 'bg-gray-600 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700'
+                  isUploading || agentWorking ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
                 } text-white`}
               >
                 {isUploading ? 'Uploading...' : 'Choose Files'}
@@ -335,7 +344,9 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
                 <h4 className="text-sm font-semibold text-gray-300 mb-2">Upload Progress</h4>
                 <div className="space-y-1">
                   {uploadProgress.map((msg, idx) => (
-                    <p key={idx} className="text-xs text-gray-400">{msg}</p>
+                    <p key={idx} className="text-xs text-gray-400">
+                      {msg}
+                    </p>
                   ))}
                 </div>
               </div>
@@ -354,14 +365,20 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
               <div className="bg-blue-900/20 border border-blue-700 rounded-lg p-4">
                 <h4 className="text-sm font-semibold text-blue-400 mb-2">Supported file types:</h4>
                 <ul className="text-xs text-blue-300 space-y-1">
-                  <li>• <strong>Images:</strong> PNG, JPEG, SVG, ICO (up to 20MB)</li>
-                  <li>• <strong>Fonts:</strong> TTF, OTF, WOFF, WOFF2 (up to 10MB)</li>
-                  <li>• <strong>Archives:</strong> ZIP brand packages (up to 200MB)</li>
-                  <li>• <strong>Videos:</strong> MP4 promo clips (up to 100MB)</li>
+                  <li>
+                    • <strong>Images:</strong> PNG, JPEG, SVG, ICO (up to 20MB)
+                  </li>
+                  <li>
+                    • <strong>Fonts:</strong> TTF, OTF, WOFF, WOFF2 (up to 10MB)
+                  </li>
+                  <li>
+                    • <strong>Archives:</strong> ZIP brand packages (up to 200MB)
+                  </li>
+                  <li>
+                    • <strong>Videos:</strong> MP4 promo clips (up to 100MB)
+                  </li>
                 </ul>
-                <p className="text-xs text-blue-400 mt-3">
-                  Colors are automatically extracted from logos and images!
-                </p>
+                <p className="text-xs text-blue-400 mt-3">Colors are automatically extracted from logos and images!</p>
               </div>
             )}
 
@@ -388,15 +405,9 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="text-xs">
-                          {asset.processingStatus === 'completed' && (
-                            <span className="text-green-400">✓</span>
-                          )}
-                          {asset.processingStatus === 'processing' && (
-                            <span className="text-yellow-400">...</span>
-                          )}
-                          {asset.processingStatus === 'failed' && (
-                            <span className="text-red-400">✗</span>
-                          )}
+                          {asset.processingStatus === 'completed' && <span className="text-green-400">✓</span>}
+                          {asset.processingStatus === 'processing' && <span className="text-yellow-400">...</span>}
+                          {asset.processingStatus === 'failed' && <span className="text-red-400">✗</span>}
                         </div>
                         <button
                           onClick={() => handleDeleteAsset(asset.id, asset.fileName)}
@@ -426,9 +437,7 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
                         title={`${color.name || color.hex}\n${color.prominence ? `${(color.prominence * 100).toFixed(0)}% prominence` : ''}`}
                       />
                       <p className="text-xs text-gray-400 mt-1 text-center">{color.hex}</p>
-                      {color.name && (
-                        <p className="text-xs text-gray-500 truncate max-w-full">{color.name}</p>
-                      )}
+                      {color.name && <p className="text-xs text-gray-500 truncate max-w-full">{color.name}</p>}
                     </div>
                   ))}
                 </div>

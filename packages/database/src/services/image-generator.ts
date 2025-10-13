@@ -130,9 +130,7 @@ export class ImageGenerationService {
 
     const isJPEG = bytes[0] === 0xff && bytes[1] === 0xd8;
     if (isJPEG) {
-      const hasJPEGEnd = bytes.length >= 2 &&
-                        bytes[bytes.length - 2] === 0xff &&
-                        bytes[bytes.length - 1] === 0xd9;
+      const hasJPEGEnd = bytes.length >= 2 && bytes[bytes.length - 2] === 0xff && bytes[bytes.length - 1] === 0xd9;
       return { mimeType: 'image/jpeg', isValid: hasJPEGEnd };
     }
 
@@ -173,7 +171,7 @@ export class ImageGenerationService {
   async pollJobUntilComplete(
     jobId: string,
     timeoutMs = 60000,
-    pollIntervalMs = 1000
+    pollIntervalMs = 1000,
   ): Promise<{ job: any; assets: Array<Omit<any, 'bytes'>> }> {
     const startTime = Date.now();
 
@@ -184,7 +182,7 @@ export class ImageGenerationService {
         return status;
       }
 
-      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
     }
 
     throw new Error(`Image generation timed out after ${timeoutMs}ms`);

@@ -76,24 +76,22 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
 
             // Determine what to display based on whether this is the last (streaming) message or old message
             const displayReasoningText = isLast
-              ? (messageMetadata.reasoningText || reasoningText)  // Last message: prefer saved, fallback to streaming state
-              : (messageMetadata.reasoningText || '');            // Old message: only use saved
+              ? messageMetadata.reasoningText || reasoningText // Last message: prefer saved, fallback to streaming state
+              : messageMetadata.reasoningText || ''; // Old message: only use saved
 
-            const displayPhase = isLast
-              ? (currentPhase || messageMetadata.phase || null)
-              : (messageMetadata.phase || null);
+            const displayPhase = isLast ? currentPhase || messageMetadata.phase || null : messageMetadata.phase || null;
 
             const displayThinkingDuration = isLast
               ? (messageMetadata.thinkingDuration ?? thinkingDuration)
               : (messageMetadata.thinkingDuration ?? null);
 
             const displayFileOperations = isLast
-              ? (messageMetadata.fileOperations || fileOperations)
-              : (messageMetadata.fileOperations || []);
+              ? messageMetadata.fileOperations || fileOperations
+              : messageMetadata.fileOperations || [];
 
             const displayTokenUsage = isLast
-              ? (messageMetadata.tokenUsage || tokenUsage)
-              : (messageMetadata.tokenUsage || null);
+              ? messageMetadata.tokenUsage || tokenUsage
+              : messageMetadata.tokenUsage || null;
 
             // Debug: Log what we're displaying for each message
             if (!isUserMessage) {

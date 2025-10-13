@@ -8,14 +8,8 @@ import { ToolRunner } from './tool-runner.js';
 import { TranscriptRecorder } from './transcript.js';
 import { VerifierRunner } from './verifier.js';
 import { getAllToolDefinitions } from '@eitherway/tools-core';
-import type {
-  Message,
-  ToolUse,
-  ToolResult,
-  ClaudeConfig,
-  AgentConfig,
-  ToolExecutor
-} from '@eitherway/tools-core';
+import { MAX_AGENT_TURNS, REASONING_STREAM_CHUNK_SIZE, REASONING_STREAM_DELAY_MS } from './constants.js';
+import type { Message, ToolUse, ToolResult, ClaudeConfig, AgentConfig, ToolExecutor } from '@eitherway/tools-core';
 
 /**
  * Phase types for streaming UI
@@ -296,11 +290,7 @@ export class Agent {
   constructor(options: AgentOptions) {
     this.options = options;
     this.modelClient = new ModelClient(options.claudeConfig);
-    this.toolRunner = new ToolRunner(
-      options.executors,
-      options.workingDir,
-      options.agentConfig
-    );
+    this.toolRunner = new ToolRunner(options.executors, options.workingDir, options.agentConfig);
     this.recorder = new TranscriptRecorder(options.agentConfig);
     this.conversationHistory = [];
   }
@@ -324,18 +314,17 @@ export class Agent {
     // Add user message to history (content must be array for Claude API)
     this.conversationHistory.push({
       role: 'user',
-      content: [{ type: 'text', text: userMessage }]
+      content: [{ type: 'text', text: userMessage }],
     });
 
     this.recorder.addEntry({
       timestamp: new Date().toISOString(),
       role: 'user',
-      content: userMessage
+      content: userMessage,
     });
 
     let finalResponse = '';
     let turnCount = 0;
-    const maxTurns = 20; // Safety limit
     const changedFiles = new Set<string>();
     let hasExecutedTools = false;
 
@@ -343,7 +332,7 @@ export class Agent {
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
 
-    let justExecutedTools = false;  // Track if we executed tools in previous iteration
+    let justExecutedTools = false; // Track if we executed tools in previous iteration
 
     // Buffering for thinking → reasoning transition
     let thinkingBuffer = '';
@@ -358,7 +347,7 @@ export class Agent {
     const fileOpsThisRequest = new Map<string, 'create' | 'edit'>();
     const filesCreatedThisRequest = new Set<string>();
 
-    while (turnCount < maxTurns) {
+    while (turnCount < MAX_AGENT_TURNS) {
       turnCount++;
 
       // Validate conversation history before sending to Claude
@@ -406,8 +395,8 @@ export class Agent {
               }
             }
           },
-          webSearchConfig: this.options.webSearch
-        }
+          webSearchConfig: this.options.webSearch,
+        },
       );
 
       // Accumulate token usage
@@ -423,10 +412,10 @@ export class Agent {
           model: this.options.claudeConfig.model,
           tokenUsage: {
             input: response.usage.inputTokens,
-            output: response.usage.outputTokens
+            output: response.usage.outputTokens,
           },
-          stopReason: response.stopReason || undefined
-        }
+          stopReason: response.stopReason || undefined,
+        },
       });
 
       // Extract text for final summary
@@ -436,8 +425,7 @@ export class Agent {
         .join('\n');
 
       // --- Enforce READ-before-WRITE by injecting either-view blocks if missing ---
-      const { contentBlocks: enforcedAssistantBlocks, toolUses } =
-        this.injectReadBeforeWriteBlocks(response.content);
+      const { contentBlocks: enforcedAssistantBlocks, toolUses } = this.injectReadBeforeWriteBlocks(response.content);
 
       // --- Handle thinking → reasoning transition ---
       if (isInThinkingPhase && thinkingBuffer && toolUses.length > 0) {
@@ -445,9 +433,7 @@ export class Agent {
         isInThinkingPhase = false;
 
         // Calculate thinking duration
-        const thinkingDuration = thinkingStartTime
-          ? Math.round((Date.now() - thinkingStartTime) / 1000)
-          : 0;
+        const thinkingDuration = thinkingStartTime ? Math.round((Date.now() - thinkingStartTime) / 1000) : 0;
 
         // Emit thinking complete with duration
         if (callbacks?.onThinkingComplete) {
@@ -455,7 +441,7 @@ export class Agent {
         }
 
         // Small delay to let user read the "Thought for X seconds" message
-        await new Promise(resolve => setTimeout(resolve, 800));
+        await new Promise((resolve) => setTimeout(resolve, 800));
 
         // Emit reasoning phase
         if (callbacks?.onPhase) {
@@ -464,12 +450,10 @@ export class Agent {
 
         // Stream buffered text smoothly (chunk by chunk for animation)
         if (callbacks?.onReasoning) {
-          const CHUNK_SIZE = 2; // Small chunks for smooth 60fps effect
-          for (let i = 0; i < thinkingBuffer.length; i += CHUNK_SIZE) {
-            const chunk = thinkingBuffer.slice(i, i + CHUNK_SIZE);
+          for (let i = 0; i < thinkingBuffer.length; i += REASONING_STREAM_CHUNK_SIZE) {
+            const chunk = thinkingBuffer.slice(i, i + REASONING_STREAM_CHUNK_SIZE);
             callbacks.onReasoning({ text: chunk });
-            // 16ms delay = 60fps smooth streaming (~125 chars/sec)
-            await new Promise(resolve => setTimeout(resolve, 16));
+            await new Promise((resolve) => setTimeout(resolve, REASONING_STREAM_DELAY_MS));
           }
         }
 
@@ -488,14 +472,14 @@ export class Agent {
       if (enforcedAssistantBlocks.length > 0) {
         this.conversationHistory.push({
           role: 'assistant',
-          content: enforcedAssistantBlocks as any
+          content: enforcedAssistantBlocks as any,
         });
       } else {
         // Edge case: empty response - add placeholder to maintain conversation flow
         console.warn('[Agent] Warning: Assistant response had no content blocks, adding placeholder');
         this.conversationHistory.push({
           role: 'assistant',
-          content: [{ type: 'text', text: '...' }]
+          content: [{ type: 'text', text: '...' }],
         });
       }
 
@@ -513,12 +497,10 @@ export class Agent {
 
           // Stream buffered summary smoothly using reasoning callback
           if (callbacks?.onReasoning) {
-            const CHUNK_SIZE = 2; // Small chunks for smooth 60fps effect
-            for (let i = 0; i < summaryBuffer.length; i += CHUNK_SIZE) {
-              const chunk = summaryBuffer.slice(i, i + CHUNK_SIZE);
+            for (let i = 0; i < summaryBuffer.length; i += REASONING_STREAM_CHUNK_SIZE) {
+              const chunk = summaryBuffer.slice(i, i + REASONING_STREAM_CHUNK_SIZE);
               callbacks.onReasoning({ text: chunk });
-              // 16ms delay = 60fps smooth streaming (~125 chars/sec)
-              await new Promise(resolve => setTimeout(resolve, 16));
+              await new Promise((resolve) => setTimeout(resolve, REASONING_STREAM_DELAY_MS));
             }
           }
 
@@ -539,7 +521,7 @@ export class Agent {
       // Emit 'code-writing' phase when we have tools to execute
       if (toolUses.length > 0 && callbacks?.onPhase) {
         // Add delay before showing "Writing code..." for natural pacing
-        await new Promise(resolve => setTimeout(resolve, 600));
+        await new Promise((resolve) => setTimeout(resolve, 600));
         callbacks.onPhase('code-writing');
       }
 
@@ -555,7 +537,7 @@ export class Agent {
         toolResults = toolUses.map((tu: ToolUse) => ({
           type: 'tool_result' as const,
           tool_use_id: tu.id,
-          content: `[DRY RUN] Would execute: ${tu.name} with input: ${JSON.stringify(tu.input, null, 2)}`
+          content: `[DRY RUN] Would execute: ${tu.name} with input: ${JSON.stringify(tu.input, null, 2)}`,
         }));
       } else {
         // Track new file operations this turn (for emitting)
@@ -590,7 +572,7 @@ export class Agent {
 
               // Emit "Creating..." or "Editing..." message before execution
               if (callbacks?.onFileOperation) {
-                await new Promise(resolve => setTimeout(resolve, 200)); // Delay between file operations
+                await new Promise((resolve) => setTimeout(resolve, 200)); // Delay between file operations
                 const progressiveState: 'creating' | 'editing' = operation === 'create' ? 'creating' : 'editing';
                 callbacks.onFileOperation(progressiveState, filePath);
               }
@@ -602,7 +584,7 @@ export class Agent {
             callbacks.onToolStart({
               name: toolUse.name,
               toolUseId: toolUse.id,
-              filePath
+              filePath,
             });
           }
 
@@ -613,7 +595,7 @@ export class Agent {
           // Emit "Created" or "Edited" message after execution (only for new operations)
           if (filePath && newFileOpsThisTurn.has(filePath)) {
             if (callbacks?.onFileOperation) {
-              await new Promise(resolve => setTimeout(resolve, 300)); // Delay before completion message
+              await new Promise((resolve) => setTimeout(resolve, 300)); // Delay before completion message
               const operation = newFileOpsThisTurn.get(filePath);
               const completedState: 'created' | 'edited' = operation === 'create' ? 'created' : 'edited';
               callbacks.onFileOperation(completedState, filePath);
@@ -625,7 +607,7 @@ export class Agent {
             callbacks.onToolEnd({
               name: toolUse.name,
               toolUseId: toolUse.id,
-              filePath
+              filePath,
             });
           }
         }
@@ -646,7 +628,7 @@ export class Agent {
         const missingRefs = await this.checkMissingFileReferences(toolUses, createdFilesThisTurn, toolResults);
         if (missingRefs.length > 0) {
           // Add warning to the last tool result to inform the agent
-          const warningMessage = `\n\n⚠️ WARNING: Missing file references detected:\n${missingRefs.map(ref => `  - ${ref.htmlFile} references <${ref.tag} ${ref.attr}="${ref.file}"> but ${ref.file} was not created`).join('\n')}\n\nYou MUST create these files in your next response to make the app functional.`;
+          const warningMessage = `\n\n⚠️ WARNING: Missing file references detected:\n${missingRefs.map((ref) => `  - ${ref.htmlFile} references <${ref.tag} ${ref.attr}="${ref.file}"> but ${ref.file} was not created`).join('\n')}\n\nYou MUST create these files in your next response to make the app functional.`;
 
           // Append warning to the last tool result
           if (toolResults.length > 0) {
@@ -661,13 +643,13 @@ export class Agent {
       this.recorder.addEntry({
         timestamp: new Date().toISOString(),
         role: 'user',
-        content: toolResults
+        content: toolResults,
       });
 
       // Add tool results to conversation
       this.conversationHistory.push({
         role: 'user',
-        content: toolResults
+        content: toolResults,
       });
 
       // If stop reason was end_turn, continue conversation
@@ -688,7 +670,7 @@ export class Agent {
     if (callbacks?.onComplete) {
       callbacks.onComplete({
         inputTokens: totalInputTokens,
-        outputTokens: totalOutputTokens
+        outputTokens: totalOutputTokens,
       });
     }
 
@@ -753,9 +735,10 @@ export class Agent {
     }
 
     const files = Array.from(changedFiles).sort();
-    const summary = files.length === 1
-      ? `**Changed:** ${files[0]}\n`
-      : `**Changed (${files.length} files):**\n${files.map(f => `  - ${f}`).join('\n')}\n`;
+    const summary =
+      files.length === 1
+        ? `**Changed:** ${files[0]}\n`
+        : `**Changed (${files.length} files):**\n${files.map((f) => `  - ${f}`).join('\n')}\n`;
 
     return summary;
   }
@@ -777,8 +760,8 @@ export class Agent {
 
         throw new Error(
           `Conversation history validation failed: ` +
-          `Message ${idx} has invalid content format (expected array, got ${typeof msg.content}). ` +
-          `This will cause Claude API to reject the request with "Input should be a valid list" error.`
+            `Message ${idx} has invalid content format (expected array, got ${typeof msg.content}). ` +
+            `This will cause Claude API to reject the request with "Input should be a valid list" error.`,
         );
       }
 
@@ -794,8 +777,8 @@ export class Agent {
 
           throw new Error(
             `Conversation history validation failed: ` +
-            `Message ${idx} has empty content array. ` +
-            `This will cause Claude API to reject the request with "all messages must have non-empty content" error.`
+              `Message ${idx} has empty content array. ` +
+              `This will cause Claude API to reject the request with "all messages must have non-empty content" error.`,
           );
         }
       }
@@ -811,7 +794,9 @@ export class Agent {
           console.log(`  web_search_tool_results: ${webSearchResults.length}`);
           console.log(`  All blocks in message:`);
           msg.content.forEach((block: any, blockIdx: number) => {
-            console.log(`    [${blockIdx}] ${block.type}${block.id ? ` (id: ${block.id})` : ''}${block.tool_use_id ? ` (tool_use_id: ${block.tool_use_id})` : ''}`);
+            console.log(
+              `    [${blockIdx}] ${block.type}${block.id ? ` (id: ${block.id})` : ''}${block.tool_use_id ? ` (tool_use_id: ${block.tool_use_id})` : ''}`,
+            );
           });
 
           // Verify each server_tool_use has a corresponding web_search_tool_result
@@ -819,7 +804,9 @@ export class Agent {
             const hasMatchingResult = webSearchResults.some((wsr: any) => wsr.tool_use_id === stu.id);
 
             if (!hasMatchingResult) {
-              console.error(`\n⚠️  WARNING: Message [${idx}] has server_tool_use (${stu.id}) without web_search_tool_result`);
+              console.error(
+                `\n⚠️  WARNING: Message [${idx}] has server_tool_use (${stu.id}) without web_search_tool_result`,
+              );
               console.error(`   This might cause issues, but continuing anyway for debugging...`);
               console.error('');
 
@@ -854,7 +841,7 @@ export class Agent {
           type: 'tool_use',
           id: blk.id,
           name: blk.name,
-          input: blk.input
+          input: blk.input,
         });
       }
     };
@@ -882,7 +869,7 @@ export class Agent {
             type: 'tool_use',
             id: injectedId,
             name: Agent.READ_TOOL,
-            input: { path }
+            input: { path },
           };
           pushAndCollect(injected);
           seenReadForPath.add(path);
@@ -892,7 +879,7 @@ export class Agent {
         if (!blk.input?.needle) {
           blk.input = {
             ...blk.input,
-            _enforcerWarning: 'No `needle` provided; injected a read to reduce risk.'
+            _enforcerWarning: 'No `needle` provided; injected a read to reduce risk.',
           };
         }
 
@@ -924,14 +911,15 @@ export class Agent {
   private async checkMissingFileReferences(
     toolUses: ToolUse[],
     createdFiles: Set<string>,
-    toolResults: ToolResult[]
+    toolResults: ToolResult[],
   ): Promise<Array<{ htmlFile: string; tag: string; attr: string; file: string }>> {
     const missing: Array<{ htmlFile: string; tag: string; attr: string; file: string }> = [];
 
     // Check HTML files for script/link references
-    const htmlWrites = toolUses.filter(tu =>
-      (tu.name === 'either-write' || tu.name === 'either-line-replace') &&
-      tu.input?.path?.toLowerCase().endsWith('.html')
+    const htmlWrites = toolUses.filter(
+      (tu) =>
+        (tu.name === 'either-write' || tu.name === 'either-line-replace') &&
+        tu.input?.path?.toLowerCase().endsWith('.html'),
     );
 
     for (const htmlWrite of htmlWrites) {
@@ -942,9 +930,7 @@ export class Agent {
       const result = toolResults[resultIdx];
       if (!result || result.is_error) continue;
 
-      const htmlContent = htmlWrite.name === 'either-write'
-        ? htmlWrite.input?.content
-        : null;
+      const htmlContent = htmlWrite.name === 'either-write' ? htmlWrite.input?.content : null;
 
       if (!htmlContent || typeof htmlContent !== 'string') continue;
 
@@ -958,7 +944,7 @@ export class Agent {
             htmlFile: htmlPath,
             tag: 'script',
             attr: 'src',
-            file: scriptPath
+            file: scriptPath,
           });
         }
       }
@@ -974,7 +960,7 @@ export class Agent {
               htmlFile: htmlPath,
               tag: 'link',
               attr: 'href',
-              file: linkPath
+              file: linkPath,
             });
           }
         }
@@ -982,12 +968,13 @@ export class Agent {
     }
 
     // Check React/JSX/TSX files for import statements
-    const reactWrites = toolUses.filter(tu =>
-      (tu.name === 'either-write' || tu.name === 'either-line-replace') &&
-      (tu.input?.path?.endsWith('.jsx') ||
-       tu.input?.path?.endsWith('.tsx') ||
-       tu.input?.path?.endsWith('.js') ||
-       tu.input?.path?.endsWith('.ts'))
+    const reactWrites = toolUses.filter(
+      (tu) =>
+        (tu.name === 'either-write' || tu.name === 'either-line-replace') &&
+        (tu.input?.path?.endsWith('.jsx') ||
+          tu.input?.path?.endsWith('.tsx') ||
+          tu.input?.path?.endsWith('.js') ||
+          tu.input?.path?.endsWith('.ts')),
     );
 
     for (const reactWrite of reactWrites) {
@@ -998,14 +985,14 @@ export class Agent {
       const result = toolResults[resultIdx];
       if (!result || result.is_error) continue;
 
-      const content = reactWrite.name === 'either-write'
-        ? reactWrite.input?.content
-        : null;
+      const content = reactWrite.name === 'either-write' ? reactWrite.input?.content : null;
 
       if (!content || typeof content !== 'string') continue;
 
       // Extract import statements: import ... from './path'
-      const importMatches = content.matchAll(/import\s+(?:(?:\{[^}]+\}|[\w]+)(?:\s*,\s*(?:\{[^}]+\}|[\w]+))*)\s+from\s+['"]([^'"]+)['"]/g);
+      const importMatches = content.matchAll(
+        /import\s+(?:(?:\{[^}]+\}|[\w]+)(?:\s*,\s*(?:\{[^}]+\}|[\w]+))*)\s+from\s+['"]([^'"]+)['"]/g,
+      );
 
       for (const match of importMatches) {
         const importPath = match[1];
@@ -1026,17 +1013,15 @@ export class Agent {
           `${normalizedPath}/index.jsx`,
           `${normalizedPath}/index.tsx`,
           `${normalizedPath}/index.js`,
-          `${normalizedPath}/index.ts`
+          `${normalizedPath}/index.ts`,
         ];
 
         // Also check paths relative to src/ directory
-        const srcPaths = possiblePaths.map(p => `src/${p}`);
+        const srcPaths = possiblePaths.map((p) => `src/${p}`);
 
         // Check if any of the possible paths exist in createdFiles
-        const exists = [...possiblePaths, ...srcPaths].some(p =>
-          createdFiles.has(p) ||
-          createdFiles.has(`./${p}`) ||
-          createdFiles.has(`/${p}`)
+        const exists = [...possiblePaths, ...srcPaths].some(
+          (p) => createdFiles.has(p) || createdFiles.has(`./${p}`) || createdFiles.has(`/${p}`),
         );
 
         if (!exists) {
@@ -1044,7 +1029,7 @@ export class Agent {
             htmlFile: filePath,
             tag: 'import',
             attr: 'from',
-            file: importPath
+            file: importPath,
           });
         }
       }

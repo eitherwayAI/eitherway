@@ -106,7 +106,7 @@ function arrayBufferToString(buffer: ArrayBuffer): string {
  */
 export async function syncBrandAssetsToWebContainer(
   webcontainer: WebContainer,
-  assets: BrandAsset[]
+  assets: BrandAsset[],
 ): Promise<{ synced: number; skipped: number; failed: number }> {
   logger.info('Syncing brand assets to WebContainer', assets.length, 'assets');
 
@@ -153,7 +153,6 @@ export async function syncBrandAssetsToWebContainer(
       await webcontainer.fs.writeFile(destPath, fileContents);
       logger.info(`✓ Synced brand asset: ${destPath}`);
       synced++;
-
     } catch (error) {
       logger.error(`Failed to sync asset ${asset.fileName}:`, error);
       failed++;

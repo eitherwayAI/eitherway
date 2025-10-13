@@ -14,8 +14,7 @@ function extractRootVars(css: string): VarMap {
 }
 
 function buildRoot(vars: VarMap): string {
-  const lines = Object.entries(vars)
-    .map(([k, v]) => `  --${k}: ${v};`);
+  const lines = Object.entries(vars).map(([k, v]) => `  --${k}: ${v};`);
   return `:root {\n${lines.join('\n')}\n}\n`;
 }
 
@@ -29,10 +28,10 @@ function replaceRoot(css: string, newRoot: string): string {
 export function mergeStylesCss(
   incomingCss: string,
   existingCss: string,
-  lockedColors: VarMap
+  lockedColors: VarMap,
 ): { css: string; updatedLock?: VarMap; explicitStyleChange: boolean } {
   const inVars = extractRootVars(incomingCss);
-  const inColorKeys = Object.keys(inVars).filter(k => k.startsWith('color-'));
+  const inColorKeys = Object.keys(inVars).filter((k) => k.startsWith('color-'));
   const lockHas = Object.keys(lockedColors || {}).length > 0;
 
   let explicitStyleChange = false;
@@ -51,7 +50,7 @@ export function mergeStylesCss(
 
   // Heuristic: if most color vars changed from lock, treat as explicit theme change
   const total = inColorKeys.length || 1;
-  const changed = inColorKeys.filter(k => lockedColors[k] && lockedColors[k] !== inVars[k]).length;
+  const changed = inColorKeys.filter((k) => lockedColors[k] && lockedColors[k] !== inVars[k]).length;
   explicitStyleChange = changed / total >= 0.6;
 
   if (!explicitStyleChange) {
@@ -80,4 +79,3 @@ export function mergeStylesCss(
     explicitStyleChange: true,
   };
 }
-

@@ -109,7 +109,11 @@ export async function syncFilesToWebContainer(
         let normalized = String(fileData.content).replace(/^\s+|\s+$/g, '');
 
         // Fix common corruption where a stray '0' prefixes a valid PNG base64
-        if ((fileData.mimeType || '').toLowerCase().includes('image/png') && normalized[0] === '0' && normalized[1] === 'i') {
+        if (
+          (fileData.mimeType || '').toLowerCase().includes('image/png') &&
+          normalized[0] === '0' &&
+          normalized[1] === 'i'
+        ) {
           normalized = normalized.slice(1);
         }
 

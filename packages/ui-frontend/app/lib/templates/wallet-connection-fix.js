@@ -9,7 +9,7 @@ window.walletConnectionState = {
   isConnected: false,
   account: null,
   pendingRequest: null,
-  connectionTimer: null
+  connectionTimer: null,
 };
 
 /**
@@ -69,7 +69,7 @@ async function connectWalletSafely(buttonElement = null) {
 
     // Request accounts with timeout
     const accountsPromise = window.ethereum.request({
-      method: 'eth_requestAccounts'
+      method: 'eth_requestAccounts',
     });
 
     const accounts = await Promise.race([accountsPromise, timeoutPromise]);
@@ -101,7 +101,6 @@ async function connectWalletSafely(buttonElement = null) {
     } else {
       throw new Error('No accounts found');
     }
-
   } catch (error) {
     console.error('Wallet connection error:', error);
 
@@ -129,7 +128,6 @@ async function connectWalletSafely(buttonElement = null) {
     }
 
     return null;
-
   } finally {
     // Always reset connecting state
     state.isConnecting = false;
@@ -182,7 +180,7 @@ function handleAccountsChanged(accounts) {
     showToast(`Account changed: ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`, 'info');
 
     // Update any connect buttons
-    document.querySelectorAll('.wallet-connect-btn').forEach(btn => {
+    document.querySelectorAll('.wallet-connect-btn').forEach((btn) => {
       if (btn.textContent.includes('0x')) {
         btn.textContent = `${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`;
       }
@@ -208,7 +206,7 @@ async function checkExistingConnection() {
 
   try {
     const accounts = await window.ethereum.request({
-      method: 'eth_accounts'
+      method: 'eth_accounts',
     });
 
     if (accounts && accounts.length > 0) {
@@ -217,7 +215,7 @@ async function checkExistingConnection() {
       state.isConnected = true;
 
       // Update any connect buttons
-      document.querySelectorAll('.wallet-connect-btn').forEach(btn => {
+      document.querySelectorAll('.wallet-connect-btn').forEach((btn) => {
         btn.textContent = `${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`;
         btn.style.backgroundColor = 'var(--color-success, #10b981)';
       });
@@ -309,10 +307,10 @@ function fixWalletButtonContrast() {
 function setupWalletButtons() {
   // Find all wallet connect buttons
   const walletButtons = document.querySelectorAll(
-    'button[class*="connect"], button[class*="wallet"], .wallet-connect-btn, [onclick*="ethereum"], [onclick*="wallet"]'
+    'button[class*="connect"], button[class*="wallet"], .wallet-connect-btn, [onclick*="ethereum"], [onclick*="wallet"]',
   );
 
-  walletButtons.forEach(button => {
+  walletButtons.forEach((button) => {
     // Add class for styling
     if (!button.classList.contains('wallet-connect-btn')) {
       button.classList.add('wallet-connect-btn');
@@ -363,7 +361,7 @@ function initializeWalletManager() {
 
   observer.observe(document.body, {
     childList: true,
-    subtree: true
+    subtree: true,
   });
 }
 
@@ -383,12 +381,12 @@ window.walletManager = {
   disconnect: disconnectWallet,
   checkConnection: checkExistingConnection,
   getAccount: () => window.walletConnectionState.account,
-  isConnected: () => window.walletConnectionState.isConnected
+  isConnected: () => window.walletConnectionState.isConnected,
 };
 
 // Helper function for toast notifications (if not already defined)
 if (typeof showToast === 'undefined') {
-  window.showToast = function(message, type = 'info') {
+  window.showToast = function (message, type = 'info') {
     console.log(`[${type.toUpperCase()}] ${message}`);
 
     // Create simple toast if no toast system exists

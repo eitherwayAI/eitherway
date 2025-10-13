@@ -9,7 +9,7 @@ import {
   FilesRepository,
   SessionMemoryRepository,
   WorkingSetRepository,
-  EventsRepository
+  EventsRepository,
 } from '../index.js';
 
 describe('Database Smoke Tests', () => {
@@ -62,23 +62,11 @@ describe('Database Smoke Tests', () => {
     expect(session.title).toBe('Test Session');
     expect(session.user_id).toBe(user.id);
 
-    const message1 = await messagesRepo.create(
-      session.id,
-      'user',
-      { text: 'Hello' },
-      'claude-sonnet-4-5',
-      10
-    );
+    const message1 = await messagesRepo.create(session.id, 'user', { text: 'Hello' }, 'claude-sonnet-4-5', 10);
 
     expect(message1.role).toBe('user');
 
-    await messagesRepo.create(
-      session.id,
-      'assistant',
-      { text: 'Hi there!' },
-      'claude-sonnet-4-5',
-      5
-    );
+    await messagesRepo.create(session.id, 'assistant', { text: 'Hi there!' }, 'claude-sonnet-4-5', 5);
 
     const messages = await messagesRepo.findBySession(session.id);
     expect(messages).toHaveLength(2);
@@ -94,24 +82,12 @@ describe('Database Smoke Tests', () => {
     expect(app.name).toBe('Test App');
     expect(app.owner_id).toBe(user.id);
 
-    const file1 = await filesRepo.upsertFile(
-      app.id,
-      'index.js',
-      'console.log("Hello");',
-      user.id,
-      'text/javascript'
-    );
+    const file1 = await filesRepo.upsertFile(app.id, 'index.js', 'console.log("Hello");', user.id, 'text/javascript');
 
     expect(file1.path).toBe('index.js');
     expect(file1.app_id).toBe(app.id);
 
-    const file2 = await filesRepo.upsertFile(
-      app.id,
-      'index.js',
-      'console.log("Updated");',
-      user.id,
-      'text/javascript'
-    );
+    const file2 = await filesRepo.upsertFile(app.id, 'index.js', 'console.log("Updated");', user.id, 'text/javascript');
 
     expect(file2.id).toBe(file1.id);
 
@@ -131,7 +107,7 @@ describe('Database Smoke Tests', () => {
 
     const memory1 = await memoryRepo.upsert(session.id, {
       rollingSummary: 'User asked about weather',
-      facts: { location: 'San Francisco' }
+      facts: { location: 'San Francisco' },
     });
 
     expect(memory1.rolling_summary).toBe('User asked about weather');
@@ -152,13 +128,7 @@ describe('Database Smoke Tests', () => {
     const app = await appsRepo.create(user.id, 'WS Test App');
     const file = await filesRepo.upsertFile(app.id, 'test.js', 'code', user.id);
 
-    const item = await workingSetRepo.add(
-      session.id,
-      app.id,
-      file.id,
-      'Currently editing',
-      'user'
-    );
+    const item = await workingSetRepo.add(session.id, app.id, file.id, 'Currently editing', 'user');
 
     expect(item.session_id).toBe(session.id);
     expect(item.file_id).toBe(file.id);
@@ -177,11 +147,7 @@ describe('Database Smoke Tests', () => {
   });
 
   it('should log events', async () => {
-    const event = await eventsRepo.log(
-      'test.event',
-      { message: 'Test event' },
-      { actor: 'system' }
-    );
+    const event = await eventsRepo.log('test.event', { message: 'Test event' }, { actor: 'system' });
 
     expect(event.kind).toBe('test.event');
     expect(event.actor).toBe('system');

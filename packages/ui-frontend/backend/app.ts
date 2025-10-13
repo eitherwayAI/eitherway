@@ -35,7 +35,7 @@ export function buildApp(): FastifyInstance {
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),
-      message: 'Minimal Fastify server running'
+      message: 'Minimal Fastify server running',
     };
   });
 
@@ -55,7 +55,7 @@ export function buildApp(): FastifyInstance {
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
       'X-Accel-Buffering': 'no', // Disable nginx buffering
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -73,21 +73,25 @@ export function buildApp(): FastifyInstance {
         reply.raw.write(formatSSE(event));
       }
 
-      reply.raw.write(formatSSE({
-        type: 'complete',
-        timestamp: new Date().toISOString(),
-      }));
+      reply.raw.write(
+        formatSSE({
+          type: 'complete',
+          timestamp: new Date().toISOString(),
+        }),
+      );
 
       app.log.info('Stream completed successfully');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       app.log.error(`Stream error: ${errorMessage}`);
 
-      reply.raw.write(formatSSE({
-        type: 'error',
-        error: errorMessage,
-        timestamp: new Date().toISOString(),
-      }));
+      reply.raw.write(
+        formatSSE({
+          type: 'error',
+          error: errorMessage,
+          timestamp: new Date().toISOString(),
+        }),
+      );
     } finally {
       reply.raw.end();
     }
@@ -117,7 +121,7 @@ export function buildApp(): FastifyInstance {
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
       'X-Accel-Buffering': 'no',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -135,11 +139,13 @@ export function buildApp(): FastifyInstance {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       app.log.error(`Agent stream error: ${errorMessage}`);
 
-      reply.raw.write(formatSSE({
-        type: 'error',
-        error: errorMessage,
-        timestamp: new Date().toISOString(),
-      }));
+      reply.raw.write(
+        formatSSE({
+          type: 'error',
+          error: errorMessage,
+          timestamp: new Date().toISOString(),
+        }),
+      );
     } finally {
       reply.raw.end();
     }
@@ -168,7 +174,7 @@ export function buildApp(): FastifyInstance {
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
       'X-Accel-Buffering': 'no',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -178,10 +184,13 @@ export function buildApp(): FastifyInstance {
     const startTime = Date.now();
 
     try {
-      app.log.info({
-        briefLength: brief.length,
-        briefPreview: brief.substring(0, 50),
-      }, 'Starting wizard stream');
+      app.log.info(
+        {
+          briefLength: brief.length,
+          briefPreview: brief.substring(0, 50),
+        },
+        'Starting wizard stream',
+      );
 
       // Stream suggestions (mimics RequirementsExtractor.streamSuggestions)
       for await (const chunk of streamLoremChunks(options)) {
@@ -200,9 +209,12 @@ export function buildApp(): FastifyInstance {
       };
       reply.raw.write(formatSSE(completionEvent));
 
-      app.log.info({
-        duration: Date.now() - startTime,
-      }, 'Wizard stream completed');
+      app.log.info(
+        {
+          duration: Date.now() - startTime,
+        },
+        'Wizard stream completed',
+      );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       app.log.error(`Wizard stream error: ${errorMessage}`);
