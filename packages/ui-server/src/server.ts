@@ -130,7 +130,7 @@ fastify.get<{ Querystring: { url: string } }>('/api/proxy-cdn', async (request, 
   const { url } = request.query;
 
   if (!url) {
-    return reply.code(400).send({ error: 'Missing url parameter' });
+    return reply.code(400).header('Content-Type', 'application/json').send({ error: 'Missing url parameter' });
   }
 
   try {
@@ -138,9 +138,10 @@ fastify.get<{ Querystring: { url: string } }>('/api/proxy-cdn', async (request, 
     const securityCheck = isSecureUrl(targetUrl);
 
     if (!securityCheck.valid) {
-      return reply.code(403).send({ error: securityCheck.error });
+      return reply.code(403).header('Content-Type', 'application/json').send({ error: securityCheck.error });
     }
 
+    console.log('[Proxy CDN] Fetching:', url);
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -152,11 +153,14 @@ fastify.get<{ Querystring: { url: string } }>('/api/proxy-cdn', async (request, 
     });
 
     if (!response.ok) {
-      return reply.code(response.status).send({ error: `Upstream returned ${response.status}` });
+      console.error('[Proxy CDN] Upstream error:', url, response.status);
+      return reply.code(response.status).header('Content-Type', 'application/json').send({ error: `Upstream returned ${response.status}` });
     }
 
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
     const buffer = await response.arrayBuffer();
+
+    console.log('[Proxy CDN] Success:', url, 'Type:', contentType, 'Size:', buffer.byteLength);
 
     reply
       .header('Content-Type', contentType)
@@ -166,7 +170,8 @@ fastify.get<{ Querystring: { url: string } }>('/api/proxy-cdn', async (request, 
       .send(Buffer.from(buffer));
 
   } catch (error: any) {
-    reply.code(500).send({ error: `Proxy error: ${error.message}` });
+    console.error('[Proxy CDN] Error:', url, error.message);
+    reply.code(500).header('Content-Type', 'application/json').send({ error: `Proxy error: ${error.message}` });
   }
 });
 

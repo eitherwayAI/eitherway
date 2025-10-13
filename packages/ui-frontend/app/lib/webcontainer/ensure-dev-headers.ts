@@ -1,5 +1,4 @@
 import type { WebContainer } from '@webcontainer/api';
-import { WORK_DIR } from '~/utils/constants';
 
 async function readText(webcontainer: WebContainer, path: string) {
   try {
@@ -19,9 +18,7 @@ async function fileExists(webcontainer: WebContainer, path: string) {
 }
 
 export async function ensureDevHeaders(webcontainer: WebContainer) {
-  const candidates = ['vite.config.ts', 'vite.config.js', 'vite.config.mjs', 'vite.config.cjs'].map(
-    (n) => `${WORK_DIR}/${n}`,
-  );
+  const candidates = ['vite.config.ts', 'vite.config.js', 'vite.config.mjs', 'vite.config.cjs'];
 
   let configPath: string | undefined;
 
@@ -32,14 +29,20 @@ export async function ensureDevHeaders(webcontainer: WebContainer) {
     }
   }
 
-  const headerLines = `server: { cors: true, headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp', 'Cross-Origin-Resource-Policy': 'cross-origin', 'Access-Control-Allow-Origin': '*' } },`;
+  // WebContainer preview must use COEP: credentialless to allow opaque cross-origin fetches
+  const headerLines = `server: { cors: true, headers: {
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Embedder-Policy': 'credentialless',
+    'Cross-Origin-Resource-Policy': 'cross-origin',
+    'Access-Control-Allow-Origin': '*'
+  } },`;
 
   if (!configPath) {
     const content = `import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 export default defineConfig({ ${headerLines} plugins:[react()] })
 `;
-    await webcontainer.fs.writeFile(`${WORK_DIR}/vite.config.ts`, content);
+    await webcontainer.fs.writeFile('vite.config.ts', content);
 
     return;
   }

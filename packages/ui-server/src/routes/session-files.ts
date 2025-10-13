@@ -5,7 +5,6 @@ import {
   DatabaseClient,
   EventsRepository
 } from '@eitherway/database';
-import { maybeRewriteFile } from '../cdn-rewriter.js';
 
 export async function registerSessionFileRoutes(
   fastify: FastifyInstance,
@@ -61,7 +60,8 @@ export async function registerSessionFileRoutes(
     try {
       const fileContent = await fileStore.read(session.app_id, path);
 
-      const protocol = request.headers['x-forwarded-proto'] || 'http';
+      // Default to https for local development since our server runs on HTTPS
+      const protocol = request.headers['x-forwarded-proto'] || 'https';
       const host = request.headers.host || 'localhost:3001';
       const serverOrigin = `${protocol}://${host}`;
 
@@ -94,12 +94,7 @@ export async function registerSessionFileRoutes(
           content = Buffer.from(fileContent.content).toString('utf-8');
         }
 
-        // Apply URL rewriting for text files (no shim injection for WebContainer)
-        content = maybeRewriteFile(path, content, {
-          serverOrigin,
-          injectShim: false,
-          rewriteStaticUrls: true
-        });
+        // No URL rewriting - let external resources load directly with COEP headers
       }
 
       return {

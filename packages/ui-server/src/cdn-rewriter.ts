@@ -165,7 +165,8 @@ export function maybeRewriteFile(
     rewriteStaticUrls = true
   } = options;
 
-  if (!serverOrigin) {
+  // Skip rewriting entirely only if explicitly disabled
+  if (!rewriteStaticUrls && !injectShim) {
     return content;
   }
 
@@ -173,9 +174,10 @@ export function maybeRewriteFile(
   const isHtml = filename.toLowerCase().endsWith('.html') || filename.toLowerCase().endsWith('.htm');
 
   // Step 1: Rewrite static CDN URLs in text files (only absolute URLs)
+  // If serverOrigin is undefined, URLs will be relative (for WebContainer)
   if (rewriteStaticUrls && shouldRewriteFile(filename)) {
     processedContent = rewriteCDNUrls(processedContent, {
-      serverOrigin,
+      serverOrigin, // undefined = relative URLs
       skipFonts: options.skipFonts
     });
   }

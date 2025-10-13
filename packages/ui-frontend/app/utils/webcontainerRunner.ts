@@ -6,6 +6,7 @@
 import type { WebContainer } from '@webcontainer/api';
 import { createScopedLogger } from './logger';
 import { workbenchStore } from '~/lib/stores/workbench';
+import { ensureDevHeaders } from '~/lib/webcontainer/ensure-dev-headers';
 
 const logger = createScopedLogger('WebContainerRunner');
 
@@ -114,6 +115,8 @@ function findAnyHtmlFile(files: any[]): any | null {
   return null;
 }
 
+// REMOVED: No proxy plugin needed - external resources load directly with COEP headers
+
 /**
  * Start a static server for simple HTML apps with proxy endpoints and binary file handling
  */
@@ -148,91 +151,10 @@ const mimeTypes = {
   '.ttf': 'font/ttf',
 };
 
-// Simple cache for proxy requests
-const cache = new Map();
-const CACHE_TTL = 30000; // 30 seconds
-
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, \`http://localhost:\${PORT}\`);
 
-  // Proxy API endpoint - uses fetch API which works in WebContainer
-  if (url.pathname === '/api/proxy-api') {
-    const targetUrl = url.searchParams.get('url');
-    if (!targetUrl) {
-      res.writeHead(400);
-      res.end('Missing url parameter');
-      return;
-    }
-
-    try {
-      const cacheKey = targetUrl;
-      const cached = cache.get(cacheKey);
-      if (cached && (Date.now() - cached.time) < CACHE_TTL) {
-        res.writeHead(200, {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'X-Cache': 'HIT'
-        });
-        res.end(cached.data);
-        return;
-      }
-
-      // Fetch using browser's fetch API (works in WebContainer)
-      const response = await fetch(targetUrl, {
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'WebContainer/1.0'
-        }
-      });
-
-      const data = await response.text();
-
-      // Cache successful responses
-      if (response.ok) {
-        cache.set(cacheKey, { data, time: Date.now() });
-      }
-
-      res.writeHead(response.status, {
-        'Content-Type': response.headers.get('content-type') || 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      });
-      res.end(data);
-    } catch (error) {
-      console.error('[Proxy API] Error:', error.message);
-      res.writeHead(500);
-      res.end(JSON.stringify({ error: error.message }));
-    }
-    return;
-  }
-
-  // Proxy CDN endpoint
-  if (url.pathname === '/api/proxy-cdn') {
-    const targetUrl = url.searchParams.get('url');
-    if (!targetUrl) {
-      res.writeHead(400);
-      res.end('Missing url parameter');
-      return;
-    }
-
-    try {
-      const response = await fetch(targetUrl);
-      const buffer = Buffer.from(await response.arrayBuffer());
-
-      res.writeHead(response.status, {
-        'Content-Type': response.headers.get('content-type') || 'application/octet-stream',
-        'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'public, max-age=86400'
-      });
-      res.end(buffer);
-    } catch (error) {
-      console.error('[Proxy CDN] Error:', error.message);
-      res.writeHead(500);
-      res.end('Proxy error');
-    }
-    return;
-  }
-
-  // Regular static file serving
+  // Regular static file serving - no proxying, external resources load directly
   let reqPath = url.pathname === '/' ? DEFAULT_FILE : url.pathname;
   // Strip leading slashes to ensure relative paths for WebContainer
   reqPath = reqPath.replace(/^\\/+/, '');
@@ -354,7 +276,7 @@ server.listen(PORT, () => {
 `;
 
   // Write the server script
-  await webcontainer.fs.writeFile('/server.js', serverScript);
+  await webcontainer.fs.writeFile('server.js', serverScript);
 
   // Kill any existing dev server
   if (devServerProcess) {
@@ -436,6 +358,11 @@ export async function runDevServer(webcontainer: WebContainer, files: any[]): Pr
 
   if (hasPackageJson) {
     try {
+      // Set up COEP headers (must run first to create vite.config if needed)
+      await ensureDevHeaders(webcontainer);
+
+      // No proxy setup needed - external resources load directly with COEP headers
+
       logger.info('Installing dependencies...');
 
       // Run npm install
