@@ -11,6 +11,8 @@ export { ImageJobsRepository, ImageAssetsRepository } from './repositories/image
 export { EventsRepository } from './repositories/events.js';
 export { UserIntegrationsRepository, NetlifySitesRepository } from './repositories/netlify.js';
 export { DeploymentsRepository, ExportsRepository } from './repositories/deployments.js';
+export { BrandKitsRepository, BrandAssetsRepository, BrandColorsRepository } from './repositories/brand-kits.js';
+export type { BrandKit, BrandAsset, BrandColor } from './repositories/brand-kits.js';
 
 export { ImageGenerationService } from './services/image-generator.js';
 export type { ImageGenerationOptions } from './services/image-generator.js';
@@ -46,5 +48,8 @@ export type { ExportConfig, ExportResult, ExportStats } from './services/export-
 
 export { DeploymentService } from './services/deployment-service.js';
 export type { DeploymentConfig, DeploymentResult } from './services/deployment-service.js';
+
+export { PaletteExtractor } from './services/palette-extractor.js';
+export type { ExtractedColor, PaletteExtractionOptions } from './services/palette-extractor.js';
 
 export type * from './types.js';

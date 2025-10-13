@@ -16,6 +16,7 @@
     "@fastify/cors": "^8.5.0",
     "@fastify/websocket": "^8.3.1",
     "fastify": "^4.25.2",
+    "sharp": "^0.33.5",
     "ws": "^8.16.0",
     "zod": "^3.22.4"
   },
