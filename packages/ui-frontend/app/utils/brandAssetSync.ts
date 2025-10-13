@@ -82,18 +82,6 @@ async function ensureDirectory(webcontainer: WebContainer, dirPath: string): Pro
 }
 
 /**
- * Convert ArrayBuffer to base64 string
- */
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
-/**
  * Convert ArrayBuffer to UTF-8 string (for text files like SVG)
  */
 function arrayBufferToString(buffer: ArrayBuffer): string {
@@ -137,20 +125,29 @@ export async function syncBrandAssetsToWebContainer(
       // Determine if file should be stored as text or binary
       const isTextFile = asset.mimeType.includes('svg') || asset.mimeType.includes('text');
 
-      let fileContents: string;
       if (isTextFile) {
-        // Text file (SVG): store as UTF-8 string
-        fileContents = arrayBufferToString(fileBuffer);
-        logger.debug(`Text asset ${asset.fileName}: stored as UTF-8, length: ${fileContents.length}`);
+        // Text file (SVG): write as UTF-8 string
+        const textContents = arrayBufferToString(fileBuffer);
+        await webcontainer.fs.writeFile(destPath, textContents);
+        logger.debug(`Text asset ${asset.fileName}: stored as UTF-8, length: ${textContents.length}`);
       } else {
-        // Binary file (PNG, JPEG, fonts, etc.): store as base64 with marker
-        const base64 = arrayBufferToBase64(fileBuffer);
-        fileContents = '__BASE64__' + base64;
-        logger.debug(`Binary asset ${asset.fileName}: stored as base64, length: ${base64.length}`);
+        // Binary file (PNG, JPEG, fonts, etc.): write as Uint8Array directly
+        const binaryContents = new Uint8Array(fileBuffer);
+        await webcontainer.fs.writeFile(destPath, binaryContents);
+
+        // Log first bytes for verification
+        const firstBytes = binaryContents.slice(0, 8);
+        logger.debug(`Binary asset ${asset.fileName}: stored as Uint8Array, size: ${binaryContents.length} bytes`);
+        logger.debug(`First bytes (hex): ${Array.from(firstBytes).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
+
+        // Verify PNG magic number if it's a PNG
+        if (asset.mimeType === 'image/png') {
+          const pngMagic = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+          const matches = pngMagic.every((byte, i) => binaryContents[i] === byte);
+          logger.debug(`PNG magic number check: ${matches ? '✓ Valid' : '✗ Invalid'}`);
+        }
       }
 
-      // Write file to WebContainer
-      await webcontainer.fs.writeFile(destPath, fileContents);
       logger.info(`✓ Synced brand asset: ${destPath}`);
       synced++;
     } catch (error) {

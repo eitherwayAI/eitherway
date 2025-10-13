@@ -24,7 +24,7 @@ import {
   EventsRepository,
   UsersRepository
 } from '@eitherway/database';
-import { writeFile, mkdir, readFile } from 'fs/promises';
+import { writeFile, mkdir, readFile, rm } from 'fs/promises';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 
@@ -46,6 +46,24 @@ export async function registerBrandKitRoutes(
 
   console.log('[Brand Kits] Upload directory:', UPLOAD_DIR);
   console.log('[Brand Kits] Repositories initialized');
+
+  /**
+   * Helper: Clean up temporary files for a brand kit
+   * Called when:
+   * - Brand kit is archived (Start New Chat)
+   * - Brand kit is deleted
+   * - Assets are successfully synced to VFS
+   */
+  async function cleanupBrandKitTempFiles(brandKitId: string, userId: string): Promise<void> {
+    try {
+      const brandKitTempDir = join(UPLOAD_DIR, `brand-kits/${userId}/${brandKitId}`);
+      await rm(brandKitTempDir, { recursive: true, force: true });
+      console.log(`[Brand Kits] Cleaned up temp files for brand kit: ${brandKitId}`);
+    } catch (error: any) {
+      console.error(`[Brand Kits] Failed to cleanup temp files for brand kit ${brandKitId}:`, error.message);
+      // Don't throw - cleanup is best-effort
+    }
+  }
 
   fastify.get('/api/brand-kits/health', async (request, reply) => {
     console.log('[Brand Kits API] Health check called');
@@ -151,6 +169,37 @@ export async function registerBrandKitRoutes(
   });
 
   /**
+   * POST /api/brand-kits/:id/cleanup-temp
+   * Clean up temporary files after assets have been synced to VFS
+   * Called by frontend after successful VFS sync
+   */
+  fastify.post<{
+    Params: { id: string };
+  }>('/api/brand-kits/:id/cleanup-temp', async (request, reply) => {
+    const { id: brandKitId } = request.params;
+
+    try {
+      const brandKit = await brandKitsRepo.findById(brandKitId);
+      if (!brandKit) {
+        return reply.code(404).send({ error: 'Brand kit not found' });
+      }
+
+      await cleanupBrandKitTempFiles(brandKitId, brandKit.user_id);
+
+      return {
+        success: true,
+        message: 'Temp files cleaned up successfully'
+      };
+    } catch (error: any) {
+      console.error('[Brand Kits API] Failed to cleanup temp files:', error);
+      return reply.code(500).send({
+        error: 'Failed to cleanup temp files',
+        message: error.message
+      });
+    }
+  });
+
+  /**
    * POST /api/brand-kits/user/:userId/archive-active
    * Archive all active brand kits for a user (for session clearing)
    * Body is optional (can be empty)
@@ -176,10 +225,14 @@ export async function registerBrandKitRoutes(
 
       const activeBrandKits = await brandKitsRepo.findByUserId(userRecord.id, 'active');
 
-      // Archive each one
+      // Archive each one and clean up temp files
       let archivedCount = 0;
       for (const kit of activeBrandKits) {
         await brandKitsRepo.update(kit.id, { status: 'archived' });
+        // Clean up temp files (async, non-blocking)
+        cleanupBrandKitTempFiles(kit.id, userRecord.id).catch(err =>
+          console.error(`[Brand Kits API] Cleanup failed for ${kit.id}:`, err)
+        );
         archivedCount++;
       }
 
@@ -423,11 +476,21 @@ export async function registerBrandKitRoutes(
     const { id } = request.params;
 
     try {
+      const brandKit = await brandKitsRepo.findById(id);
+      if (!brandKit) {
+        return reply.code(404).send({ error: 'Brand kit not found' });
+      }
+
       const deleted = await brandKitsRepo.delete(id);
 
       if (!deleted) {
         return reply.code(404).send({ error: 'Brand kit not found' });
       }
+
+      // Clean up temp files (async, non-blocking)
+      cleanupBrandKitTempFiles(id, brandKit.user_id).catch(err =>
+        console.error(`[Brand Kits API] Cleanup failed for ${id}:`, err)
+      );
 
       await eventsRepo.log('brand_kit.deleted', {
         brandKitId: id
@@ -479,17 +542,17 @@ export async function registerBrandKitRoutes(
 
       console.log('[Brand Kits API] File buffered, size:', buffer.length, 'bytes');
 
+      // Strict file type validation - only allow specified types
       const mimeToKind: Record<string, { kind: string; maxSize: number }> = {
-        // Images (20MB)
+        // Images: PNG, JPEG, SVG, ICO (20MB max)
         'image/png': { kind: 'image', maxSize: 20 * 1024 * 1024 },
         'image/jpeg': { kind: 'image', maxSize: 20 * 1024 * 1024 },
         'image/jpg': { kind: 'image', maxSize: 20 * 1024 * 1024 },
-        'image/webp': { kind: 'image', maxSize: 20 * 1024 * 1024 },
         'image/svg+xml': { kind: 'logo', maxSize: 20 * 1024 * 1024 },
         'image/x-icon': { kind: 'icon', maxSize: 20 * 1024 * 1024 },
         'image/vnd.microsoft.icon': { kind: 'icon', maxSize: 20 * 1024 * 1024 },
 
-        // Fonts (10MB)
+        // Fonts: TTF, OTF, WOFF, WOFF2 (10MB max)
         'font/ttf': { kind: 'font', maxSize: 10 * 1024 * 1024 },
         'font/otf': { kind: 'font', maxSize: 10 * 1024 * 1024 },
         'font/woff': { kind: 'font', maxSize: 10 * 1024 * 1024 },
@@ -499,20 +562,26 @@ export async function registerBrandKitRoutes(
         'application/font-woff': { kind: 'font', maxSize: 10 * 1024 * 1024 },
         'application/font-woff2': { kind: 'font', maxSize: 10 * 1024 * 1024 },
 
-        // Archives (200MB)
+        // Archives: ZIP brand packages (200MB max)
         'application/zip': { kind: 'brand_zip', maxSize: 200 * 1024 * 1024 },
         'application/x-zip-compressed': { kind: 'brand_zip', maxSize: 200 * 1024 * 1024 },
 
-        // Videos (100MB)
+        // Videos: MP4 promo clips (100MB max)
         'video/mp4': { kind: 'video', maxSize: 100 * 1024 * 1024 },
       };
 
       const fileTypeInfo = mimeToKind[mimeType];
       if (!fileTypeInfo) {
         return reply.code(400).send({
-          error: 'Invalid file type',
+          error: 'Unsupported file type',
           details: [
-            'Allowed types: PNG, JPEG, SVG, ICO (20MB max), TTF/OTF/WOFF/WOFF2 fonts (10MB max), ZIP archives (200MB max), MP4 videos (100MB max)'
+            'Allowed file types:',
+            '• Images: PNG, JPEG, SVG, ICO (up to 20MB)',
+            '• Fonts: TTF, OTF, WOFF, WOFF2 (up to 10MB)',
+            '• Archives: ZIP brand packages (up to 200MB)',
+            '• Videos: MP4 promo clips (up to 100MB)',
+            '',
+            `Received: ${mimeType}`
           ]
         });
       }
@@ -547,34 +616,35 @@ export async function registerBrandKitRoutes(
         metadata: { kind: assetKind } // Store detailed kind in metadata
       });
 
-      (async () => {
-        try {
-          await assetsRepo.updateProcessingStatus(asset.id, 'processing');
+      // Process the asset synchronously to ensure it's ready for color extraction
+      try {
+        await assetsRepo.updateProcessingStatus(asset.id, 'processing');
 
-          // Extract dimensions for raster images
-          const shouldProcessImage = ['image', 'logo', 'icon'].includes(assetKind) && mimeType !== 'image/svg+xml';
-          if (shouldProcessImage) {
-            const sharp = (await import('sharp')).default;
-            const metadata = await sharp(buffer).metadata();
+        // Extract dimensions for raster images
+        const shouldProcessImage = ['image', 'logo', 'icon'].includes(assetKind) && mimeType !== 'image/svg+xml';
+        if (shouldProcessImage) {
+          const sharp = (await import('sharp')).default;
+          const metadata = await sharp(buffer).metadata();
 
-            if (metadata.width && metadata.height) {
-              await assetsRepo.updateDimensions(asset.id, metadata.width, metadata.height);
-            }
+          if (metadata.width && metadata.height) {
+            await assetsRepo.updateDimensions(asset.id, metadata.width, metadata.height);
           }
-
-          await assetsRepo.updateProcessingStatus(asset.id, 'completed');
-
-          await eventsRepo.log('brand_kit.asset_processed', {
-            brandKitId,
-            assetId: asset.id,
-            assetKind
-          }, { sessionId: undefined, appId: undefined, actor: 'system' });
-
-        } catch (error: any) {
-          console.error('[Brand Kits API] Asset processing failed:', error);
-          await assetsRepo.updateProcessingStatus(asset.id, 'failed', error.message);
         }
-      })();
+
+        await assetsRepo.updateProcessingStatus(asset.id, 'completed');
+
+        await eventsRepo.log('brand_kit.asset_processed', {
+          brandKitId,
+          assetId: asset.id,
+          assetKind
+        }, { sessionId: undefined, appId: undefined, actor: 'system' });
+
+        console.log('[Brand Kits API] Asset processed successfully:', asset.id);
+
+      } catch (error: any) {
+        console.error('[Brand Kits API] Asset processing failed:', error);
+        await assetsRepo.updateProcessingStatus(asset.id, 'failed', error.message);
+      }
 
       return {
         success: true,
@@ -582,7 +652,7 @@ export async function registerBrandKitRoutes(
           id: asset.id,
           assetType: asset.asset_type,
           fileName: asset.file_name,
-          processingStatus: asset.processing_status,
+          processingStatus: 'completed',
           uploadedAt: asset.uploaded_at
         }
       };

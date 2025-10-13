@@ -7,6 +7,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
+import multipart from '@fastify/multipart';
 import { Agent, DatabaseAgent, ConfigLoader, StreamingCallbacks } from '@eitherway/runtime';
 import { getAllExecutors } from '@eitherway/tools-impl';
 import { createDatabaseClient, FilesRepository, SessionsRepository, PostgresFileStore } from '@eitherway/database';
@@ -56,6 +57,7 @@ try {
 
 const fastify = Fastify({
   logger: true,
+  bodyLimit: 250 * 1024 * 1024, // 250MB to accommodate brand packages (200MB) + overhead
   ...httpsOptions,
 });
 
@@ -68,6 +70,14 @@ await fastify.register(cors, {
 // Enable WebSocket
 // @ts-expect-error Fastify plugin type compatibility issue with current version
 await fastify.register(websocket);
+
+// Enable multipart for file uploads
+// @ts-expect-error Fastify plugin type compatibility issue with current version
+await fastify.register(multipart, {
+  limits: {
+    fileSize: 200 * 1024 * 1024, // 200MB max file size
+  },
+});
 
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || join(PROJECT_ROOT, 'workspace');
 const USE_LOCAL_FS = process.env.USE_LOCAL_FS === 'true';
@@ -559,8 +569,11 @@ await fastify.register(async (fastify) => {
               },
             };
 
+            // Enrich prompt with brand kit context if available
+            const enrichedPrompt = await enrichPromptWithBrandKit(data.prompt, session, fileStore);
+
             // Process request with streaming
-            response = await dbAgent.processRequest(data.prompt, streamingCallbacks);
+            response = await dbAgent.processRequest(enrichedPrompt, streamingCallbacks);
 
             // Send stream_end event with token usage
             sender.send(StreamEvents.streamEnd(messageId, tokenUsage));
@@ -682,6 +695,96 @@ await fastify.register(async (fastify) => {
     });
   });
 });
+
+/**
+ * Helper: Build brand kit context for prompt injection
+ * Returns enriched prompt with brand kit assets and colors if available
+ * Reads brand-kit.json manifest from workspace (written by frontend after sync)
+ */
+async function enrichPromptWithBrandKit(
+  originalPrompt: string,
+  session: any,
+  fileStore: PostgresFileStore
+): Promise<string> {
+  try {
+    if (!session?.app_id) {
+      return originalPrompt;
+    }
+
+    // Read brand-kit.json manifest from workspace
+    console.log('[Brand Kit] Checking for brand-kit.json in workspace...');
+    console.log('[Brand Kit] Session app_id:', session.app_id);
+
+    let manifestContent: any;
+    try {
+      const manifestFile = await fileStore.read(session.app_id, 'brand-kit.json');
+      console.log('[Brand Kit] Manifest file retrieved, content type:', typeof manifestFile.content);
+
+      const contentString = manifestFile.content.toString();
+      console.log('[Brand Kit] Manifest content (first 500 chars):', contentString.substring(0, 500));
+
+      manifestContent = JSON.parse(contentString);
+      console.log('[Brand Kit] Manifest parsed successfully');
+      console.log('[Brand Kit] Manifest structure:', JSON.stringify(manifestContent, null, 2).substring(0, 1000));
+    } catch (error: any) {
+      console.log('[Brand Kit] Failed to read brand-kit.json:', error.message);
+      console.log('[Brand Kit] Error stack:', error.stack);
+      return originalPrompt;
+    }
+
+    const { colors, assets } = manifestContent.brandKit || {};
+    console.log('[Brand Kit] Extracted from manifest - colors:', colors?.length || 0, 'assets:', assets?.length || 0);
+
+    if ((!colors || colors.length === 0) && (!assets || assets.length === 0)) {
+      console.log('[Brand Kit] Brand kit manifest is empty - skipping enrichment');
+      return originalPrompt;
+    }
+
+    // Build brand context string (matching beta-deployment format)
+    let brandContext = '\n\nBRAND KIT AVAILABLE:\n';
+
+    if (colors && colors.length > 0) {
+      brandContext += '\nColor Palette:\n';
+      colors.forEach((color: any) => {
+        brandContext += `- ${color.hex}`;
+        if (color.name) brandContext += ` (${color.name})`;
+        if (color.role) brandContext += ` - ${color.role}`;
+        if (color.prominence) brandContext += ` [${Math.round(color.prominence * 100)}% prominence]`;
+        brandContext += '\n';
+      });
+    }
+
+    if (assets && assets.length > 0) {
+      brandContext += '\nBrand Assets:\n';
+      assets.forEach((asset: any) => {
+        if (asset.path) {
+          // Convert file path to web-accessible path
+          const webPath = asset.path.replace(/^public\//, '/');
+          brandContext += `- ${asset.fileName} (${asset.type}) at ${webPath}\n`;
+        }
+      });
+    }
+
+    brandContext += '\nIMPORTANT: Use these brand colors and assets in your design. The color palette should be your primary color scheme, and brand assets should be integrated where appropriate.\n';
+
+    const enrichedPrompt = brandContext + originalPrompt;
+
+    console.log('[Brand Kit] ✅ SUCCESS: Injected brand kit context into prompt!');
+    console.log('[Brand Kit] Colors:', colors?.length || 0, '| Assets:', assets?.length || 0);
+    console.log('[Brand Kit] Brand context preview:', brandContext.substring(0, 300));
+    console.log('[Brand Kit] Original prompt (first 100 chars):', originalPrompt.substring(0, 100));
+    console.log('[Brand Kit] Enriched prompt total length:', enrichedPrompt.length);
+    console.log('[Brand Kit] Full enriched prompt (first 500 chars):', enrichedPrompt.substring(0, 500));
+
+    // Prepend brand context to the user's prompt
+    return enrichedPrompt;
+
+  } catch (error: any) {
+    console.error('[Brand Kit] Failed to enrich prompt:', error.message);
+    console.error('[Brand Kit] Full error:', error);
+    return originalPrompt; // Fall back to original on error
+  }
+}
 
 /**
  * Helper: Get file tree

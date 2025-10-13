@@ -101,15 +101,28 @@ function getAssetDestinationPath(asset: any): string {
 }
 
 /**
- * Helper: Convert ArrayBuffer to base64 string
+ * Helper: Convert ArrayBuffer to base64 string using FileReader
+ * More reliable for binary data than manual string concatenation
  */
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
+async function arrayBufferToBase64(buffer: ArrayBuffer): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const blob = new Blob([buffer]);
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      // Data URL format: data:mime/type;base64,<base64data>
+      // Extract just the base64 part
+      const base64 = dataUrl.split(',')[1];
+      resolve(base64);
+    };
+
+    reader.onerror = () => {
+      reject(new Error('Failed to convert ArrayBuffer to base64'));
+    };
+
+    reader.readAsDataURL(blob);
+  });
 }
 
 /**
@@ -228,9 +241,18 @@ async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: st
           throw new Error(`Failed to fetch asset after 3 attempts: ${fetchError?.message}`);
         }
 
-        // Convert to base64
-        const base64Content = arrayBufferToBase64(assetBuffer);
+        // Convert to base64 using FileReader (more reliable for binary data)
+        const base64Content = await arrayBufferToBase64(assetBuffer);
         logger.debug(`Encoded to base64: ${base64Content.length} characters`);
+
+        // Validate base64 encoding
+        if (!base64Content || base64Content.length === 0) {
+          throw new Error('Base64 encoding failed - empty result');
+        }
+
+        // Log first bytes of original for debugging
+        const firstBytes = new Uint8Array(assetBuffer.slice(0, 16));
+        logger.debug(`Original first bytes: ${Array.from(firstBytes).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
 
         // POST to server write-binary endpoint with validation
         logger.debug(`Writing to session workspace: ${destPath}`);
@@ -240,8 +262,9 @@ async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: st
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             path: destPath,
-            contentBase64: base64Content,
+            content: base64Content,
             mimeType: asset.mimeType,
+            encoding: 'base64',
           }),
         });
 
@@ -320,6 +343,32 @@ async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: st
     }
 
     logger.info(`✅ Brand assets fully synced to session ${sessionId}`);
+
+    // 5) Archive the brand kit and clear UI after successful sync
+    // This ensures the brand kit doesn't persist across different app requests
+    if (userId && pendingBrandKitId) {
+      try {
+        logger.info('🔄 Archiving brand kit after successful sync:', pendingBrandKitId);
+        const archiveRes = await fetch(`/api/brand-kits/user/${encodeURIComponent(userId)}/archive-active`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+
+        if (archiveRes.ok) {
+          logger.info('✅ Brand kit archived successfully');
+          // Clear frontend state
+          brandKitStore.setKey('pendingBrandKitId', null);
+          brandKitStore.setKey('uploadedAssets', []);
+          logger.info('✅ Brand kit UI cleared');
+        } else {
+          logger.warn('Failed to archive brand kit:', archiveRes.status);
+        }
+      } catch (archiveError) {
+        logger.warn('Failed to archive brand kit (non-critical):', archiveError);
+        // Non-critical error - assets are already synced
+      }
+    }
   } catch (error) {
     logger.error('Failed to sync brand assets:', error);
     toast.error('Failed to sync brand assets. They may not be available in the workspace.');

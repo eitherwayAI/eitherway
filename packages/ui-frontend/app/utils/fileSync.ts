@@ -102,30 +102,33 @@ export async function syncFilesToWebContainer(
       // DEBUG: Log first 100 chars of content to verify it's changing
       logger.debug(`📥 Fetched ${filePath}: ${fileData.content.substring(0, 100)}...`);
 
-      let fileContents: string;
       if (fileData.isBinary && fileData.content) {
-        // Binary file: store as base64 string prefixed with __BASE64__ marker
-        // This allows the static server to decode it properly
-        let normalized = String(fileData.content).replace(/^\s+|\s+$/g, '');
+        // Binary file: decode base64 and write as Uint8Array for Vite dev server
+        // Vite doesn't understand __BASE64__ prefix, needs actual binary
+        let base64Content = String(fileData.content).replace(/^\s+|\s+$/g, '');
 
-        // Fix common corruption where a stray '0' prefixes a valid PNG base64
-        if (
-          (fileData.mimeType || '').toLowerCase().includes('image/png') &&
-          normalized[0] === '0' &&
-          normalized[1] === 'i'
-        ) {
-          normalized = normalized.slice(1);
+        // Decode base64 to binary
+        const binaryString = atob(base64Content);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
         }
 
-        fileContents = '__BASE64__' + normalized;
-        logger.debug(`Binary file ${filePath}: stored as base64, length: ${normalized.length}`);
-      } else {
-        // Text file: use as string
-        fileContents = fileData.content || '';
-      }
+        // Write as Uint8Array (WebContainer native binary format)
+        await webcontainer.fs.writeFile(filePath, bytes);
 
-      // Write file to WebContainer
-      await webcontainer.fs.writeFile(filePath, fileContents);
+        logger.debug(`Binary file ${filePath}: wrote ${bytes.length} bytes as Uint8Array`);
+
+        // Verify PNG magic number
+        if ((fileData.mimeType || '').toLowerCase().includes('image/png') && bytes.length >= 8) {
+          const pngMagic = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+          const matches = pngMagic.every((byte, i) => bytes[i] === byte);
+          logger.debug(`PNG magic: ${matches ? '✓ Valid' : '✗ Invalid'} (${Array.from(bytes.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join(' ')})`);
+        }
+      } else {
+        // Text file: write as string
+        await webcontainer.fs.writeFile(filePath, fileData.content || '');
+      }
 
       logger.debug(`Synced file: ${filePath} (binary: ${fileData.isBinary || false})`);
     } catch (error: any) {
