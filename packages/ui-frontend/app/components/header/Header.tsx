@@ -23,9 +23,9 @@ export function Header() {
   const [showBrandKitPanel, setShowBrandKitPanel] = useState(false);
   const [deployPanelTab, setDeployPanelTab] = useState<'deploy' | 'download'>('deploy');
 
-  // Use actual session ID from chat store (fallback to demo for compatibility)
-  const sessionId = chat.sessionId || user?.email || 'demo-session';
-  const userId = user?.email || 'demo-user';
+  // Use wallet address as primary identifier (email auth is mostly mock)
+  const userId = (isConnected && address ? address : user?.email) || null;
+  const sessionId = chat.sessionId || userId || 'demo-session';
   const appId = chat.sessionId || 'demo-app-' + Date.now();
 
   console.log('Header - chat.started:', chat.started);

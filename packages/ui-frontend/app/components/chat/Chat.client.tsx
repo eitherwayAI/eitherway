@@ -444,7 +444,8 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
   const user = useStore(authStore.user);
   const { isConnected, address } = useWalletConnection();
 
-  const userId = user?.email || (isConnected && address ? address : null);
+  // Prioritize wallet address (email auth is mostly mock)
+  const userId = (isConnected && address ? address : user?.email) || null;
 
   useEffect(() => {
     console.log('Chat.client - setting chatStarted to:', chatStarted);
@@ -680,10 +681,18 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
         console.log('🆕 [Chat] Starting fresh session for new conversation');
       }
 
-      const session = await getOrCreateSession('user@eitherway.app', 'EitherWay Chat');
+      // Ensure user is authenticated before creating session
+      if (!userId) {
+        toast.error('Please connect your wallet to start chatting');
+        setIsLoading(false);
+        return;
+      }
+
+      const session = await getOrCreateSession(userId, 'EitherWay Chat');
       logger.debug('Using session:', session.id);
       console.log('💬 [Chat Message] Session ID for this message:', session.id);
       console.log('💬 [Chat Message] localStorage currentSessionId:', localStorage.getItem('currentSessionId'));
+      console.log('💬 [Chat Message] User ID:', userId);
 
       // Store session ID in chat store for export/deployment
       chatStore.setKey('sessionId', session.id);

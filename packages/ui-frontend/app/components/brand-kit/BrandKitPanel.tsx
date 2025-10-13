@@ -54,8 +54,8 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
   const [brandKitData, setBrandKitData] = useState<BrandKitData | null>(null);
   const [currentBrandKitId, setCurrentBrandKitId] = useState<string | null>(null);
 
-  // Use email if authenticated, otherwise use wallet address
-  const userId = user?.email || (isConnected && address ? address : null);
+  // Prioritize wallet address (email auth is mostly mock)
+  const userId = (isConnected && address ? address : user?.email) || null;
 
   // Do NOT fetch from server automatically - brand kits are per-session, not per-user
   useEffect(() => {

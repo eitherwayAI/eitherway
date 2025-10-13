@@ -12,6 +12,8 @@ import { useStore } from '@nanostores/react';
 import { sidebarStore, openSidebar, closeSidebar } from '~/lib/stores/sidebar';
 import { clearSession } from '~/utils/sessionManager';
 import { BACKEND_URL } from '~/config/api';
+import { authStore } from '~/lib/stores/auth';
+import { useWalletConnection } from '~/lib/web3/hooks';
 
 const menuVariants = {
   closed: {
@@ -43,17 +45,30 @@ export function Menu() {
   const open = sidebar.isOpen;
   const [dialogContent, setDialogContent] = useState<DialogContent>(null);
 
+  // Get authenticated user info
+  const user = useStore(authStore.user);
+  const { isConnected, address } = useWalletConnection();
+  // Prioritize wallet address (email auth is mostly mock)
+  const userId = (isConnected && address ? address : user?.email) || null;
+
   const loadEntries = useCallback(async () => {
     try {
-      // First get user ID from email
-      const userResponse = await fetch(`${BACKEND_URL}/api/users?email=user@eitherway.app`);
+      // Only load if user is authenticated
+      if (!userId) {
+        console.log('No authenticated user, skipping history load');
+        setList([]);
+        return;
+      }
+
+      // First get user ID from the authenticated user's identifier (wallet address or email)
+      const userResponse = await fetch(`${BACKEND_URL}/api/users?email=${encodeURIComponent(userId)}`);
       if (!userResponse.ok) {
         throw new Error('Failed to fetch user');
       }
-      const user = await userResponse.json();
+      const backendUser = await userResponse.json();
 
       // Then fetch sessions for this user
-      const sessionsResponse = await fetch(`${BACKEND_URL}/api/sessions?userId=${user.id}&limit=50`);
+      const sessionsResponse = await fetch(`${BACKEND_URL}/api/sessions?userId=${backendUser.id}&limit=50`);
       if (!sessionsResponse.ok) {
         throw new Error('Failed to fetch sessions');
       }
@@ -72,7 +87,7 @@ export function Menu() {
       console.error('Failed to load chat history:', error);
       toast.error('Failed to load chat history');
     }
-  }, []);
+  }, [userId]);
 
   const deleteItem = useCallback(
     async (event: React.UIEvent, item: ChatHistoryItem) => {

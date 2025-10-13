@@ -7,6 +7,7 @@ import { authStore } from '~/lib/stores/auth';
 import { classNames } from '~/utils/classNames';
 import { DeploymentPanel } from '~/components/deployment/DeploymentPanel';
 import { BrandKitPanel } from '~/components/brand-kit/BrandKitPanel';
+import { useWalletConnection } from '~/lib/web3/hooks';
 
 interface HeaderActionButtonsProps {}
 
@@ -17,6 +18,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
   const isAppReady = useStore(workbenchStore.isAppReadyForDeploy);
   const previews = useStore(workbenchStore.previews);
   const user = useStore(authStore.user);
+  const { isConnected, address } = useWalletConnection();
   const [isSmallScreen, setIsSmallScreen] = useState(false);
 
   // Panel visibility state
@@ -28,9 +30,9 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
 
   const previewUrl = previews[0]?.baseUrl || 'http://localhost:5173';
 
-  // Use actual session ID from chat store (fallback to demo for compatibility)
-  const sessionId = chatSessionId || user?.email || 'demo-session';
-  const userId = user?.email || 'demo-user';
+  // Use wallet address as primary identifier (email auth is mostly mock)
+  const userId = (isConnected && address ? address : user?.email) || null;
+  const sessionId = chatSessionId || userId || 'demo-session';
   const appId = chatSessionId || 'demo-app-' + Date.now();
 
   // Відстежуємо розмір екрану
