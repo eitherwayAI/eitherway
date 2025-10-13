@@ -13,7 +13,7 @@ import { UserIntegrationsRepository, NetlifySitesRepository } from '../repositor
 import { DeploymentsRepository } from '../repositories/deployments.js';
 import archiver from 'archiver';
 import FormData from 'form-data';
-import { mkdir, writeFile, rm, readdir } from 'fs/promises';
+import { mkdir, writeFile, rm, readdir, readFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { exec } from 'child_process';
@@ -435,11 +435,17 @@ export class NetlifyService {
 
           await mkdir(dirPath, { recursive: true });
 
-          const content = typeof fileContent.content === 'string'
-            ? fileContent.content
-            : Buffer.from(fileContent.content as any).toString('utf-8');
-
-          await writeFile(fullPath, content, 'utf-8');
+          // Handle both text and binary files correctly
+          if (typeof fileContent.content === 'string') {
+            // Text file - write as UTF-8 string
+            await writeFile(fullPath, fileContent.content, 'utf-8');
+          } else {
+            // Binary file - write as Buffer without encoding
+            const buffer = fileContent.content instanceof Uint8Array
+              ? Buffer.from(fileContent.content)
+              : Buffer.from(fileContent.content as any);
+            await writeFile(fullPath, buffer);
+          }
         }
       } catch (error) {
         console.error(`[NetlifyService] Failed to export file ${file.path}:`, error);
@@ -455,34 +461,87 @@ export class NetlifyService {
    */
   private async buildViteProject(tempDir: string): Promise<string> {
     console.log('[NetlifyService] Installing dependencies...');
+    console.log('[NetlifyService] NODE_ENV:', process.env.NODE_ENV || 'undefined');
+    console.log('[NetlifyService] Temp directory:', tempDir);
 
     try {
-      // Install dependencies
-      const { stderr: installErr } = await execAsync('npm install', {
+      // Verify package.json exists
+      const packageJsonPath = join(tempDir, 'package.json');
+      try {
+        const packageJsonContent = await readFile(packageJsonPath, 'utf-8');
+        console.log('[NetlifyService] package.json found:', packageJsonContent.substring(0, 200));
+      } catch (err) {
+        throw new Error(`package.json not found in temp directory: ${tempDir}`);
+      }
+
+      // List files in temp dir for debugging
+      const files = await readdir(tempDir);
+      console.log('[NetlifyService] Files in temp dir:', files.join(', '));
+
+      // Install dependencies - Use --production=false to force install of devDependencies
+      // In production, NODE_ENV=production causes npm to skip devDependencies by default
+      // But we need build tools like vite, which are typically in devDependencies
+      console.log('[NetlifyService] Running: npm install --production=false');
+      const { stdout: installOut, stderr: installErr } = await execAsync('npm install --production=false', {
         cwd: tempDir,
-        timeout: 120000 // 2 minutes timeout
+        timeout: 180000, // 3 minutes timeout
+        maxBuffer: 10 * 1024 * 1024 // 10MB buffer
       });
 
-      if (installErr && !installErr.includes('npm warn')) {
-        console.error('[NetlifyService] npm install stderr:', installErr);
+      console.log('[NetlifyService] npm install completed');
+      if (installOut) {
+        console.log('[NetlifyService] npm install output:', installOut.substring(0, 500));
+      }
+      if (installErr) {
+        // Log all stderr, even warnings
+        console.log('[NetlifyService] npm install stderr:', installErr.substring(0, 500));
+        // Throw if stderr contains actual errors (not just warnings)
+        if (installErr.toLowerCase().includes('error') && !installErr.toLowerCase().includes('npm warn')) {
+          throw new Error(`npm install failed: ${installErr.substring(0, 1000)}`);
+        }
+      }
+
+      // Verify vite is installed by checking if the module exists
+      console.log('[NetlifyService] Verifying vite installation...');
+      const viteModulePath = join(tempDir, 'node_modules', 'vite');
+      try {
+        await readdir(viteModulePath);
+        console.log('[NetlifyService] Vite module found at:', viteModulePath);
+      } catch (err) {
+        throw new Error(`Vite not installed. node_modules/vite does not exist. npm install may have failed.`);
       }
 
       console.log('[NetlifyService] Building Vite project...');
 
       // Build the project
-      const { stderr: buildErr } = await execAsync('npm run build', {
+      const { stdout: buildOut, stderr: buildErr } = await execAsync('npm run build', {
         cwd: tempDir,
-        timeout: 120000 // 2 minutes timeout
+        timeout: 180000, // 3 minutes timeout
+        maxBuffer: 10 * 1024 * 1024 // 10MB buffer
       });
 
-      if (buildErr && !buildErr.includes('npm warn')) {
-        console.error('[NetlifyService] npm run build stderr:', buildErr);
+      if (buildOut) {
+        console.log('[NetlifyService] npm run build output:', buildOut.substring(0, 500));
+      }
+      if (buildErr) {
+        console.log('[NetlifyService] npm run build stderr:', buildErr.substring(0, 500));
+        // Throw if build actually failed (not just warnings)
+        if (buildErr.toLowerCase().includes('error') && !buildErr.toLowerCase().includes('warn')) {
+          throw new Error(`Build failed: ${buildErr.substring(0, 1000)}`);
+        }
       }
 
       console.log('[NetlifyService] Build completed successfully');
 
-      // Return path to dist folder
+      // Verify dist folder exists
       const distPath = join(tempDir, 'dist');
+      try {
+        await readdir(distPath);
+        console.log('[NetlifyService] Verified dist folder exists:', distPath);
+      } catch (err) {
+        throw new Error(`Build succeeded but dist folder not found at: ${distPath}`);
+      }
+
       return distPath;
     } catch (error: any) {
       console.error('[NetlifyService] Build failed:', error);
@@ -580,6 +639,7 @@ export class NetlifyService {
         return zipBuffer;
       } catch (error) {
         // Cleanup on error
+        console.error('[NetlifyService] Build failed, cleaning up temp dir:', tempDir);
         if (tempDir) {
           await rm(tempDir, { recursive: true, force: true }).catch(() => {});
         }
