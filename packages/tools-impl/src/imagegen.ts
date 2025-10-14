@@ -52,13 +52,13 @@ export class ImageGenExecutor implements ToolExecutor {
         };
       }
 
-      // Map size to DALL-E 3 supported sizes
+      // Map size to gpt-image-1 supported sizes
       const dalleSize = this.mapSize(size);
 
       // Start image generation job
       const jobId = await imageService.generateImage({
         prompt,
-        model: 'dall-e-3',
+        model: 'gpt-image-1',
         size: dalleSize,
         quality: quality as 'standard' | 'hd',
         n: 1,
@@ -172,7 +172,7 @@ The image is now available in the file system and will display in the preview.`,
   }
 
   private mapSize(size: string): '1024x1024' | '1792x1024' | '1024x1792' {
-    // DALL-E 3 supports: 1024x1024, 1024x1792, 1792x1024
+    // gpt-image-1 supports: 1024x1024, 1024x1792, 1792x1024 (same as DALL-E 3)
     const [w, h] = size.split('x').map(Number);
     if (w >= 1024 && h >= 1024) {
       if (w > h) return '1792x1024';

@@ -6,7 +6,7 @@ import { ImageJobsRepository, ImageAssetsRepository } from '../repositories/imag
 
 export interface ImageGenerationOptions {
   prompt: string;
-  model?: 'dall-e-3' | 'dall-e-2';
+  model?: 'gpt-image-1' | 'dall-e-3' | 'dall-e-2';
   size?: '1024x1024' | '1792x1024' | '1024x1792' | '256x256' | '512x512';
   quality?: 'standard' | 'hd';
   n?: number;
@@ -28,7 +28,7 @@ export class ImageGenerationService {
   }
 
   async generateImage(options: ImageGenerationOptions): Promise<string> {
-    const job = await this.jobsRepo.create(options.prompt, options.model || 'dall-e-3', {
+    const job = await this.jobsRepo.create(options.prompt, options.model || 'gpt-image-1', {
       sessionId: options.sessionId,
       appId: options.appId,
       size: options.size || '1024x1024',
@@ -47,7 +47,7 @@ export class ImageGenerationService {
       await this.jobsRepo.markStarted(jobId);
 
       const response = await this.openai.images.generate({
-        model: options.model || 'dall-e-3',
+        model: options.model || 'gpt-image-1',
         prompt: options.prompt,
         n: options.n || 1,
         size: options.size || '1024x1024',
