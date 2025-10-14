@@ -126,6 +126,16 @@ async function arrayBufferToBase64(buffer: ArrayBuffer): Promise<string> {
 }
 
 /**
+ * Helper: Navigate to a session URL without triggering React re-render
+ * Uses History API directly to avoid Remix loader re-run that would break the Chat component
+ */
+function navigateToSession(sessionId: string) {
+  const url = new URL(window.location.href);
+  url.pathname = `/chat/${sessionId}`;
+  window.history.replaceState({}, '', url);
+}
+
+/**
  * Ensure brand assets are synced to both client WebContainer and server session workspace
  * before starting a new streaming request
  */
@@ -470,6 +480,14 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
   const [isLoading, setIsLoading] = useState(false);
   const [input, setInput] = useState('');
   const streamControllerRef = useRef<StreamController | null>(null);
+  const backendMessageIdRef = useRef<string | null>(null);
+  const metadataRef = useRef<ExtendedMessage['metadata']>({
+    reasoningText: '',
+    thinkingDuration: null,
+    fileOperations: [],
+    tokenUsage: null,
+    phase: null,
+  });
 
   // Phase 2: Enhanced streaming state (for current message only)
   const [currentPhase, setCurrentPhase] = useState<
@@ -623,6 +641,14 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
     setThinkingDuration(null);
     setFileOperations([]);
     setTokenUsage(null);
+    backendMessageIdRef.current = null;
+    metadataRef.current = {
+      reasoningText: '',
+      thinkingDuration: null,
+      fileOperations: [],
+      tokenUsage: null,
+      phase: null,
+    };
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
@@ -652,6 +678,12 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
 
     // IMPORTANT: Create new objects instead of mutating for React to detect changes
     const updateMessageMetadata = (updates: Partial<ExtendedMessage['metadata']>) => {
+      // Update ref for immediate access in onComplete callback
+      metadataRef.current = {
+        ...metadataRef.current,
+        ...updates,
+      };
+
       setMessages((prev) => {
         const updated = prev.map((msg) => {
           // Find message by ID (not position) so it works even if new messages are added
@@ -697,6 +729,12 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
       // Store session ID in chat store for export/deployment
       chatStore.setKey('sessionId', session.id);
 
+      // Update URL to reflect the session ID (only for first message)
+      if (messages.length === 0) {
+        navigateToSession(session.id);
+        logger.debug('📍 URL updated to:', `/chat/${session.id}`);
+      }
+
       // Generate and update session title from first user message
       if (messages.length === 0) {
         const generatedTitle = generateTitleFromPrompt(_input);
@@ -736,9 +774,36 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
             });
           });
         },
-        onComplete: () => {
-          // Metadata is already saved in real-time by updateMessageMetadata in each callback
-          // No need to save here - closures would capture empty state values anyway
+        onStreamStart: (messageId) => {
+          logger.debug('Stream started, backend messageId:', messageId);
+          backendMessageIdRef.current = messageId;
+        },
+        onComplete: async () => {
+          // Persist metadata to database for historical message reconstruction
+          if (backendMessageIdRef.current) {
+            try {
+              // Use metadataRef which has the latest values (not affected by closure)
+              const metadataToPersist = metadataRef.current;
+
+              logger.debug('Persisting metadata for message:', backendMessageIdRef.current, metadataToPersist);
+
+              const response = await fetch(`${BACKEND_URL}/api/messages/${backendMessageIdRef.current}/metadata`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ metadata: metadataToPersist }),
+              });
+
+              if (!response.ok) {
+                throw new Error(`Failed to persist metadata: ${response.statusText}`);
+              }
+
+              logger.info('✅ Message metadata persisted to database');
+            } catch (error) {
+              logger.error('Failed to persist message metadata:', error);
+              // Non-critical error - don't show toast to avoid disrupting user
+            }
+          }
+
           setIsLoading(false);
           streamControllerRef.current = null;
           logger.debug('Streaming complete');

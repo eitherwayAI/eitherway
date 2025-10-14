@@ -70,4 +70,26 @@ export class MessagesRepository {
   async deleteBySession(sessionId: string): Promise<void> {
     await this.db.query(`DELETE FROM core.messages WHERE session_id = $1`, [sessionId]);
   }
+
+  async updateMetadata(messageId: string, metadata: any): Promise<Message | null> {
+    const result = await this.db.query<Message>(
+      `UPDATE core.messages
+       SET metadata = $1
+       WHERE id = $2
+       RETURNING *`,
+      [JSON.stringify(metadata), messageId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async updateContent(messageId: string, content: any, tokenCount?: number): Promise<Message | null> {
+    const result = await this.db.query<Message>(
+      `UPDATE core.messages
+       SET content = $1, token_count = $2
+       WHERE id = $3
+       RETURNING *`,
+      [JSON.stringify(content), tokenCount ?? null, messageId],
+    );
+    return result.rows[0] ?? null;
+  }
 }

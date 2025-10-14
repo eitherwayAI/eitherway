@@ -14,6 +14,7 @@ export interface BackendMessage {
   content: string;
   model?: string;
   token_count?: number;
+  metadata?: any;
   created_at: string;
 }
 
@@ -80,6 +81,7 @@ export function useBackendHistory() {
           id: msg.id,
           role: msg.role,
           content: msg.content,
+          metadata: msg.metadata, // Preserve metadata for historical message reconstruction
           createdAt: new Date(msg.created_at),
         }));
 
@@ -92,6 +94,13 @@ export function useBackendHistory() {
         console.log('📂 [Backend History] Loaded session:', sessionId);
         console.log('   Messages:', transformedMessages.length);
         console.log('   Files:', filesData.files?.length || 0);
+
+        // Debug: Log metadata presence
+        const messagesWithMetadata = transformedMessages.filter((m) => m.metadata);
+        console.log('   Messages with metadata:', messagesWithMetadata.length);
+        if (messagesWithMetadata.length > 0) {
+          console.log('   First metadata sample:', messagesWithMetadata[0].metadata);
+        }
 
         setReady(true);
       })

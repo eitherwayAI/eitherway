@@ -15,8 +15,14 @@ interface StreamingIndicatorsProps {
 
 export const StreamingIndicators = memo(
   ({ phase, reasoningText, thinkingDuration, fileOperations, tokenUsage, isStreaming }: StreamingIndicatorsProps) => {
-    // Don't show anything if not streaming and no completed state
-    if (!isStreaming && !tokenUsage) return null;
+    // Don't show anything if not streaming and no content to display
+    const hasAnyContent =
+      !!reasoningText ||
+      (fileOperations && fileOperations.length > 0) ||
+      !!phase ||
+      !!tokenUsage;
+
+    if (!isStreaming && !hasAnyContent) return null;
 
     return (
       <div className="flex flex-col gap-2 mb-3">

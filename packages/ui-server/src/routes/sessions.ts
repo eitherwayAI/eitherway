@@ -107,6 +107,8 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
       return {
         ...msg,
         content,
+        // Preserve metadata for historical message reconstruction
+        metadata: msg.metadata,
       };
     });
 
@@ -173,6 +175,35 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
       {
         sessionId: id,
         actor: role === 'user' ? 'user' : 'assistant',
+      },
+    );
+
+    return message;
+  });
+
+  fastify.patch<{
+    Params: { id: string };
+    Body: { metadata: any };
+  }>('/api/messages/:id/metadata', async (request, reply) => {
+    const { id } = request.params;
+    const { metadata } = request.body;
+
+    if (!metadata) {
+      return reply.code(400).send({ error: 'metadata is required' });
+    }
+
+    const message = await messagesRepo.updateMetadata(id, metadata);
+
+    if (!message) {
+      return reply.code(404).send({ error: 'Message not found' });
+    }
+
+    await eventsRepo.log(
+      'message.metadata_updated',
+      { messageId: message.id, metadata },
+      {
+        sessionId: message.session_id,
+        actor: 'system',
       },
     );
 

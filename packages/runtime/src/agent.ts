@@ -28,6 +28,7 @@ export interface StreamingCallbacks {
   onToolStart?: (tool: { name: string; toolUseId: string; filePath?: string }) => void;
   onToolEnd?: (tool: { name: string; toolUseId: string; filePath?: string }) => void;
   onComplete?: (usage: { inputTokens: number; outputTokens: number }) => void;
+  onMessageCreated?: (messageId: string) => void; // Called when assistant message is created in database (only for DatabaseAgent)
 }
 
 const SYSTEM_PROMPT = `You are a single agent that builds and edits modern React applications FOR END USERS.
@@ -495,11 +496,11 @@ export class Agent {
             callbacks.onPhase('building');
           }
 
-          // Stream buffered summary smoothly using reasoning callback
-          if (callbacks?.onReasoning) {
+          // Stream buffered summary as regular message content (NOT reasoning)
+          if (callbacks?.onDelta) {
             for (let i = 0; i < summaryBuffer.length; i += REASONING_STREAM_CHUNK_SIZE) {
               const chunk = summaryBuffer.slice(i, i + REASONING_STREAM_CHUNK_SIZE);
-              callbacks.onReasoning({ text: chunk });
+              callbacks.onDelta({ type: 'text', content: chunk });
               await new Promise((resolve) => setTimeout(resolve, REASONING_STREAM_DELAY_MS));
             }
           }
