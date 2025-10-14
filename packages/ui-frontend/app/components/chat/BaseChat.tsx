@@ -4,6 +4,7 @@ import { ClientOnly } from 'remix-utils/client-only';
 import { Menu } from '~/components/sidebar/Menu.client';
 import { IconButton } from '~/components/ui/IconButton';
 import { Workbench } from '~/components/workbench/Workbench.client';
+import { motion, AnimatePresence } from 'framer-motion';
 
 import { classNames } from '~/utils/classNames';
 import { Messages } from './Messages.client';
@@ -15,8 +16,18 @@ import { FaqBlock } from '~/components/landing/FaqBlockBlue';
 import { LastBlock } from '~/components/landing/LastBlock';
 import { Footer } from '~/components/landing/Footer';
 import { AuthDialog } from '~/components/auth/AuthDialog';
+import { brandKitStore } from '~/lib/stores/brandKit';
+import { BACKEND_URL } from '~/config/api';
 
 import styles from './BaseChat.module.scss';
+
+interface BrandAsset {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  storageKey: string;
+}
 
 interface BaseChatProps {
   textareaRef?: React.RefObject<HTMLTextAreaElement> | undefined;
@@ -79,6 +90,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [showAuthDialog, setShowAuthDialog] = useState(false);
     const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+    const [brandAssets, setBrandAssets] = useState<BrandAsset[]>([]);
 
     const TEXTAREA_MAX_HEIGHT = chatStarted ? 400 : 200;
     console.log(chatStarted);
@@ -126,6 +138,71 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     };
 
     const isUserAuthenticated = isAuthenticated || isPasswordVerified();
+
+    const fetchBrandAssets = async () => {
+      const { pendingBrandKitId } = brandKitStore.get();
+      if (!pendingBrandKitId) {
+        setBrandAssets([]);
+        return;
+      }
+
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/brand-kits/${pendingBrandKitId}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.brandKit?.assets) {
+            setBrandAssets(data.brandKit.assets);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch brand assets:', err);
+      }
+    };
+
+    const handleDeleteAsset = async (assetId: string) => {
+      const { pendingBrandKitId } = brandKitStore.get();
+      if (!pendingBrandKitId) return;
+
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/brand-kits/${pendingBrandKitId}/assets/${assetId}`, {
+          method: 'DELETE',
+        });
+
+        if (response.ok) {
+          // Re-aggregate colors after deletion
+          await fetch(`${BACKEND_URL}/api/brand-kits/${pendingBrandKitId}/aggregate-colors`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          });
+
+          // Refresh assets
+          await fetchBrandAssets();
+        }
+      } catch (err) {
+        console.error('Failed to delete asset:', err);
+      }
+    };
+
+    useEffect(() => {
+      // Only show thumbnails before chat starts
+      if (!chatStarted) {
+        fetchBrandAssets();
+      } else {
+        // Clear thumbnails once chat has started
+        setBrandAssets([]);
+      }
+
+      // Listen for brand kit updates from the modal
+      const handleBrandKitUpdate = () => {
+        if (!chatStarted) {
+          fetchBrandAssets();
+        }
+      };
+
+      window.addEventListener('brand-kit-updated', handleBrandKitUpdate);
+      return () => window.removeEventListener('brand-kit-updated', handleBrandKitUpdate);
+    }, [chatStarted]);
 
     useEffect(() => {
       if (!isConnected) {
@@ -267,7 +344,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     <div className="flex justify-between text-sm p-4 pt-2">
                       <div className="flex gap-1 items-center">
                         <IconButton
-                          title={isStreaming ? 'Brand kit disabled while agent is working' : 'Upload brand assets'}
+                          title={isStreaming ? 'Brand Kit disabled while agent is working' : 'Open Brand Kit'}
                           disabled={isStreaming}
                           className="text-eitherway-elements-textTertiary hover:text-eitherway-elements-textPrimary"
                           onClick={() => {
@@ -309,6 +386,71 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         </div>
                       ) : null}
                     </div>
+
+                    {/* Brand Kit Assets - Tiny Thumbnails */}
+                    <AnimatePresence>
+                      {brandAssets.length > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="flex flex-wrap gap-2 p-3 pt-2 border-t border-gray-700/50">
+                            {brandAssets.map((asset) => {
+                              const isImage = asset.mimeType.startsWith('image/');
+
+                              return (
+                                <motion.div
+                                  key={asset.id}
+                                  initial={{ opacity: 0, scale: 0.8 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  exit={{ opacity: 0, scale: 0.8 }}
+                                  className="relative group"
+                                >
+                                  {/* Tiny square thumbnail */}
+                                  <div className="w-12 h-12 bg-gray-800 rounded border border-gray-600 flex items-center justify-center overflow-hidden">
+                                    {isImage ? (
+                                      <img
+                                        src={`${BACKEND_URL}/api/brand-assets/download/${encodeURIComponent(asset.storageKey)}`}
+                                        alt={asset.fileName}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                          // Fallback to icon if image fails to load
+                                          e.currentTarget.style.display = 'none';
+                                          e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                        }}
+                                      />
+                                    ) : null}
+                                    <div className={isImage ? 'hidden' : 'text-gray-400 text-lg'}>
+                                      {asset.mimeType.startsWith('video/') && <div className="i-ph:video" />}
+                                      {(asset.mimeType.includes('font') || asset.fileName.match(/\.(ttf|otf|woff|woff2)$/i)) && (
+                                        <div className="i-ph:text-aa" />
+                                      )}
+                                      {asset.mimeType.includes('zip') && <div className="i-ph:file-zip" />}
+                                      {!asset.mimeType.startsWith('video/') &&
+                                        !asset.mimeType.includes('font') &&
+                                        !asset.fileName.match(/\.(ttf|otf|woff|woff2)$/i) &&
+                                        !asset.mimeType.includes('zip') &&
+                                        !isImage && <div className="i-ph:file" />}
+                                    </div>
+                                  </div>
+
+                                  {/* Delete button (X on corner) */}
+                                  <button
+                                    onClick={() => handleDeleteAsset(asset.id)}
+                                    className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                    title={`Remove ${asset.fileName}`}
+                                  >
+                                    <div className="i-ph:x text-xs" />
+                                  </button>
+                                </motion.div>
+                              );
+                            })}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 </div>
                 <div className=" pb-6">{/* Ghost Element */}</div>

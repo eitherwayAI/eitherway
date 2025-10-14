@@ -47,7 +47,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
-  // Listen for brand kit upload event from chat clip button
+  // Listen for brand kit modal open event from chat paperclip button
   useEffect(() => {
     const handleOpenBrandKit = () => {
       setShowBrandKitPanel(true);

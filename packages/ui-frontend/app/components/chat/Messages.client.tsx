@@ -1,6 +1,7 @@
 import type { Message } from 'ai';
 import React from 'react';
 import { classNames } from '~/utils/classNames';
+import { stripBrandKitContext } from '~/utils/brandKitUtils';
 import { AssistantMessage } from './AssistantMessage';
 import { UserMessage } from './UserMessage';
 import styles from './BaseChat.module.scss';
@@ -70,6 +71,9 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
             const isFirst = index === 0;
             const isLast = index === messages.length - 1;
 
+            // Strip brand kit context from user messages (backend enriches prompts with brand context)
+            const displayContent = isUserMessage ? stripBrandKitContext(content) : content;
+
             // For assistant messages, use saved metadata or current streaming state
             const extendedMessage = message as ExtendedMessage;
             const messageMetadata = extendedMessage.metadata || {};
@@ -125,10 +129,10 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
                   })}
                 >
                   {isUserMessage ? (
-                    <UserMessage content={content} />
+                    <UserMessage content={displayContent} />
                   ) : (
                     <AssistantMessage
-                      content={content}
+                      content={displayContent}
                       isStreaming={isStreaming && isLast}
                       phase={displayPhase}
                       reasoningText={displayReasoningText}
