@@ -20,13 +20,7 @@ export class EitherSearchFilesExecutor implements ToolExecutor {
   name = 'either-search-files';
 
   async execute(input: Record<string, any>, context: ExecutionContext): Promise<ToolExecutorResult> {
-    const {
-      query,
-      glob = 'src/**/*',
-      max_results = 100,
-      regex = false,
-      context_lines = 0
-    } = input;
+    const { query, glob = 'src/**/*', max_results = 100, regex = false, context_lines = 0 } = input;
 
     try {
       // Use database if fileStore is available
@@ -39,7 +33,7 @@ export class EitherSearchFilesExecutor implements ToolExecutor {
         cwd: context.workingDir,
         absolute: false,
         onlyFiles: true,
-        ignore: ['node_modules/**', '.git/**', 'dist/**', 'build/**', '*.min.js', '*.map']
+        ignore: ['node_modules/**', '.git/**', 'dist/**', 'build/**', '*.min.js', '*.map'],
       });
 
       const guard = new SecurityGuard(context.config.security);
@@ -53,7 +47,7 @@ export class EitherSearchFilesExecutor implements ToolExecutor {
         } catch (error: any) {
           return {
             content: `Invalid regex pattern: ${error.message}`,
-            isError: true
+            isError: true,
           };
         }
       } else {
@@ -81,7 +75,7 @@ export class EitherSearchFilesExecutor implements ToolExecutor {
               const match: SearchMatch = {
                 path: file,
                 line: i + 1,
-                snippet: lines[i]
+                snippet: lines[i],
               };
 
               // Add context lines if requested
@@ -123,31 +117,31 @@ export class EitherSearchFilesExecutor implements ToolExecutor {
             glob,
             regex,
             filesSearched: files.length,
-            matchCount: 0
-          }
+            matchCount: 0,
+          },
         };
       }
 
       // Format results with context
-      const resultText = matches.map(m => {
-        let output = `${m.path}:${m.line}: ${m.snippet}`;
+      const resultText = matches
+        .map((m) => {
+          let output = `${m.path}:${m.line}: ${m.snippet}`;
 
-        if (m.contextBefore && m.contextBefore.length > 0) {
-          const before = m.contextBefore.map((line, idx) =>
-            `  ${m.line - m.contextBefore!.length + idx} | ${line}`
-          ).join('\n');
-          output = `${before}\n${output}`;
-        }
+          if (m.contextBefore && m.contextBefore.length > 0) {
+            const before = m.contextBefore
+              .map((line, idx) => `  ${m.line - m.contextBefore!.length + idx} | ${line}`)
+              .join('\n');
+            output = `${before}\n${output}`;
+          }
 
-        if (m.contextAfter && m.contextAfter.length > 0) {
-          const after = m.contextAfter.map((line, idx) =>
-            `  ${m.line + idx + 1} | ${line}`
-          ).join('\n');
-          output = `${output}\n${after}`;
-        }
+          if (m.contextAfter && m.contextAfter.length > 0) {
+            const after = m.contextAfter.map((line, idx) => `  ${m.line + idx + 1} | ${line}`).join('\n');
+            output = `${output}\n${after}`;
+          }
 
-        return output;
-      }).join('\n---\n');
+          return output;
+        })
+        .join('\n---\n');
 
       return {
         content: `Found ${matches.length} match(es) in ${glob}:\n\n${resultText}`,
@@ -158,13 +152,13 @@ export class EitherSearchFilesExecutor implements ToolExecutor {
           regex,
           filesSearched: files.length,
           matchCount: matches.length,
-          matches: matches.map(m => ({ path: m.path, line: m.line }))
-        }
+          matches: matches.map((m) => ({ path: m.path, line: m.line })),
+        },
       };
     } catch (error: any) {
       return {
         content: `Error searching files: ${error.message}`,
-        isError: true
+        isError: true,
       };
     }
   }
@@ -178,7 +172,7 @@ export class EitherSearchFilesExecutor implements ToolExecutor {
     max_results: number,
     regex: boolean,
     context_lines: number,
-    context: ExecutionContext
+    context: ExecutionContext,
   ): Promise<ToolExecutorResult> {
     const { fileStore, appId } = context;
 
@@ -187,11 +181,7 @@ export class EitherSearchFilesExecutor implements ToolExecutor {
       const allFiles = await fileStore.list(appId);
 
       // Convert glob to regex for matching
-      const globPattern = glob
-        .replace(/\./g, '\\.')
-        .replace(/\*\*/g, '.*')
-        .replace(/\*/g, '[^/]*')
-        .replace(/\?/g, '.');
+      const globPattern = glob.replace(/\./g, '\\.').replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*').replace(/\?/g, '.');
       const globRegex = new RegExp(`^${globPattern}$`);
 
       // Filter files by glob pattern
@@ -211,7 +201,7 @@ export class EitherSearchFilesExecutor implements ToolExecutor {
         } catch (error: any) {
           return {
             content: `Invalid regex pattern: ${error.message}`,
-            isError: true
+            isError: true,
           };
         }
       } else {
@@ -252,7 +242,7 @@ export class EitherSearchFilesExecutor implements ToolExecutor {
               const match: SearchMatch = {
                 path: filePath,
                 line: i + 1,
-                snippet: lines[i]
+                snippet: lines[i],
               };
 
               // Add context lines if requested
@@ -298,31 +288,31 @@ export class EitherSearchFilesExecutor implements ToolExecutor {
             regex,
             filesSearched: files.length,
             matchCount: 0,
-            storage: 'database'
-          }
+            storage: 'database',
+          },
         };
       }
 
       // Format results with context
-      const resultText = matches.map(m => {
-        let output = `${m.path}:${m.line}: ${m.snippet}`;
+      const resultText = matches
+        .map((m) => {
+          let output = `${m.path}:${m.line}: ${m.snippet}`;
 
-        if (m.contextBefore && m.contextBefore.length > 0) {
-          const before = m.contextBefore.map((line, idx) =>
-            `  ${m.line - m.contextBefore!.length + idx} | ${line}`
-          ).join('\n');
-          output = `${before}\n${output}`;
-        }
+          if (m.contextBefore && m.contextBefore.length > 0) {
+            const before = m.contextBefore
+              .map((line, idx) => `  ${m.line - m.contextBefore!.length + idx} | ${line}`)
+              .join('\n');
+            output = `${before}\n${output}`;
+          }
 
-        if (m.contextAfter && m.contextAfter.length > 0) {
-          const after = m.contextAfter.map((line, idx) =>
-            `  ${m.line + idx + 1} | ${line}`
-          ).join('\n');
-          output = `${output}\n${after}`;
-        }
+          if (m.contextAfter && m.contextAfter.length > 0) {
+            const after = m.contextAfter.map((line, idx) => `  ${m.line + idx + 1} | ${line}`).join('\n');
+            output = `${output}\n${after}`;
+          }
 
-        return output;
-      }).join('\n---\n');
+          return output;
+        })
+        .join('\n---\n');
 
       return {
         content: `Found ${matches.length} match(es) in ${glob}:\n\n${resultText}`,
@@ -333,14 +323,14 @@ export class EitherSearchFilesExecutor implements ToolExecutor {
           regex,
           filesSearched: files.length,
           matchCount: matches.length,
-          matches: matches.map(m => ({ path: m.path, line: m.line })),
-          storage: 'database'
-        }
+          matches: matches.map((m) => ({ path: m.path, line: m.line })),
+          storage: 'database',
+        },
       };
     } catch (error: any) {
       return {
         content: `Error searching files in database: ${error.message}`,
-        isError: true
+        isError: true,
       };
     }
   }

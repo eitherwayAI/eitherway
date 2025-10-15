@@ -23,7 +23,7 @@ export class ImageGenExecutor implements ToolExecutor {
     if (!guard.isPathAllowed(path)) {
       return {
         content: `Error: Access denied to path '${path}'. Path is not in allowed workspaces.`,
-        isError: true
+        isError: true,
       };
     }
 
@@ -31,7 +31,7 @@ export class ImageGenExecutor implements ToolExecutor {
     if (!process.env.OPENAI_API_KEY) {
       return {
         content: `Error: OpenAI API key not configured.\n\nTo enable:\n1. Get API key from https://platform.openai.com/api-keys\n2. Set environment variable: export OPENAI_API_KEY=your_key`,
-        isError: true
+        isError: true,
       };
     }
 
@@ -48,7 +48,7 @@ export class ImageGenExecutor implements ToolExecutor {
         // DO NOT close db - it's a singleton shared by all tools
         return {
           content: `Error: No app context found. Image generation requires an active app/session.`,
-          isError: true
+          isError: true,
         };
       }
 
@@ -63,7 +63,7 @@ export class ImageGenExecutor implements ToolExecutor {
         quality: quality as 'standard' | 'hd',
         n: 1,
         sessionId,
-        appId
+        appId,
       });
 
       // Poll until complete (60 second timeout)
@@ -73,7 +73,7 @@ export class ImageGenExecutor implements ToolExecutor {
         // DO NOT close db - it's a singleton shared by all tools
         return {
           content: `Error: Image generation failed.\nJob ID: ${jobId}\nState: ${result.job.state}\nError: ${JSON.stringify(result.job.error)}`,
-          isError: true
+          isError: true,
         };
       }
 
@@ -81,7 +81,7 @@ export class ImageGenExecutor implements ToolExecutor {
         // DO NOT close db - it's a singleton shared by all tools
         return {
           content: `Error: No image assets generated.\nJob ID: ${jobId}`,
-          isError: true
+          isError: true,
         };
       }
 
@@ -93,7 +93,7 @@ export class ImageGenExecutor implements ToolExecutor {
         // DO NOT close db - it's a singleton shared by all tools
         return {
           content: `Error: Failed to retrieve generated image.\nAsset ID: ${assetId}`,
-          isError: true
+          isError: true,
         };
       }
 
@@ -117,14 +117,26 @@ export class ImageGenExecutor implements ToolExecutor {
       const serverOrigin = process.env.SERVER_ORIGIN || 'http://localhost:3001';
       const assetUrl = `${serverOrigin}/api/images/assets/${assetId}`;
 
+      // Determine the correct path for HTML/code usage
+      // Vite serves files from public/ directory at the root path
+      // So public/image.png should be referenced as /image.png
+      let htmlPath = finalPath;
+      if (finalPath.startsWith('public/') || finalPath.startsWith('/public/')) {
+        // Remove the public/ prefix for Vite
+        htmlPath = '/' + finalPath.replace(/^\/?public\//, '');
+      } else if (!finalPath.startsWith('/')) {
+        // Ensure absolute path
+        htmlPath = '/' + finalPath;
+      }
+
       return {
         content: `✅ Image generated and saved successfully!
 
-📁 File Path: ${finalPath}
-⚠️  IMPORTANT: Use this EXACT path in your HTML/code: ${finalPath}
+📁 Saved to: ${finalPath}
+⚠️  IMPORTANT: Use this path in your HTML/code: ${htmlPath}
 
 Example usage:
-<img src="${finalPath}" alt="${prompt.substring(0, 50)}...">
+<img src="${htmlPath}" alt="${prompt.substring(0, 50)}...">
 
 Details:
 - Prompt: "${prompt}"
@@ -148,13 +160,13 @@ The image is now available in the file system and will display in the preview.`,
           mimeType,
           fileSize: asset.bytes.length,
           width: result.assets[0].width,
-          height: result.assets[0].height
-        }
+          height: result.assets[0].height,
+        },
       };
     } catch (error: any) {
       return {
         content: `Image generation error: ${error.message}\n\nStack trace:\n${error.stack}`,
-        isError: true
+        isError: true,
       };
     }
   }
@@ -170,4 +182,3 @@ The image is now available in the file system and will display in the preview.`,
     return '1024x1024'; // Default
   }
 }
-

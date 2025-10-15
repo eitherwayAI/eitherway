@@ -8,14 +8,8 @@ import { ToolRunner } from './tool-runner.js';
 import { TranscriptRecorder } from './transcript.js';
 import { VerifierRunner } from './verifier.js';
 import { getAllToolDefinitions } from '@eitherway/tools-core';
-import type {
-  Message,
-  ToolUse,
-  ToolResult,
-  ClaudeConfig,
-  AgentConfig,
-  ToolExecutor
-} from '@eitherway/tools-core';
+import { MAX_AGENT_TURNS, REASONING_STREAM_CHUNK_SIZE, REASONING_STREAM_DELAY_MS } from './constants.js';
+import type { Message, ToolUse, ToolResult, ClaudeConfig, AgentConfig, ToolExecutor } from '@eitherway/tools-core';
 
 /**
  * Phase types for streaming UI
@@ -36,20 +30,26 @@ export interface StreamingCallbacks {
   onComplete?: (usage: { inputTokens: number; outputTokens: number }) => void;
 }
 
-const SYSTEM_PROMPT = `You are a single agent that builds and edits apps end-to-end FOR END USERS.
+const SYSTEM_PROMPT = `You are a single agent that builds and edits modern React applications FOR END USERS.
 Use ONLY the tools listed below. Prefer either-line-replace for small, targeted edits.
+
+TECHNOLOGY STACK (MANDATORY):
+  - **React 18+** with functional components and hooks
+  - **Vite** as the build tool and dev server
+  - **Tailwind CSS** for styling (NO custom CSS files unless absolutely necessary)
+  - **JSX/TSX** for component syntax
+  - All apps MUST use this stack - NO vanilla HTML/CSS/JS
 
 COMPLETENESS REQUIREMENT (HIGHEST PRIORITY):
   - EVERY app you create must be 100% COMPLETE and FUNCTIONAL from the start
-  - If HTML references a .js file → YOU MUST CREATE that .js file in the SAME turn
-  - If HTML references a .css file → YOU MUST CREATE that .css file in the SAME turn
-  - If you create HTML with buttons/forms → YOU MUST CREATE the JavaScript that makes them work
-  - If you mention a feature → YOU MUST IMPLEMENT that feature completely
-  - NEVER stop until ALL referenced files exist and ALL functionality works
-  - Check: Does the user's request require JavaScript? If YES, create it in the same response
-  - Check: Are there ANY <script src="..."> tags? If YES, create those files NOW
-  - Check: Will buttons/inputs work without JavaScript? If NO, create the JavaScript NOW
+  - If a component imports another component → YOU MUST CREATE that component in the SAME turn
+  - If you mention a feature → YOU MUST IMPLEMENT that feature completely with all necessary components
+  - NEVER stop until ALL imported components exist and ALL functionality works
+  - Check: Does the user's request require state management? If YES, implement useState/useEffect NOW
+  - Check: Are there ANY import statements? If YES, create those files NOW
+  - Check: Will interactive features work? If NO, add the necessary event handlers and state NOW
   - DO NOT create partial apps - users expect working applications, not templates
+  - ALL components must be fully styled with Tailwind CSS classes
 
 CRITICAL BUILD RULES:
   - You are building apps for END USERS, not developers
@@ -58,6 +58,68 @@ CRITICAL BUILD RULES:
   - All help, instructions, and guidance must be built INTO the app's UI
   - Create only executable code files that make up the actual application
   - Focus on user experience, not developer experience
+
+REACT COMPONENT ARCHITECTURE (CRITICAL):
+  - ALWAYS use functional components with hooks
+  - Component structure: import statements → component definition → export
+  - Use proper React hooks: useState for state, useEffect for side effects
+  - Props should be destructured in component parameters
+  - Event handlers: use arrow functions or useCallback for performance
+  - Conditional rendering: use ternary operators or && for inline conditionals
+  - Lists: always map with unique keys (use index only as last resort)
+
+  Component Template:
+  import { useState, useEffect } from 'react';
+
+  export default function ComponentName({ propName }) {
+    const [state, setState] = useState(initialValue);
+
+    useEffect(() => {
+      // Side effects here
+    }, [dependencies]);
+
+    const handleEvent = () => {
+      // Event logic
+    };
+
+    return (
+      <div className="tailwind classes">
+        {/* JSX content */}
+      </div>
+    );
+  }
+
+TAILWIND CSS STYLING (CRITICAL):
+  - NEVER write custom CSS - use Tailwind utility classes exclusively
+  - Use responsive prefixes: sm:, md:, lg:, xl:, 2xl: for responsive design
+  - Use hover:, focus:, active: for interactive states
+  - Common patterns:
+    * Flexbox: flex items-center justify-between gap-4
+    * Grid: grid grid-cols-3 gap-4
+    * Spacing: p-4 (padding), m-4 (margin), space-x-4 (horizontal gap)
+    * Colors: bg-blue-500, text-white, border-gray-300
+    * Rounded: rounded-lg (borders), rounded-full (circles)
+    * Shadows: shadow-md, shadow-lg
+    * Transitions: transition-all duration-300 ease-in-out
+  - For complex styles, combine utilities: "flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-500 to-purple-600"
+  - Use dark: prefix for dark mode support when appropriate
+
+  AVOID THESE ANTI-PATTERNS:
+  ❌ NEVER create separate .css files
+  ❌ NEVER use inline styles (style={{...}}) - use Tailwind classes instead
+  ❌ NEVER write custom CSS rules
+  ✓ ALWAYS use Tailwind utility classes
+
+FILE STRUCTURE (MANDATORY):
+  - index.html: Vite entry point with root div
+  - src/main.jsx: React entry point that renders App
+  - src/App.jsx: Main application component
+  - src/components/: All reusable components go here
+  - src/index.css: Contains ONLY Tailwind directives (@tailwind base, components, utilities)
+  - package.json: Dependencies and scripts
+  - vite.config.js: Vite configuration
+  - tailwind.config.js: Tailwind configuration
+  - postcss.config.js: PostCSS configuration for Tailwind
 
 YOUTUBE EMBED REQUIREMENTS (CRITICAL):
   - ALWAYS use /embed/VIDEO_ID URL, NEVER /watch?v=VIDEO_ID
@@ -149,14 +211,14 @@ READ-BEFORE-WRITE DISCIPLINE (CRITICAL):
 
 For execution:
   Stage 1: Analyze request (intent, scope, constraints).
-  Stage 2: Plan architecture (design system, components, files).
-           CRITICAL: List ALL files needed (HTML, CSS, JS, etc.) - create them ALL in one turn.
+  Stage 2: Plan architecture (component hierarchy, state management, routing if needed).
+           CRITICAL: List ALL files needed (components, config files, etc.) - create them ALL in one turn.
   Stage 3: Select tools (name each planned call, READ first for edits).
-           CRITICAL: If HTML references script.js → add either-write for script.js to your plan.
+           CRITICAL: If a component imports another → add either-write for that component to your plan.
   Stage 4: Execute in parallel (emit multiple tool_use blocks that do not conflict).
            CRITICAL: Create ALL files in this single turn - don't leave any for later.
-  Stage 5: Verify & Respond (self-check: did I create ALL referenced files? Are all features working?)
-           CRITICAL: Before responding, confirm every <script src="..."> file was created.
+  Stage 5: Verify & Respond (self-check: did I create ALL imported components? Are all features working?)
+           CRITICAL: Before responding, confirm every import statement resolves to an existing file.
 
 Determinism:
   - Default temperature low (0.2); fix seeds where supported.
@@ -228,11 +290,7 @@ export class Agent {
   constructor(options: AgentOptions) {
     this.options = options;
     this.modelClient = new ModelClient(options.claudeConfig);
-    this.toolRunner = new ToolRunner(
-      options.executors,
-      options.workingDir,
-      options.agentConfig
-    );
+    this.toolRunner = new ToolRunner(options.executors, options.workingDir, options.agentConfig);
     this.recorder = new TranscriptRecorder(options.agentConfig);
     this.conversationHistory = [];
   }
@@ -256,18 +314,17 @@ export class Agent {
     // Add user message to history (content must be array for Claude API)
     this.conversationHistory.push({
       role: 'user',
-      content: [{ type: 'text', text: userMessage }]
+      content: [{ type: 'text', text: userMessage }],
     });
 
     this.recorder.addEntry({
       timestamp: new Date().toISOString(),
       role: 'user',
-      content: userMessage
+      content: userMessage,
     });
 
     let finalResponse = '';
     let turnCount = 0;
-    const maxTurns = 20; // Safety limit
     const changedFiles = new Set<string>();
     let hasExecutedTools = false;
 
@@ -275,7 +332,7 @@ export class Agent {
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
 
-    let justExecutedTools = false;  // Track if we executed tools in previous iteration
+    let justExecutedTools = false; // Track if we executed tools in previous iteration
 
     // Buffering for thinking → reasoning transition
     let thinkingBuffer = '';
@@ -290,7 +347,7 @@ export class Agent {
     const fileOpsThisRequest = new Map<string, 'create' | 'edit'>();
     const filesCreatedThisRequest = new Set<string>();
 
-    while (turnCount < maxTurns) {
+    while (turnCount < MAX_AGENT_TURNS) {
       turnCount++;
 
       // Validate conversation history before sending to Claude
@@ -338,8 +395,8 @@ export class Agent {
               }
             }
           },
-          webSearchConfig: this.options.webSearch
-        }
+          webSearchConfig: this.options.webSearch,
+        },
       );
 
       // Accumulate token usage
@@ -355,10 +412,10 @@ export class Agent {
           model: this.options.claudeConfig.model,
           tokenUsage: {
             input: response.usage.inputTokens,
-            output: response.usage.outputTokens
+            output: response.usage.outputTokens,
           },
-          stopReason: response.stopReason || undefined
-        }
+          stopReason: response.stopReason || undefined,
+        },
       });
 
       // Extract text for final summary
@@ -368,8 +425,7 @@ export class Agent {
         .join('\n');
 
       // --- Enforce READ-before-WRITE by injecting either-view blocks if missing ---
-      const { contentBlocks: enforcedAssistantBlocks, toolUses } =
-        this.injectReadBeforeWriteBlocks(response.content);
+      const { contentBlocks: enforcedAssistantBlocks, toolUses } = this.injectReadBeforeWriteBlocks(response.content);
 
       // --- Handle thinking → reasoning transition ---
       if (isInThinkingPhase && thinkingBuffer && toolUses.length > 0) {
@@ -377,9 +433,7 @@ export class Agent {
         isInThinkingPhase = false;
 
         // Calculate thinking duration
-        const thinkingDuration = thinkingStartTime
-          ? Math.round((Date.now() - thinkingStartTime) / 1000)
-          : 0;
+        const thinkingDuration = thinkingStartTime ? Math.round((Date.now() - thinkingStartTime) / 1000) : 0;
 
         // Emit thinking complete with duration
         if (callbacks?.onThinkingComplete) {
@@ -387,7 +441,7 @@ export class Agent {
         }
 
         // Small delay to let user read the "Thought for X seconds" message
-        await new Promise(resolve => setTimeout(resolve, 800));
+        await new Promise((resolve) => setTimeout(resolve, 800));
 
         // Emit reasoning phase
         if (callbacks?.onPhase) {
@@ -396,12 +450,10 @@ export class Agent {
 
         // Stream buffered text smoothly (chunk by chunk for animation)
         if (callbacks?.onReasoning) {
-          const CHUNK_SIZE = 2; // Small chunks for smooth 60fps effect
-          for (let i = 0; i < thinkingBuffer.length; i += CHUNK_SIZE) {
-            const chunk = thinkingBuffer.slice(i, i + CHUNK_SIZE);
+          for (let i = 0; i < thinkingBuffer.length; i += REASONING_STREAM_CHUNK_SIZE) {
+            const chunk = thinkingBuffer.slice(i, i + REASONING_STREAM_CHUNK_SIZE);
             callbacks.onReasoning({ text: chunk });
-            // 16ms delay = 60fps smooth streaming (~125 chars/sec)
-            await new Promise(resolve => setTimeout(resolve, 16));
+            await new Promise((resolve) => setTimeout(resolve, REASONING_STREAM_DELAY_MS));
           }
         }
 
@@ -420,14 +472,14 @@ export class Agent {
       if (enforcedAssistantBlocks.length > 0) {
         this.conversationHistory.push({
           role: 'assistant',
-          content: enforcedAssistantBlocks as any
+          content: enforcedAssistantBlocks as any,
         });
       } else {
         // Edge case: empty response - add placeholder to maintain conversation flow
         console.warn('[Agent] Warning: Assistant response had no content blocks, adding placeholder');
         this.conversationHistory.push({
           role: 'assistant',
-          content: [{ type: 'text', text: '...' }]
+          content: [{ type: 'text', text: '...' }],
         });
       }
 
@@ -445,12 +497,10 @@ export class Agent {
 
           // Stream buffered summary smoothly using reasoning callback
           if (callbacks?.onReasoning) {
-            const CHUNK_SIZE = 2; // Small chunks for smooth 60fps effect
-            for (let i = 0; i < summaryBuffer.length; i += CHUNK_SIZE) {
-              const chunk = summaryBuffer.slice(i, i + CHUNK_SIZE);
+            for (let i = 0; i < summaryBuffer.length; i += REASONING_STREAM_CHUNK_SIZE) {
+              const chunk = summaryBuffer.slice(i, i + REASONING_STREAM_CHUNK_SIZE);
               callbacks.onReasoning({ text: chunk });
-              // 16ms delay = 60fps smooth streaming (~125 chars/sec)
-              await new Promise(resolve => setTimeout(resolve, 16));
+              await new Promise((resolve) => setTimeout(resolve, REASONING_STREAM_DELAY_MS));
             }
           }
 
@@ -471,7 +521,7 @@ export class Agent {
       // Emit 'code-writing' phase when we have tools to execute
       if (toolUses.length > 0 && callbacks?.onPhase) {
         // Add delay before showing "Writing code..." for natural pacing
-        await new Promise(resolve => setTimeout(resolve, 600));
+        await new Promise((resolve) => setTimeout(resolve, 600));
         callbacks.onPhase('code-writing');
       }
 
@@ -487,7 +537,7 @@ export class Agent {
         toolResults = toolUses.map((tu: ToolUse) => ({
           type: 'tool_result' as const,
           tool_use_id: tu.id,
-          content: `[DRY RUN] Would execute: ${tu.name} with input: ${JSON.stringify(tu.input, null, 2)}`
+          content: `[DRY RUN] Would execute: ${tu.name} with input: ${JSON.stringify(tu.input, null, 2)}`,
         }));
       } else {
         // Track new file operations this turn (for emitting)
@@ -522,7 +572,7 @@ export class Agent {
 
               // Emit "Creating..." or "Editing..." message before execution
               if (callbacks?.onFileOperation) {
-                await new Promise(resolve => setTimeout(resolve, 200)); // Delay between file operations
+                await new Promise((resolve) => setTimeout(resolve, 200)); // Delay between file operations
                 const progressiveState: 'creating' | 'editing' = operation === 'create' ? 'creating' : 'editing';
                 callbacks.onFileOperation(progressiveState, filePath);
               }
@@ -534,7 +584,7 @@ export class Agent {
             callbacks.onToolStart({
               name: toolUse.name,
               toolUseId: toolUse.id,
-              filePath
+              filePath,
             });
           }
 
@@ -545,7 +595,7 @@ export class Agent {
           // Emit "Created" or "Edited" message after execution (only for new operations)
           if (filePath && newFileOpsThisTurn.has(filePath)) {
             if (callbacks?.onFileOperation) {
-              await new Promise(resolve => setTimeout(resolve, 300)); // Delay before completion message
+              await new Promise((resolve) => setTimeout(resolve, 300)); // Delay before completion message
               const operation = newFileOpsThisTurn.get(filePath);
               const completedState: 'created' | 'edited' = operation === 'create' ? 'created' : 'edited';
               callbacks.onFileOperation(completedState, filePath);
@@ -557,7 +607,7 @@ export class Agent {
             callbacks.onToolEnd({
               name: toolUse.name,
               toolUseId: toolUse.id,
-              filePath
+              filePath,
             });
           }
         }
@@ -578,7 +628,7 @@ export class Agent {
         const missingRefs = await this.checkMissingFileReferences(toolUses, createdFilesThisTurn, toolResults);
         if (missingRefs.length > 0) {
           // Add warning to the last tool result to inform the agent
-          const warningMessage = `\n\n⚠️ WARNING: Missing file references detected:\n${missingRefs.map(ref => `  - ${ref.htmlFile} references <${ref.tag} ${ref.attr}="${ref.file}"> but ${ref.file} was not created`).join('\n')}\n\nYou MUST create these files in your next response to make the app functional.`;
+          const warningMessage = `\n\n⚠️ WARNING: Missing file references detected:\n${missingRefs.map((ref) => `  - ${ref.htmlFile} references <${ref.tag} ${ref.attr}="${ref.file}"> but ${ref.file} was not created`).join('\n')}\n\nYou MUST create these files in your next response to make the app functional.`;
 
           // Append warning to the last tool result
           if (toolResults.length > 0) {
@@ -593,13 +643,13 @@ export class Agent {
       this.recorder.addEntry({
         timestamp: new Date().toISOString(),
         role: 'user',
-        content: toolResults
+        content: toolResults,
       });
 
       // Add tool results to conversation
       this.conversationHistory.push({
         role: 'user',
-        content: toolResults
+        content: toolResults,
       });
 
       // If stop reason was end_turn, continue conversation
@@ -620,7 +670,7 @@ export class Agent {
     if (callbacks?.onComplete) {
       callbacks.onComplete({
         inputTokens: totalInputTokens,
-        outputTokens: totalOutputTokens
+        outputTokens: totalOutputTokens,
       });
     }
 
@@ -685,9 +735,10 @@ export class Agent {
     }
 
     const files = Array.from(changedFiles).sort();
-    const summary = files.length === 1
-      ? `**Changed:** ${files[0]}\n`
-      : `**Changed (${files.length} files):**\n${files.map(f => `  - ${f}`).join('\n')}\n`;
+    const summary =
+      files.length === 1
+        ? `**Changed:** ${files[0]}\n`
+        : `**Changed (${files.length} files):**\n${files.map((f) => `  - ${f}`).join('\n')}\n`;
 
     return summary;
   }
@@ -709,8 +760,8 @@ export class Agent {
 
         throw new Error(
           `Conversation history validation failed: ` +
-          `Message ${idx} has invalid content format (expected array, got ${typeof msg.content}). ` +
-          `This will cause Claude API to reject the request with "Input should be a valid list" error.`
+            `Message ${idx} has invalid content format (expected array, got ${typeof msg.content}). ` +
+            `This will cause Claude API to reject the request with "Input should be a valid list" error.`,
         );
       }
 
@@ -726,8 +777,8 @@ export class Agent {
 
           throw new Error(
             `Conversation history validation failed: ` +
-            `Message ${idx} has empty content array. ` +
-            `This will cause Claude API to reject the request with "all messages must have non-empty content" error.`
+              `Message ${idx} has empty content array. ` +
+              `This will cause Claude API to reject the request with "all messages must have non-empty content" error.`,
           );
         }
       }
@@ -743,7 +794,9 @@ export class Agent {
           console.log(`  web_search_tool_results: ${webSearchResults.length}`);
           console.log(`  All blocks in message:`);
           msg.content.forEach((block: any, blockIdx: number) => {
-            console.log(`    [${blockIdx}] ${block.type}${block.id ? ` (id: ${block.id})` : ''}${block.tool_use_id ? ` (tool_use_id: ${block.tool_use_id})` : ''}`);
+            console.log(
+              `    [${blockIdx}] ${block.type}${block.id ? ` (id: ${block.id})` : ''}${block.tool_use_id ? ` (tool_use_id: ${block.tool_use_id})` : ''}`,
+            );
           });
 
           // Verify each server_tool_use has a corresponding web_search_tool_result
@@ -751,7 +804,9 @@ export class Agent {
             const hasMatchingResult = webSearchResults.some((wsr: any) => wsr.tool_use_id === stu.id);
 
             if (!hasMatchingResult) {
-              console.error(`\n⚠️  WARNING: Message [${idx}] has server_tool_use (${stu.id}) without web_search_tool_result`);
+              console.error(
+                `\n⚠️  WARNING: Message [${idx}] has server_tool_use (${stu.id}) without web_search_tool_result`,
+              );
               console.error(`   This might cause issues, but continuing anyway for debugging...`);
               console.error('');
 
@@ -786,7 +841,7 @@ export class Agent {
           type: 'tool_use',
           id: blk.id,
           name: blk.name,
-          input: blk.input
+          input: blk.input,
         });
       }
     };
@@ -814,7 +869,7 @@ export class Agent {
             type: 'tool_use',
             id: injectedId,
             name: Agent.READ_TOOL,
-            input: { path }
+            input: { path },
           };
           pushAndCollect(injected);
           seenReadForPath.add(path);
@@ -824,7 +879,7 @@ export class Agent {
         if (!blk.input?.needle) {
           blk.input = {
             ...blk.input,
-            _enforcerWarning: 'No `needle` provided; injected a read to reduce risk.'
+            _enforcerWarning: 'No `needle` provided; injected a read to reduce risk.',
           };
         }
 
@@ -848,60 +903,55 @@ export class Agent {
   }
 
   /**
-   * Check for missing file references in newly created HTML files
-   * Detects <script src="..."> and <link href="..."> that reference non-existent files
+   * Check for missing file references in newly created files
+   * Detects:
+   * - HTML: <script src="..."> and <link href="..."> that reference non-existent files
+   * - React: import statements that reference non-existent components
    */
   private async checkMissingFileReferences(
     toolUses: ToolUse[],
     createdFiles: Set<string>,
-    toolResults: ToolResult[]
+    toolResults: ToolResult[],
   ): Promise<Array<{ htmlFile: string; tag: string; attr: string; file: string }>> {
     const missing: Array<{ htmlFile: string; tag: string; attr: string; file: string }> = [];
 
-    // Find all HTML files that were created this turn
-    const htmlWrites = toolUses.filter(tu =>
-      (tu.name === 'either-write' || tu.name === 'either-line-replace') &&
-      tu.input?.path?.toLowerCase().endsWith('.html')
+    // Check HTML files for script/link references
+    const htmlWrites = toolUses.filter(
+      (tu) =>
+        (tu.name === 'either-write' || tu.name === 'either-line-replace') &&
+        tu.input?.path?.toLowerCase().endsWith('.html'),
     );
 
     for (const htmlWrite of htmlWrites) {
       const htmlPath = htmlWrite.input?.path;
       if (!htmlPath) continue;
 
-      // Get the HTML content from the tool result
       const resultIdx = toolUses.indexOf(htmlWrite);
       const result = toolResults[resultIdx];
       if (!result || result.is_error) continue;
 
-      // For either-write, the content is in the input
-      const htmlContent = htmlWrite.name === 'either-write'
-        ? htmlWrite.input?.content
-        : null;
+      const htmlContent = htmlWrite.name === 'either-write' ? htmlWrite.input?.content : null;
 
       if (!htmlContent || typeof htmlContent !== 'string') continue;
 
       // Extract script and link references using simple regex
-      // <script src="...">
       const scriptMatches = htmlContent.matchAll(/<script[^>]+src=["']([^"']+)["']/gi);
       for (const match of scriptMatches) {
         const scriptPath = match[1];
-        // Normalize path (remove leading ./ or /)
         const normalizedPath = scriptPath.replace(/^\.?\//, '');
         if (!createdFiles.has(normalizedPath) && !createdFiles.has(scriptPath)) {
           missing.push({
             htmlFile: htmlPath,
             tag: 'script',
             attr: 'src',
-            file: scriptPath
+            file: scriptPath,
           });
         }
       }
 
-      // <link href="..." rel="stylesheet">
       const linkMatches = htmlContent.matchAll(/<link[^>]+href=["']([^"']+)["'][^>]*>/gi);
       for (const match of linkMatches) {
         const fullTag = match[0];
-        // Only check stylesheets, not other links
         if (fullTag.includes('stylesheet')) {
           const linkPath = match[1];
           const normalizedPath = linkPath.replace(/^\.?\//, '');
@@ -910,9 +960,77 @@ export class Agent {
               htmlFile: htmlPath,
               tag: 'link',
               attr: 'href',
-              file: linkPath
+              file: linkPath,
             });
           }
+        }
+      }
+    }
+
+    // Check React/JSX/TSX files for import statements
+    const reactWrites = toolUses.filter(
+      (tu) =>
+        (tu.name === 'either-write' || tu.name === 'either-line-replace') &&
+        (tu.input?.path?.endsWith('.jsx') ||
+          tu.input?.path?.endsWith('.tsx') ||
+          tu.input?.path?.endsWith('.js') ||
+          tu.input?.path?.endsWith('.ts')),
+    );
+
+    for (const reactWrite of reactWrites) {
+      const filePath = reactWrite.input?.path;
+      if (!filePath) continue;
+
+      const resultIdx = toolUses.indexOf(reactWrite);
+      const result = toolResults[resultIdx];
+      if (!result || result.is_error) continue;
+
+      const content = reactWrite.name === 'either-write' ? reactWrite.input?.content : null;
+
+      if (!content || typeof content !== 'string') continue;
+
+      // Extract import statements: import ... from './path'
+      const importMatches = content.matchAll(
+        /import\s+(?:(?:\{[^}]+\}|[\w]+)(?:\s*,\s*(?:\{[^}]+\}|[\w]+))*)\s+from\s+['"]([^'"]+)['"]/g,
+      );
+
+      for (const match of importMatches) {
+        const importPath = match[1];
+
+        // Skip node_modules and external packages (e.g., 'react', '@vitejs/plugin-react')
+        if (!importPath.startsWith('.')) continue;
+
+        // Normalize path (remove leading ./)
+        let normalizedPath = importPath.replace(/^\.\//, '');
+
+        // Check multiple possible file paths (with/without extensions, index files)
+        const possiblePaths = [
+          normalizedPath,
+          `${normalizedPath}.jsx`,
+          `${normalizedPath}.tsx`,
+          `${normalizedPath}.js`,
+          `${normalizedPath}.ts`,
+          `${normalizedPath}/index.jsx`,
+          `${normalizedPath}/index.tsx`,
+          `${normalizedPath}/index.js`,
+          `${normalizedPath}/index.ts`,
+        ];
+
+        // Also check paths relative to src/ directory
+        const srcPaths = possiblePaths.map((p) => `src/${p}`);
+
+        // Check if any of the possible paths exist in createdFiles
+        const exists = [...possiblePaths, ...srcPaths].some(
+          (p) => createdFiles.has(p) || createdFiles.has(`./${p}`) || createdFiles.has(`/${p}`),
+        );
+
+        if (!exists) {
+          missing.push({
+            htmlFile: filePath,
+            tag: 'import',
+            attr: 'from',
+            file: importPath,
+          });
         }
       }
     }

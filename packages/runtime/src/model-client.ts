@@ -44,7 +44,7 @@ export class ModelClient {
     if (config.provider === 'anthropic') {
       this.client = new Anthropic({
         apiKey: config.apiKey,
-        baseURL: config.providerConfig?.anthropic?.baseURL
+        baseURL: config.providerConfig?.anthropic?.baseURL,
       });
     } else {
       throw new Error(`Provider ${config.provider} not yet implemented. Use 'anthropic' for Portion 1.`);
@@ -67,14 +67,14 @@ export class ModelClient {
         allowedDomains?: string[];
         blockedDomains?: string[];
       };
-    }
+    },
   ): Promise<ModelResponse> {
     const allTools: any[] = [...tools];
 
     if (options?.webSearchConfig?.enabled) {
       const webSearchTool: any = {
         type: 'web_search_20250305',
-        name: 'web_search'
+        name: 'web_search',
       };
 
       if (options.webSearchConfig.maxUses !== undefined) {
@@ -120,11 +120,11 @@ export class ModelClient {
   private async streamMessage(
     params: Anthropic.MessageCreateParams,
     onDelta: (delta: StreamDelta) => void,
-    onComplete?: (response: ModelResponse) => void
+    onComplete?: (response: ModelResponse) => void,
   ): Promise<ModelResponse> {
     const stream = await this.client.messages.create({
       ...params,
-      stream: true
+      stream: true,
     });
 
     let messageId = '';
@@ -153,7 +153,7 @@ export class ModelClient {
               type: 'tool_use',
               id: event.content_block.id,
               name: event.content_block.name,
-              inputJson: ''
+              inputJson: '',
             };
           } else if ((event.content_block as any).type === 'server_tool_use') {
             console.log(`[STREAM] 🔍 server_tool_use detected: ${(event.content_block as any).id}`);
@@ -161,14 +161,14 @@ export class ModelClient {
               type: 'server_tool_use',
               id: (event.content_block as any).id,
               name: (event.content_block as any).name,
-              inputJson: ''
+              inputJson: '',
             };
           } else if ((event.content_block as any).type === 'web_search_tool_result') {
             console.log(`[STREAM] ✅ web_search_tool_result detected for: ${(event.content_block as any).tool_use_id}`);
             contentBlocks.push({
               type: 'web_search_tool_result',
               tool_use_id: (event.content_block as any).tool_use_id,
-              content: (event.content_block as any).content
+              content: (event.content_block as any).content,
             });
           }
           break;
@@ -205,7 +205,7 @@ export class ModelClient {
               type: 'tool_use',
               content: `[Tool: ${currentToolUse.name}]`,
               toolUseId: currentToolUse.id,
-              toolName: currentToolUse.name
+              toolName: currentToolUse.name,
             });
             currentToolUse = null;
           }
@@ -233,14 +233,16 @@ export class ModelClient {
       stopReason,
       usage: {
         inputTokens,
-        outputTokens
-      }
+        outputTokens,
+      },
     };
 
     // Log final content block summary
     console.log(`\n[STREAM] Response complete. Content blocks:`);
     contentBlocks.forEach((block, idx) => {
-      console.log(`  [${idx}] ${block.type}${block.id ? ` (${block.id})` : ''}${block.tool_use_id ? ` -> ${block.tool_use_id}` : ''}`);
+      console.log(
+        `  [${idx}] ${block.type}${block.id ? ` (${block.id})` : ''}${block.tool_use_id ? ` -> ${block.tool_use_id}` : ''}`,
+      );
     });
 
     if (onComplete) {
@@ -253,12 +255,10 @@ export class ModelClient {
   /**
    * Non-streaming message handling
    */
-  private async nonStreamMessage(
-    params: Anthropic.MessageCreateParams
-  ): Promise<ModelResponse> {
+  private async nonStreamMessage(params: Anthropic.MessageCreateParams): Promise<ModelResponse> {
     const response = await this.client.messages.create({
       ...params,
-      stream: false
+      stream: false,
     });
 
     return {
@@ -272,7 +272,7 @@ export class ModelClient {
             type: 'tool_use',
             id: block.id,
             name: block.name,
-            input: block.input
+            input: block.input,
           };
         } else if (block.type === 'server_tool_use') {
           // Explicitly handle server-side tool use
@@ -280,14 +280,14 @@ export class ModelClient {
             type: 'server_tool_use',
             id: block.id,
             name: block.name,
-            input: block.input
+            input: block.input,
           };
         } else if (block.type === 'web_search_tool_result') {
           // Explicitly handle web search results
           return {
             type: 'web_search_tool_result',
             tool_use_id: block.tool_use_id,
-            content: block.content
+            content: block.content,
           };
         }
         // Pass through any other block types unchanged
@@ -297,8 +297,8 @@ export class ModelClient {
       usage: {
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,
-        serverToolUse: (response.usage as any).server_tool_use
-      }
+        serverToolUse: (response.usage as any).server_tool_use,
+      },
     };
   }
 
@@ -306,11 +306,9 @@ export class ModelClient {
    * Convert our Message format to Anthropic's format
    */
   private convertMessages(messages: Message[]): Anthropic.MessageParam[] {
-    return messages.map(msg => ({
+    return messages.map((msg) => ({
       role: msg.role as 'user' | 'assistant',
-      content: typeof msg.content === 'string'
-        ? msg.content
-        : msg.content as any
+      content: typeof msg.content === 'string' ? msg.content : (msg.content as any),
     }));
   }
 

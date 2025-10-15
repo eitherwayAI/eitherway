@@ -36,11 +36,11 @@ export class MetricsCollector {
     this.log(
       level,
       `[TOOL] ${status} ${metrics.tool} | ` +
-      `${metrics.latency_ms}ms | ` +
-      `in:${this.formatSize(metrics.input_size)} | ` +
-      `out:${this.formatSize(metrics.output_size)}` +
-      (metrics.file_count !== undefined ? ` | files:${metrics.file_count}` : '') +
-      (metrics.error ? ` | error: ${metrics.error}` : '')
+        `${metrics.latency_ms}ms | ` +
+        `in:${this.formatSize(metrics.input_size)} | ` +
+        `out:${this.formatSize(metrics.output_size)}` +
+        (metrics.file_count !== undefined ? ` | files:${metrics.file_count}` : '') +
+        (metrics.error ? ` | error: ${metrics.error}` : ''),
     );
   }
 
@@ -63,10 +63,8 @@ export class MetricsCollector {
     byTool: Record<string, { calls: number; avgLatency: number }>;
   } {
     const totalCalls = this.metrics.length;
-    const successCount = this.metrics.filter(m => m.success).length;
-    const avgLatency = totalCalls > 0
-      ? this.metrics.reduce((sum, m) => sum + m.latency_ms, 0) / totalCalls
-      : 0;
+    const successCount = this.metrics.filter((m) => m.success).length;
+    const avgLatency = totalCalls > 0 ? this.metrics.reduce((sum, m) => sum + m.latency_ms, 0) / totalCalls : 0;
 
     const byTool: Record<string, { calls: number; avgLatency: number }> = {};
 
@@ -86,7 +84,7 @@ export class MetricsCollector {
       avgLatency,
       totalInputSize: this.metrics.reduce((sum, m) => sum + m.input_size, 0),
       totalOutputSize: this.metrics.reduce((sum, m) => sum + m.output_size, 0),
-      byTool
+      byTool,
     };
   }
 
@@ -103,7 +101,7 @@ export class MetricsCollector {
     const lines: string[] = [
       `Total calls: ${summary.totalCalls}`,
       `Success rate: ${(summary.successRate * 100).toFixed(1)}%`,
-      `Avg latency: ${summary.avgLatency.toFixed(0)}ms`
+      `Avg latency: ${summary.avgLatency.toFixed(0)}ms`,
     ];
 
     // Add per-tool breakdown

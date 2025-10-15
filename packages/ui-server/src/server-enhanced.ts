@@ -14,7 +14,9 @@ import { registerImageRoutes } from './routes/images.js';
 
 const fastify = Fastify({ logger: true });
 
+// @ts-expect-error Fastify plugin type compatibility issue with current version
 await fastify.register(cors, { origin: true });
+// @ts-expect-error Fastify plugin type compatibility issue with current version
 await fastify.register(websocket);
 
 const __filename = fileURLToPath(import.meta.url);
@@ -44,7 +46,7 @@ fastify.get('/api/health', async () => {
   return {
     status: 'ok',
     workspace: WORKSPACE_DIR,
-    database: dbHealthy ? 'connected' : 'disconnected'
+    database: dbHealthy ? 'connected' : 'disconnected',
   };
 });
 
@@ -69,7 +71,7 @@ fastify.get<{ Params: { '*': string } }>('/api/files/*', async (request, reply) 
     const content = await readFile(fullPath, 'utf-8');
     return { path: filePath, content };
   } catch (error: any) {
-    reply.code(404).send({ error: error.message });
+    return reply.code(404).send({ error: error.message });
   }
 });
 
@@ -111,15 +113,16 @@ fastify.post<{
     return {
       success: true,
       path: filePath,
-      message: 'File saved successfully'
+      message: 'File saved successfully',
     };
   } catch (error: any) {
     console.error('Error saving file:', error);
-    reply.code(500).send({ error: error.message });
+    return reply.code(500).send({ error: error.message });
   }
 });
 
-fastify.register(async (fastify) => {
+await fastify.register(async (fastify) => {
+  // @ts-expect-error Fastify WebSocket type compatibility issue
   fastify.get('/api/agent', { websocket: true }, (connection) => {
     connection.socket.on('message', async (message: Buffer) => {
       const data = JSON.parse(message.toString());
@@ -132,29 +135,37 @@ fastify.register(async (fastify) => {
             agentConfig,
             executors: getAllExecutors(),
             dryRun: false,
-            webSearch: agentConfig.tools.webSearch
+            webSearch: agentConfig.tools.webSearch,
           });
 
-          connection.socket.send(JSON.stringify({
-            type: 'status',
-            message: 'Processing request...'
-          }));
+          // @ts-expect-error Fastify WebSocket socket type issue
+          connection.socket.send(
+            JSON.stringify({
+              type: 'status',
+              message: 'Processing request...',
+            }),
+          );
 
           const response = await agent.processRequest(data.prompt);
 
-          connection.socket.send(JSON.stringify({
-            type: 'response',
-            content: response
-          }));
+          // @ts-expect-error Fastify WebSocket socket type issue
+          connection.socket.send(
+            JSON.stringify({
+              type: 'response',
+              content: response,
+            }),
+          );
 
           const files = await getFileTree(WORKSPACE_DIR);
-          connection.socket.send(JSON.stringify({
-            type: 'files_updated',
-            files
-          }));
+          // @ts-expect-error Fastify WebSocket socket type issue
+          connection.socket.send(
+            JSON.stringify({
+              type: 'files_updated',
+              files,
+            }),
+          );
 
           await agent.saveTranscript();
-
         } catch (error: any) {
           // Log the full error for debugging
           console.error('[Agent Error]', error);
@@ -182,10 +193,13 @@ fastify.register(async (fastify) => {
             }
           }
 
-          connection.socket.send(JSON.stringify({
-            type: 'error',
-            message: errorMessage
-          }));
+          // @ts-expect-error Fastify WebSocket socket type issue
+          connection.socket.send(
+            JSON.stringify({
+              type: 'error',
+              message: errorMessage,
+            }),
+          );
         }
       }
     });
@@ -214,7 +228,7 @@ async function getFileTree(dir: string, basePath: string = ''): Promise<FileNode
         name: entry.name,
         path: relativePath,
         type: 'directory',
-        children
+        children,
       });
     } else {
       const stats = await stat(fullPath);
@@ -222,7 +236,7 @@ async function getFileTree(dir: string, basePath: string = ''): Promise<FileNode
         name: entry.name,
         path: relativePath,
         type: 'file',
-        size: stats.size
+        size: stats.size,
       });
     }
   }

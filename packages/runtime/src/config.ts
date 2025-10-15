@@ -42,7 +42,7 @@ export class ConfigLoader {
         provider: config.provider || 'anthropic',
         providerConfig: config.providerConfig,
         thinking: config.thinking,
-        promptCaching: config.promptCaching
+        promptCaching: config.promptCaching,
       };
 
       // Only include topP if explicitly set (Claude 4.5 doesn't allow both temperature and topP)
@@ -55,7 +55,7 @@ export class ConfigLoader {
       if (error.code === 'ENOENT') {
         throw new Error(
           `Config file not found: ${configPath}\n` +
-          `Please copy configs/anthropic.example.json to configs/anthropic.json and add your API key.`
+            `Please copy configs/anthropic.example.json to configs/anthropic.json and add your API key.`,
         );
       }
       throw error;
@@ -85,10 +85,7 @@ export class ConfigLoader {
    * Load both configurations
    */
   async loadAll(): Promise<{ claudeConfig: ClaudeConfig; agentConfig: AgentConfig }> {
-    const [claudeConfig, agentConfig] = await Promise.all([
-      this.loadClaudeConfig(),
-      this.loadAgentConfig()
-    ]);
+    const [claudeConfig, agentConfig] = await Promise.all([this.loadClaudeConfig(), this.loadAgentConfig()]);
 
     return { claudeConfig, agentConfig };
   }

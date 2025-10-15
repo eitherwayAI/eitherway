@@ -1,0 +1,749 @@
+{
+  "version": "2025.09",
+  "confidence_threshold": 0.5,
+  "detection": {
+    "scoring": "sum(weights for matched keywords), choose highest score if >= confidence_threshold; else use 'default'",
+    "patterns": {
+      "web3": {
+        "keywords": {
+          "wallet": 2,
+          "crypto": 2,
+          "blockchain": 2,
+          "defi": 2,
+          "nft": 2,
+          "token": 1.5,
+          "eth": 1.5,
+          "metamask": 1.5
+        }
+      },
+      "ecommerce": {
+        "keywords": {
+          "shop": 2,
+          "store": 2,
+          "product": 2,
+          "cart": 2,
+          "buy": 1.5,
+          "sell": 1.5,
+          "checkout": 2,
+          "payment": 2
+        }
+      },
+      "dashboard": {
+        "keywords": {
+          "dashboard": 2,
+          "analytics": 2,
+          "admin": 1.5,
+          "data": 1.5,
+          "chart": 2,
+          "metrics": 2,
+          "reports": 1.5
+        }
+      },
+      "saas": {
+        "keywords": { "saas": 2, "pricing": 2, "landing": 2, "features": 1.5, "subscription": 1.5, "plans": 1.5 }
+      },
+      "portfolio": {
+        "keywords": { "portfolio": 2, "personal": 1.5, "resume": 1.5, "showcase": 2, "projects": 2, "about": 1.5 }
+      },
+      "social": {
+        "keywords": { "social": 2, "feed": 2, "post": 2, "profile": 1.5, "chat": 2, "message": 2, "community": 1.5 }
+      },
+      "gaming": {
+        "keywords": { "game": 2, "play": 1.5, "score": 1.5, "level": 1.5, "achievement": 2, "leaderboard": 2 }
+      },
+      "educational": {
+        "keywords": { "learn": 2, "course": 2, "education": 1.5, "quiz": 2, "lesson": 2, "study": 1.5 }
+      },
+      "healthcare": {
+        "keywords": { "health": 2, "medical": 2, "doctor": 1.5, "appointment": 2, "patient": 2, "wellness": 1.5 }
+      },
+      "fintech": {
+        "keywords": { "bank": 2, "finance": 2, "investment": 2, "transfer": 2, "account": 1.5, "budget": 1.5 }
+      },
+      "default": { "keywords": {} }
+    }
+  },
+
+  "base": {
+    "breakpoints": { "xs": 360, "sm": 640, "md": 768, "lg": 1024, "xl": 1280, "xxl": 1536 },
+    "space": {
+      "0": "0px",
+      "1": "4px",
+      "2": "8px",
+      "3": "12px",
+      "4": "16px",
+      "5": "20px",
+      "6": "24px",
+      "8": "32px",
+      "10": "40px",
+      "12": "48px",
+      "16": "64px",
+      "20": "80px",
+      "24": "96px"
+    },
+    "radius": { "sm": "8px", "md": "12px", "lg": "16px", "xl": "24px", "pill": "9999px" },
+    "shadow": {
+      "sm": "0 1px 2px rgba(0,0,0,0.06)",
+      "md": "0 3px 10px rgba(0,0,0,0.08)",
+      "lg": "0 8px 24px rgba(0,0,0,0.12)",
+      "xl": "0 12px 40px rgba(0,0,0,0.16)",
+      "inner": "inset 0 1px 0 rgba(255,255,255,0.06)"
+    },
+    "transition": {
+      "fast": "120ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+      "base": "200ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+      "slow": "380ms cubic-bezier(0.2, 0.8, 0.2, 1)"
+    },
+    "typography": {
+      "font_family_sans": "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji",
+      "font_family_mono": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace",
+      "sizes": {
+        "xs": "12px",
+        "sm": "14px",
+        "md": "16px",
+        "lg": "18px",
+        "xl": "20px",
+        "2xl": "24px",
+        "3xl": "30px",
+        "4xl": "36px",
+        "5xl": "48px"
+      },
+      "line_heights": { "tight": 1.15, "snug": 1.25, "normal": 1.5, "relaxed": 1.65 }
+    },
+    "a11y": {
+      "min_contrast": 4.5,
+      "focus_ring": "0 0 0 3px var(--color-focus)",
+      "target_min_size": "44px"
+    },
+    "components": {
+      "button": {
+        "padding_y": "12px",
+        "padding_x": "16px",
+        "gap": "8px",
+        "radius_ref": "md",
+        "font_weight": 600,
+        "states": {
+          "hover": { "elevate": "md", "translate_y": "-1px" },
+          "active": { "elevate": "sm", "translate_y": "0px", "scale": 0.99 },
+          "focus": { "ring": "var(--focus-ring)" }
+        }
+      },
+      "card": {
+        "padding": "16px",
+        "radius_ref": "lg",
+        "elevation_ref": "md",
+        "border_width": "1px"
+      },
+      "input": {
+        "padding_y": "12px",
+        "padding_x": "14px",
+        "radius_ref": "md",
+        "border_width": "1px",
+        "states": {
+          "focus": { "ring": "var(--focus-ring)" },
+          "invalid": { "border_color_ref": "error" }
+        }
+      },
+      "navbar": {
+        "height": "64px",
+        "radius_ref": "sm"
+      },
+      "sidebar": {
+        "width": "280px",
+        "radius_ref": "sm"
+      },
+      "table": {
+        "row_height": "48px",
+        "header_height": "40px",
+        "gridlines": "1px solid var(--color-border)"
+      }
+    }
+  },
+
+  "patterns": [
+    {
+      "id": "web3",
+      "name": "Crypto/Blockchain",
+      "theme_default": "dark",
+      "palette": {
+        "bg": "#0B0F1A",
+        "surface": "rgba(15, 23, 42, 0.6)",
+        "elevated": "rgba(2, 6, 23, 0.7)",
+        "text": "#E5E7EB",
+        "muted": "#94A3B8",
+        "border": "rgba(255,255,255,0.10)",
+        "primary": "#8B5CF6",
+        "primary_fg": "#0B0F1A",
+        "accent": "#22D3EE",
+        "accent_fg": "#0B0F1A",
+        "success": "#10B981",
+        "warning": "#F59E0B",
+        "error": "#EF4444",
+        "focus": "#7DD3FC"
+      },
+      "gradients": {
+        "primary": "linear-gradient(135deg, #8B5CF6 0%, #22D3EE 100%)",
+        "accent": "linear-gradient(135deg, #22D3EE 0%, #14B8A6 100%)"
+      },
+      "effects": {
+        "backdrop_blur": "16px",
+        "glass_border": "1px solid rgba(255,255,255,0.10)",
+        "glow": "0 0 24px rgba(34,211,238,0.25), 0 0 0 1px rgba(139,92,246,0.35)"
+      },
+      "layout": {
+        "page_max_width": "1280px",
+        "header": { "position": "sticky", "top": "0", "style": "blurred", "divider": "rgba(255,255,255,0.08)" },
+        "nav": { "type": "sidebar-collapsible", "width": "84px", "collapsed_icons": true },
+        "content_grid": "minmax(0,1fr)"
+      },
+      "components": {
+        "button_primary": {
+          "bg_ref": "gradients.primary",
+          "text_ref": "palette.primary_fg",
+          "radius": "9999px",
+          "shadow": "0 10px 30px rgba(139,92,246,0.25)",
+          "hover": { "shadow": "0 14px 40px rgba(34,211,238,0.30)", "translate_y": "-1px" }
+        },
+        "card": {
+          "background": "rgba(15,23,42,0.55)",
+          "border": "1px solid rgba(255,255,255,0.08)",
+          "backdrop_filter": "blur(16px)",
+          "shadow": "var(--shadow-md)"
+        },
+        "nft_card": {
+          "media_ratio": "1:1",
+          "border": "1px solid transparent",
+          "border_image": "linear-gradient(120deg, #8B5CF6, #22D3EE) 1",
+          "hover": { "scale": 1.02 }
+        },
+        "stat_pill": {
+          "background": "rgba(34,211,238,0.10)",
+          "text": "#67E8F9",
+          "radius": "9999px",
+          "border": "1px solid rgba(34,211,238,0.25)"
+        }
+      },
+      "a11y": { "min_contrast": 4.5, "reduced_motion": "disable glow and scale effects" },
+      "page_templates": ["Wallet", "Swap", "NFT-Grid", "Portfolio"]
+    },
+
+    {
+      "id": "ecommerce",
+      "name": "Shopping/Retail",
+      "theme_default": "light",
+      "palette": {
+        "bg": "#FFFFFF",
+        "surface": "#F8FAFC",
+        "elevated": "#FFFFFF",
+        "text": "#0F172A",
+        "muted": "#475569",
+        "border": "#E2E8F0",
+        "primary": "#2563EB",
+        "primary_fg": "#FFFFFF",
+        "accent": "#F59E0B",
+        "accent_fg": "#0F172A",
+        "success": "#16A34A",
+        "warning": "#F59E0B",
+        "error": "#DC2626",
+        "focus": "#2563EB"
+      },
+      "gradients": {
+        "hero": "linear-gradient(180deg, #EFF6FF 0%, #FFFFFF 60%)"
+      },
+      "effects": {
+        "backdrop_blur": "0px",
+        "glow": "none"
+      },
+      "layout": {
+        "page_max_width": "1280px",
+        "header": { "position": "sticky", "top": "0", "style": "flat", "divider": "#E2E8F0" },
+        "nav": { "type": "top", "search_in_nav": true },
+        "content_grid": "repeat(12, minmax(0, 1fr))"
+      },
+      "components": {
+        "button_primary": {
+          "bg_ref": "palette.primary",
+          "text_ref": "palette.primary_fg",
+          "radius_ref": "md",
+          "shadow": "0 10px 20px rgba(37,99,235,0.20)"
+        },
+        "card": {
+          "background": "#FFFFFF",
+          "border": "1px solid #E2E8F0",
+          "shadow": "var(--shadow-sm)"
+        },
+        "product_card": {
+          "media_ratio": "4:5",
+          "image_radius": "12px",
+          "price_color": "#0F172A",
+          "badge": { "bg": "#F1F5F9", "text": "#0F172A" },
+          "hover": { "shadow": "var(--shadow-md)", "translate_y": "-2px" }
+        },
+        "checkout_panel": {
+          "background": "#F8FAFC",
+          "border": "1px solid #E2E8F0",
+          "radius": "16px",
+          "sticky": "top:80px"
+        }
+      },
+      "a11y": { "min_contrast": 7, "price_font_weight": 700 },
+      "page_templates": ["Home-Grid", "Product-Detail", "Cart", "Checkout"]
+    },
+
+    {
+      "id": "dashboard",
+      "name": "Analytics/Admin",
+      "theme_default": "light",
+      "palette": {
+        "bg": "#F8FAFC",
+        "surface": "#FFFFFF",
+        "elevated": "#FFFFFF",
+        "text": "#0B1220",
+        "muted": "#475569",
+        "border": "#E5E7EB",
+        "primary": "#6366F1",
+        "primary_fg": "#FFFFFF",
+        "accent": "#14B8A6",
+        "accent_fg": "#06261F",
+        "success": "#16A34A",
+        "warning": "#F59E0B",
+        "error": "#DC2626",
+        "focus": "#6366F1"
+      },
+      "effects": { "backdrop_blur": "0px" },
+      "layout": {
+        "page_max_width": "1440px",
+        "header": { "position": "sticky", "top": "0", "style": "flat", "divider": "#E5E7EB" },
+        "nav": { "type": "sidebar", "width": "280px" },
+        "content_grid": "repeat(12, minmax(0,1fr))"
+      },
+      "components": {
+        "button_primary": { "bg_ref": "palette.primary", "text_ref": "palette.primary_fg" },
+        "card": { "background": "#FFFFFF", "border": "1px solid #E5E7EB", "shadow": "var(--shadow-sm)" },
+        "chart_card": {
+          "title_size": "16px",
+          "gridline_color": "#E2E8F0",
+          "series": [
+            "#6366F1",
+            "#06B6D4",
+            "#22C55E",
+            "#F59E0B",
+            "#EF4444",
+            "#8B5CF6",
+            "#14B8A6",
+            "#F472B6",
+            "#84CC16",
+            "#0EA5E9",
+            "#F97316",
+            "#A78BFA"
+          ],
+          "legend_position": "bottom",
+          "hover_crosshair": true
+        },
+        "table": {
+          "row_zebra": ["#FFFFFF", "#F8FAFC"],
+          "row_hover": "#F1F5F9",
+          "header_bg": "#F1F5F9",
+          "cell_padding": "12px 16px"
+        },
+        "filter_bar": {
+          "background": "#FFFFFF",
+          "border": "1px solid #E5E7EB",
+          "radius": "12px",
+          "gap": "8px"
+        }
+      },
+      "a11y": { "min_contrast": 7 },
+      "page_templates": ["Overview", "Reports", "Users", "Settings"]
+    },
+
+    {
+      "id": "saas",
+      "name": "Landing/Marketing",
+      "theme_default": "light",
+      "palette": {
+        "bg": "#FFFFFF",
+        "surface": "#FFFFFF",
+        "elevated": "#FFFFFF",
+        "text": "#0F172A",
+        "muted": "#475569",
+        "border": "#E5E7EB",
+        "primary": "#7C3AED",
+        "primary_fg": "#FFFFFF",
+        "accent": "#22D3EE",
+        "accent_fg": "#0B0F1A",
+        "success": "#16A34A",
+        "warning": "#F59E0B",
+        "error": "#DC2626",
+        "focus": "#7C3AED"
+      },
+      "gradients": {
+        "hero": "radial-gradient(1200px 600px at 70% -20%, rgba(124,58,237,0.20), rgba(34,211,238,0.15) 40%, transparent 70%)"
+      },
+      "effects": { "backdrop_blur": "4px" },
+      "layout": {
+        "page_max_width": "1200px",
+        "header": { "position": "sticky", "top": "0", "style": "glass", "divider": "rgba(0,0,0,0.06)" },
+        "nav": { "type": "top", "cta_button": true },
+        "content_grid": "minmax(0,1fr)"
+      },
+      "components": {
+        "button_primary": {
+          "bg_ref": "palette.primary",
+          "text_ref": "palette.primary_fg",
+          "radius_ref": "pill",
+          "shadow": "0 12px 24px rgba(124,58,237,0.25)"
+        },
+        "card": {
+          "background": "#FFFFFF",
+          "border": "1px solid #E5E7EB",
+          "shadow": "var(--shadow-md)"
+        },
+        "pricing_card": {
+          "highlighted_border": "2px solid #7C3AED",
+          "badge_bg": "#F1F0FF",
+          "price_size": "36px",
+          "feature_icon_color": "#7C3AED"
+        },
+        "hero": {
+          "headline_size": "48px",
+          "subhead_size": "20px",
+          "illustration_style": "3D-soft"
+        }
+      },
+      "a11y": { "min_contrast": 7 },
+      "page_templates": ["Hero-Pricing", "Features", "Testimonials", "Contact"]
+    },
+
+    {
+      "id": "portfolio",
+      "name": "Personal/Creative",
+      "theme_default": "dark",
+      "palette": {
+        "bg": "#0B0B0F",
+        "surface": "#111217",
+        "elevated": "#141621",
+        "text": "#F3F4F6",
+        "muted": "#9CA3AF",
+        "border": "rgba(255,255,255,0.10)",
+        "primary": "#E11D48",
+        "primary_fg": "#0B0B0F",
+        "accent": "#06B6D4",
+        "accent_fg": "#0B0B0F",
+        "success": "#22C55E",
+        "warning": "#F59E0B",
+        "error": "#F43F5E",
+        "focus": "#93C5FD"
+      },
+      "effects": { "backdrop_blur": "8px", "glow": "0 10px 30px rgba(6,182,212,0.25)" },
+      "layout": {
+        "page_max_width": "1080px",
+        "header": { "position": "static", "style": "minimal" },
+        "nav": { "type": "top-minimal" },
+        "content_grid": "minmax(0,1fr)"
+      },
+      "components": {
+        "button_primary": { "bg_ref": "palette.primary", "text_ref": "palette.primary_fg", "radius_ref": "pill" },
+        "card": { "background": "#111217", "border": "1px solid rgba(255,255,255,0.08)" },
+        "project_tile": {
+          "media_ratio": "16:9",
+          "title_size": "24px",
+          "hover": { "scale": 1.02, "shadow": "0 14px 40px rgba(6,182,212,0.25)" },
+          "caption_style": "mono"
+        },
+        "about_block": { "two_column": true, "avatar_radius": "9999px" }
+      },
+      "a11y": { "min_contrast": 4.5 },
+      "page_templates": ["Gallery", "Case-Study", "About", "Contact"]
+    },
+
+    {
+      "id": "social",
+      "name": "Social/Community",
+      "theme_default": "light",
+      "palette": {
+        "bg": "#FFFFFF",
+        "surface": "#FFFFFF",
+        "elevated": "#FFFFFF",
+        "text": "#111827",
+        "muted": "#6B7280",
+        "border": "#E5E7EB",
+        "primary": "#3B82F6",
+        "primary_fg": "#FFFFFF",
+        "accent": "#F472B6",
+        "accent_fg": "#111827",
+        "success": "#22C55E",
+        "warning": "#F59E0B",
+        "error": "#EF4444",
+        "focus": "#3B82F6"
+      },
+      "effects": { "backdrop_blur": "0px" },
+      "layout": {
+        "page_max_width": "1200px",
+        "header": { "position": "sticky", "top": "0", "style": "flat", "divider": "#E5E7EB" },
+        "nav": { "type": "top-with-tabs" },
+        "content_grid": "minmax(0, 720px)"
+      },
+      "components": {
+        "button_primary": { "bg_ref": "palette.primary", "text_ref": "palette.primary_fg", "radius_ref": "pill" },
+        "card": { "background": "#FFFFFF", "border": "1px solid #E5E7EB", "radius": "16px" },
+        "feed_item": {
+          "avatar_size": "40px",
+          "media_radius": "12px",
+          "action_bar": { "like": true, "comment": true, "share": true },
+          "hover": { "bg": "#F9FAFB" }
+        },
+        "message_bubble": {
+          "radius": "18px",
+          "me_bg": "#3B82F6",
+          "me_text": "#FFFFFF",
+          "other_bg": "#F3F4F6",
+          "other_text": "#111827"
+        }
+      },
+      "a11y": { "min_contrast": 7 },
+      "page_templates": ["Home-Feed", "Profile", "Messages", "Create-Post"]
+    },
+
+    {
+      "id": "gaming",
+      "name": "Game UI",
+      "theme_default": "dark",
+      "palette": {
+        "bg": "#070A0F",
+        "surface": "#0C111B",
+        "elevated": "#0E1422",
+        "text": "#E2E8F0",
+        "muted": "#94A3B8",
+        "border": "rgba(255,255,255,0.08)",
+        "primary": "#22D3EE",
+        "primary_fg": "#0A0F1C",
+        "accent": "#A78BFA",
+        "accent_fg": "#0A0F1C",
+        "success": "#22C55E",
+        "warning": "#F59E0B",
+        "error": "#F43F5E",
+        "focus": "#22D3EE"
+      },
+      "effects": { "backdrop_blur": "6px", "scanline_overlay": 0.06 },
+      "typography_overrides": {
+        "display": "'Rajdhani', var(--font-sans)",
+        "display_weight": 700,
+        "letter_spacing": "0.02em"
+      },
+      "layout": {
+        "page_max_width": "1400px",
+        "header": { "position": "static", "style": "hud" },
+        "nav": { "type": "sidebar-compact" },
+        "content_grid": "repeat(12, minmax(0,1fr))"
+      },
+      "components": {
+        "button_primary": {
+          "bg_ref": "palette.primary",
+          "text_ref": "palette.primary_fg",
+          "radius": "10px",
+          "shadow": "0 0 20px rgba(34,211,238,0.35)"
+        },
+        "card": { "background": "#0C111B", "border": "1px solid rgba(255,255,255,0.08)" },
+        "leaderboard_row": {
+          "height": "56px",
+          "stripe": "rgba(255,255,255,0.03)",
+          "rank_badge_bg": "#22D3EE",
+          "rank_badge_text": "#0A0F1C"
+        },
+        "inventory_slot": {
+          "size": "80px",
+          "radius": "12px",
+          "border": "1px solid rgba(167,139,250,0.3)",
+          "hover": { "shadow": "0 0 16px rgba(167,139,250,0.35)" }
+        }
+      },
+      "a11y": { "min_contrast": 4.5 },
+      "page_templates": ["Dashboard-HUD", "Leaderboard", "Inventory", "Achievements"]
+    },
+
+    {
+      "id": "educational",
+      "name": "Learning",
+      "theme_default": "light",
+      "palette": {
+        "bg": "#FFFFFF",
+        "surface": "#F9FAFB",
+        "elevated": "#FFFFFF",
+        "text": "#0F172A",
+        "muted": "#475569",
+        "border": "#E5E7EB",
+        "primary": "#0EA5E9",
+        "primary_fg": "#FFFFFF",
+        "accent": "#8B5CF6",
+        "accent_fg": "#FFFFFF",
+        "success": "#22C55E",
+        "warning": "#F59E0B",
+        "error": "#DC2626",
+        "focus": "#0EA5E9"
+      },
+      "effects": { "backdrop_blur": "0px" },
+      "layout": {
+        "page_max_width": "1200px",
+        "header": { "position": "sticky", "top": "0", "style": "flat" },
+        "nav": { "type": "top-with-breadcrumbs" },
+        "content_grid": "minmax(0, 900px)"
+      },
+      "components": {
+        "button_primary": { "bg_ref": "palette.primary", "text_ref": "palette.primary_fg" },
+        "card": { "background": "#FFFFFF", "border": "1px solid #E5E7EB" },
+        "course_card": {
+          "media_ratio": "16:9",
+          "progress_bar": { "height": "6px", "bg": "#E5E7EB", "fill": "#0EA5E9", "radius": "9999px" },
+          "meta": { "badge_bg": "#EEF2FF", "badge_text": "#3730A3" }
+        },
+        "quiz_block": {
+          "option_radius": "12px",
+          "option_hover_bg": "#F3F4F6",
+          "correct_bg": "#ECFDF5",
+          "incorrect_bg": "#FEF2F2"
+        }
+      },
+      "a11y": { "min_contrast": 7 },
+      "page_templates": ["Catalog", "Course-Detail", "Lesson", "Quiz"]
+    },
+
+    {
+      "id": "healthcare",
+      "name": "Medical/Health",
+      "theme_default": "light",
+      "palette": {
+        "bg": "#FFFFFF",
+        "surface": "#F8FAFC",
+        "elevated": "#FFFFFF",
+        "text": "#0F172A",
+        "muted": "#475569",
+        "border": "#E2E8F0",
+        "primary": "#0284C7",
+        "primary_fg": "#FFFFFF",
+        "accent": "#22C55E",
+        "accent_fg": "#06290F",
+        "success": "#16A34A",
+        "warning": "#F59E0B",
+        "error": "#DC2626",
+        "focus": "#0284C7"
+      },
+      "effects": { "backdrop_blur": "0px" },
+      "layout": {
+        "page_max_width": "1200px",
+        "header": { "position": "sticky", "top": "0", "style": "flat" },
+        "nav": { "type": "sidebar" },
+        "content_grid": "repeat(12, minmax(0,1fr))"
+      },
+      "components": {
+        "button_primary": { "bg_ref": "palette.primary", "text_ref": "palette.primary_fg", "radius_ref": "md" },
+        "card": { "background": "#FFFFFF", "border": "1px solid #E2E8F0", "radius": "16px" },
+        "appointment_card": {
+          "slot_height": "68px",
+          "doctor_avatar": "48px",
+          "status_chip": { "scheduled": "#E0F2FE", "completed": "#ECFDF5", "cancelled": "#FEF2F2" }
+        },
+        "form": {
+          "label_weight": 600,
+          "helper_text_color": "#64748B",
+          "error_text_color": "#B91C1C"
+        }
+      },
+      "a11y": { "min_contrast": 7, "touch_target_min": "48px" },
+      "page_templates": ["Appointments", "Records", "Messaging", "Billing"]
+    },
+
+    {
+      "id": "fintech",
+      "name": "Banking/Finance",
+      "theme_default": "light",
+      "palette": {
+        "bg": "#FFFFFF",
+        "surface": "#F8FAFC",
+        "elevated": "#FFFFFF",
+        "text": "#0B1220",
+        "muted": "#475569",
+        "border": "#E2E8F0",
+        "primary": "#0EA5E9",
+        "primary_fg": "#06202A",
+        "accent": "#16A34A",
+        "accent_fg": "#05210E",
+        "success": "#16A34A",
+        "warning": "#F59E0B",
+        "error": "#DC2626",
+        "focus": "#0EA5E9"
+      },
+      "effects": { "backdrop_blur": "0px" },
+      "layout": {
+        "page_max_width": "1320px",
+        "header": { "position": "sticky", "top": "0", "style": "flat" },
+        "nav": { "type": "sidebar" },
+        "content_grid": "repeat(12, minmax(0,1fr))"
+      },
+      "components": {
+        "button_primary": { "bg_ref": "palette.accent", "text_ref": "#FFFFFF", "radius_ref": "md" },
+        "card": { "background": "#FFFFFF", "border": "1px solid #E2E8F0", "radius": "14px" },
+        "transaction_row": {
+          "height": "56px",
+          "merchant_icon": "40px",
+          "amount_font_weight": 600,
+          "positive_color": "#16A34A",
+          "negative_color": "#DC2626"
+        },
+        "chart_card": {
+          "series": ["#0EA5E9", "#16A34A", "#F59E0B", "#EF4444", "#6366F1", "#22D3EE"],
+          "gridline_color": "#E2E8F0",
+          "sparkline_color": "#16A34A"
+        },
+        "budget_bar": {
+          "height": "8px",
+          "radius": "9999px",
+          "bg": "#E2E8F0",
+          "fill": "#16A34A"
+        }
+      },
+      "a11y": { "min_contrast": 7 },
+      "page_templates": ["Accounts", "Transactions", "Budgets", "Investments"]
+    },
+
+    {
+      "id": "default",
+      "name": "Generic Modern",
+      "theme_default": "light",
+      "palette": {
+        "bg": "#FFFFFF",
+        "surface": "#F7F7FB",
+        "elevated": "#FFFFFF",
+        "text": "#111827",
+        "muted": "#6B7280",
+        "border": "#E5E7EB",
+        "primary": "#6366F1",
+        "primary_fg": "#FFFFFF",
+        "accent": "#06B6D4",
+        "accent_fg": "#083344",
+        "success": "#22C55E",
+        "warning": "#F59E0B",
+        "error": "#EF4444",
+        "focus": "#6366F1"
+      },
+      "effects": { "backdrop_blur": "0px" },
+      "layout": {
+        "page_max_width": "1200px",
+        "header": { "position": "sticky", "top": "0", "style": "flat" },
+        "nav": { "type": "top" },
+        "content_grid": "minmax(0,1fr)"
+      },
+      "components": {
+        "button_primary": { "bg_ref": "palette.primary", "text_ref": "palette.primary_fg" },
+        "card": { "background": "#FFFFFF", "border": "1px solid #E5E7EB", "radius": "12px" },
+        "empty_state": {
+          "icon_bg": "#EEF2FF",
+          "title_color": "#111827",
+          "desc_color": "#6B7280"
+        }
+      },
+      "a11y": { "min_contrast": 7 },
+      "page_templates": ["Home", "List-Detail", "Settings"]
+    }
+  ]
+}

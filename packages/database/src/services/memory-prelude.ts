@@ -5,7 +5,7 @@ import {
   SessionMemoryRepository,
   WorkingSetRepository,
   EventsRepository,
-  AppsRepository
+  AppsRepository,
 } from '../repositories/index.js';
 
 export interface MemoryPrelude {
@@ -53,19 +53,19 @@ export class MemoryPreludeService {
     const workingSet = await this.workingSetRepo.findBySessionWithFiles(sessionId);
 
     const recentEvents = await this.eventsRepo.findBySession(sessionId, 20);
-    const decisionEvents = recentEvents.filter(e =>
-      e.kind && ['file.upserted', 'session.created', 'image.job.created'].includes(e.kind)
+    const decisionEvents = recentEvents.filter(
+      (e) => e.kind && ['file.upserted', 'session.created', 'image.job.created'].includes(e.kind),
     );
 
-    const recentDecisions = decisionEvents.map(e => ({
+    const recentDecisions = decisionEvents.map((e) => ({
       kind: e.kind || 'unknown',
       summary: this.summarizeEvent(e),
-      timestamp: e.created_at
+      timestamp: e.created_at,
     }));
 
-    const pinnedFiles = workingSet.map(ws => ({
+    const pinnedFiles = workingSet.map((ws) => ({
       path: ws.file_path,
-      reason: ws.reason
+      reason: ws.reason,
     }));
 
     const keyFacts = memory?.facts || {};
@@ -79,7 +79,7 @@ export class MemoryPreludeService {
       recentDecisions,
       rollingSummary: memory?.rolling_summary ?? null,
       keyFacts,
-      constraints
+      constraints,
     };
   }
 
@@ -109,21 +109,21 @@ export class MemoryPreludeService {
 
     if (prelude.pinnedFiles.length > 0) {
       sections.push('\nPinned Files:');
-      prelude.pinnedFiles.forEach(f => {
+      prelude.pinnedFiles.forEach((f) => {
         sections.push(`  - ${f.path}${f.reason ? ` (${f.reason})` : ''}`);
       });
     }
 
     if (prelude.recentDecisions.length > 0) {
       sections.push('\nRecent Actions:');
-      prelude.recentDecisions.slice(0, 5).forEach(d => {
+      prelude.recentDecisions.slice(0, 5).forEach((d) => {
         sections.push(`  - ${d.summary}`);
       });
     }
 
     if (prelude.constraints.length > 0) {
       sections.push('\nConstraints:');
-      prelude.constraints.forEach(c => {
+      prelude.constraints.forEach((c) => {
         sections.push(`  - ${c}`);
       });
     }
@@ -150,7 +150,7 @@ export class MemoryPreludeService {
     const constraints: string[] = [
       'Tests must pass before completion',
       'Follow existing code style and patterns',
-      'Preserve backward compatibility where possible'
+      'Preserve backward compatibility where possible',
     ];
 
     if (facts.framework === 'react') {

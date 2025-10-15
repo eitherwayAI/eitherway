@@ -7,7 +7,7 @@ export interface ToolDefinition {
   name: string;
   description: string;
   input_schema: {
-    type: "object";
+    type: 'object';
     properties: Record<string, any>;
     required?: string[];
     additionalProperties?: boolean;
@@ -16,24 +16,24 @@ export interface ToolDefinition {
 
 // Tool input/output structures
 export interface ToolUse {
-  type: "tool_use";
+  type: 'tool_use';
   id: string;
   name: string;
   input: Record<string, any>;
 }
 
 export interface ToolResult {
-  type: "tool_result";
+  type: 'tool_result';
   tool_use_id: string;
   content: string | Array<{ type: string; [key: string]: any }>;
   is_error?: boolean;
 }
 
 // Message types
-export type MessageRole = "user" | "assistant";
+export type MessageRole = 'user' | 'assistant';
 
 export interface MessageContent {
-  type: "text" | "tool_use" | "tool_result" | "server_tool_use" | "web_search_tool_result";
+  type: 'text' | 'tool_use' | 'tool_result' | 'server_tool_use' | 'web_search_tool_result';
   [key: string]: any;
 }
 
@@ -50,7 +50,7 @@ export interface ClaudeConfig {
   temperature: number;
   topP?: number; // Optional - Claude 4.5 doesn't allow both temperature and topP
   streaming: boolean;
-  provider: "anthropic" | "vertex" | "bedrock";
+  provider: 'anthropic' | 'vertex' | 'bedrock';
   providerConfig?: {
     anthropic?: { baseURL: string };
     vertex?: { projectId: string; location: string; model: string };
@@ -58,7 +58,7 @@ export interface ClaudeConfig {
   };
   thinking?: {
     enabled: boolean;
-    budget?: "low" | "medium" | "high";
+    budget?: 'low' | 'medium' | 'high';
   };
   promptCaching?: {
     enabled: boolean;
@@ -86,7 +86,7 @@ export interface AgentConfig {
     chunkSize: number;
   };
   logging: {
-    level: "debug" | "info" | "warn" | "error";
+    level: 'debug' | 'info' | 'warn' | 'error';
     captureTranscripts: boolean;
     transcriptDir: string;
     logFile: string;
@@ -119,7 +119,7 @@ export interface ExecutionContext {
   config: AgentConfig;
   // Database integration (optional) - when present, tools should use DB instead of filesystem
   fileStore?: any; // FileStore from @eitherway/database
-  appId?: string;  // App ID for database file operations
+  appId?: string; // App ID for database file operations
   sessionId?: string; // Session ID for context
 }
 

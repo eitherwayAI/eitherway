@@ -7,7 +7,7 @@ import {
   WorkingSetRepository,
   EventsRepository,
   AppsRepository,
-  DatabaseClient
+  DatabaseClient,
 } from '@eitherway/database';
 
 export async function registerSessionRoutes(fastify: FastifyInstance, db: DatabaseClient) {
@@ -21,7 +21,7 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
 
   // User lookup endpoint - does NOT count against rate limits
   fastify.get<{
-    Querystring: { email: string }
+    Querystring: { email: string };
   }>('/api/users', async (request, reply) => {
     const { email } = request.query;
 
@@ -34,7 +34,7 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
   });
 
   fastify.post<{
-    Body: { email: string; title: string; appId?: string }
+    Body: { email: string; title: string; appId?: string };
   }>('/api/sessions', async (request, reply) => {
     const { email, title } = request.body;
 
@@ -59,16 +59,20 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
     // Rate limiting disabled for local testing
     // await rateLimiter.incrementSessionCount(user.id);
 
-    await eventsRepo.log('session.created', { sessionId: session.id, title }, {
-      sessionId: session.id,
-      actor: 'user'
-    });
+    await eventsRepo.log(
+      'session.created',
+      { sessionId: session.id, title },
+      {
+        sessionId: session.id,
+        actor: 'user',
+      },
+    );
 
     return session;
   });
 
   fastify.get<{
-    Params: { id: string }
+    Params: { id: string };
   }>('/api/sessions/:id', async (request, reply) => {
     const session = await sessionsRepo.findById(request.params.id);
 
@@ -81,7 +85,7 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
     const workingSet = await workingSetRepo.findBySessionWithFiles(session.id);
 
     // Transform messages: extract text from Claude API content blocks
-    const messages = rawMessages.map(msg => {
+    const messages = rawMessages.map((msg) => {
       let content = msg.content;
 
       // Handle array of content blocks (Claude API format)
@@ -102,7 +106,7 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
 
       return {
         ...msg,
-        content
+        content,
       };
     });
 
@@ -110,12 +114,12 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
       session,
       messages,
       memory,
-      workingSet
+      workingSet,
     };
   });
 
   fastify.get<{
-    Querystring: { userId: string; limit?: string; offset?: string }
+    Querystring: { userId: string; limit?: string; offset?: string };
   }>('/api/sessions', async (request, reply) => {
     const { userId, limit = '50', offset = '0' } = request.query;
 
@@ -123,18 +127,14 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
       return reply.code(400).send({ error: 'userId is required' });
     }
 
-    const sessions = await sessionsRepo.findByUser(
-      userId,
-      parseInt(limit, 10),
-      parseInt(offset, 10)
-    );
+    const sessions = await sessionsRepo.findByUser(userId, parseInt(limit, 10), parseInt(offset, 10));
 
     return { sessions };
   });
 
   fastify.post<{
-    Params: { id: string }
-    Body: { role: 'user' | 'assistant' | 'system' | 'tool'; content: any; model?: string; tokenCount?: number }
+    Params: { id: string };
+    Body: { role: 'user' | 'assistant' | 'system' | 'tool'; content: any; model?: string; tokenCount?: number };
   }>('/api/sessions/:id/messages', async (request, reply) => {
     const { id } = request.params;
     const { role, content, model, tokenCount } = request.body;
@@ -167,17 +167,21 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
 
     await sessionsRepo.touchLastMessage(id);
 
-    await eventsRepo.log('message.created', { messageId: message.id, role }, {
-      sessionId: id,
-      actor: role === 'user' ? 'user' : 'assistant'
-    });
+    await eventsRepo.log(
+      'message.created',
+      { messageId: message.id, role },
+      {
+        sessionId: id,
+        actor: role === 'user' ? 'user' : 'assistant',
+      },
+    );
 
     return message;
   });
 
   fastify.patch<{
-    Params: { id: string }
-    Body: { title?: string; status?: 'active' | 'archived' }
+    Params: { id: string };
+    Body: { title?: string; status?: 'active' | 'archived' };
   }>('/api/sessions/:id', async (request, reply) => {
     const { id } = request.params;
     const { title, status } = request.body;
@@ -188,7 +192,7 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
   });
 
   fastify.delete<{
-    Params: { id: string }
+    Params: { id: string };
   }>('/api/sessions/:id', async (request, reply) => {
     const { id } = request.params;
 
@@ -207,8 +211,8 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
   });
 
   fastify.put<{
-    Params: { id: string }
-    Body: { rollingSummary?: string; facts?: any; lastCompactedMessageId?: string }
+    Params: { id: string };
+    Body: { rollingSummary?: string; facts?: any; lastCompactedMessageId?: string };
   }>('/api/sessions/:id/memory', async (request, reply) => {
     const { id } = request.params;
     const data = request.body;
@@ -219,8 +223,8 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
   });
 
   fastify.post<{
-    Params: { id: string }
-    Body: { appId: string; fileId: string; reason?: string; pinnedBy?: 'agent' | 'user' }
+    Params: { id: string };
+    Body: { appId: string; fileId: string; reason?: string; pinnedBy?: 'agent' | 'user' };
   }>('/api/sessions/:id/working-set', async (request, reply) => {
     const { id } = request.params;
     const { appId, fileId, reason, pinnedBy } = request.body;
@@ -231,7 +235,7 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
   });
 
   fastify.delete<{
-    Params: { sessionId: string; fileId: string }
+    Params: { sessionId: string; fileId: string };
   }>('/api/sessions/:sessionId/working-set/:fileId', async (request, reply) => {
     const { sessionId, fileId } = request.params;
 

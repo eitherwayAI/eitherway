@@ -1,16 +1,7 @@
 import { FastifyInstance } from 'fastify';
-import {
-  SessionsRepository,
-  PostgresFileStore,
-  DatabaseClient,
-  EventsRepository
-} from '@eitherway/database';
-import { maybeRewriteFile } from '../cdn-rewriter.js';
+import { SessionsRepository, PostgresFileStore, DatabaseClient, EventsRepository } from '@eitherway/database';
 
-export async function registerSessionFileRoutes(
-  fastify: FastifyInstance,
-  db: DatabaseClient
-) {
+export async function registerSessionFileRoutes(fastify: FastifyInstance, db: DatabaseClient) {
   const sessionsRepo = new SessionsRepository(db);
   const fileStore = new PostgresFileStore(db);
   const eventsRepo = new EventsRepository(db);
@@ -61,18 +52,15 @@ export async function registerSessionFileRoutes(
     try {
       const fileContent = await fileStore.read(session.app_id, path);
 
-      const protocol = request.headers['x-forwarded-proto'] || 'http';
-      const host = request.headers.host || 'localhost:3001';
-      const serverOrigin = `${protocol}://${host}`;
-
       // Detect if file is binary based on mime type
       const mimeType = fileContent.mimeType || 'text/plain';
-      const isBinary = mimeType.startsWith('image/') ||
-                       mimeType.startsWith('video/') ||
-                       mimeType.startsWith('audio/') ||
-                       mimeType.startsWith('application/octet-stream') ||
-                       mimeType.startsWith('application/pdf') ||
-                       mimeType.startsWith('application/zip');
+      const isBinary =
+        mimeType.startsWith('image/') ||
+        mimeType.startsWith('video/') ||
+        mimeType.startsWith('audio/') ||
+        mimeType.startsWith('application/octet-stream') ||
+        mimeType.startsWith('application/pdf') ||
+        mimeType.startsWith('application/zip');
 
       let content: string;
       if (isBinary) {
@@ -94,12 +82,7 @@ export async function registerSessionFileRoutes(
           content = Buffer.from(fileContent.content).toString('utf-8');
         }
 
-        // Apply URL rewriting for text files (no shim injection for WebContainer)
-        content = maybeRewriteFile(path, content, {
-          serverOrigin,
-          injectShim: false,
-          rewriteStaticUrls: true
-        });
+        // No URL rewriting - let external resources load directly with COEP headers
       }
 
       return {
@@ -107,7 +90,7 @@ export async function registerSessionFileRoutes(
         content,
         mimeType,
         isBinary, // Include binary flag for frontend
-        version: fileContent.version
+        version: fileContent.version,
       };
     } catch (error: any) {
       return reply.code(404).send({ error: error.message });
@@ -142,19 +125,130 @@ export async function registerSessionFileRoutes(
     try {
       await fileStore.write(session.app_id, path, content, mimeType);
 
-      await eventsRepo.log('file.updated', { path }, {
-        sessionId,
-        appId: session.app_id,
-        actor: 'user'
-      });
+      await eventsRepo.log(
+        'file.updated',
+        { path },
+        {
+          sessionId,
+          appId: session.app_id,
+          actor: 'user',
+        },
+      );
 
       return {
         success: true,
         path,
-        message: 'File saved successfully'
+        message: 'File saved successfully',
       };
     } catch (error: any) {
       console.error('Error writing file:', error);
+      return reply.code(500).send({ error: error.message });
+    }
+  });
+
+  /**
+   * POST /api/sessions/:sessionId/files/write-binary
+   * Write binary files (images, fonts, etc.) to VFS
+   * Accepts base64-encoded content or raw buffer
+   */
+  fastify.post<{
+    Params: { sessionId: string };
+    Body: { path: string; content: string; mimeType?: string; encoding?: string };
+  }>('/api/sessions/:sessionId/files/write-binary', async (request, reply) => {
+    const { sessionId } = request.params;
+    const { path, content, mimeType, encoding = 'base64' } = request.body;
+
+    console.log('[Write Binary] Request received:', {
+      sessionId,
+      path,
+      hasContent: content !== undefined,
+      contentType: typeof content,
+      contentLength: content ? content.length : 0,
+      mimeType,
+      encoding,
+      bodyKeys: Object.keys(request.body || {}),
+    });
+
+    if (!path) {
+      return reply.code(400).send({ error: 'path is required' });
+    }
+
+    if (content === undefined || content === null || content === '') {
+      console.error('[Write Binary] Content validation failed:', {
+        contentIsUndefined: content === undefined,
+        contentIsNull: content === null,
+        contentIsEmpty: content === '',
+        bodyReceived: request.body,
+      });
+      return reply.code(400).send({
+        error: 'content is required',
+        details: 'Content must be a non-empty string (base64-encoded for binary files)'
+      });
+    }
+
+    const session = await sessionsRepo.findById(sessionId);
+
+    if (!session) {
+      return reply.code(404).send({ error: 'Session not found' });
+    }
+
+    if (!session.app_id) {
+      return reply.code(400).send({ error: 'No app associated with session' });
+    }
+
+    try {
+      // Decode base64 content to buffer
+      let buffer: Buffer;
+      if (encoding === 'base64') {
+        buffer = Buffer.from(content, 'base64');
+
+        // Validate decoded buffer
+        if (buffer.length === 0) {
+          return reply.code(400).send({ error: 'Base64 decoding resulted in empty buffer' });
+        }
+
+        // Log first bytes for debugging
+        const firstBytes = buffer.slice(0, 16);
+        console.log(`[Write Binary] Decoded buffer size: ${buffer.length} bytes`);
+        console.log(`[Write Binary] First bytes (hex): ${firstBytes.toString('hex')}`);
+
+        // For PNG images, verify magic number (89 50 4E 47 0D 0A 1A 0A)
+        if (mimeType?.startsWith('image/png') && buffer.length >= 8) {
+          const pngMagic = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+          const fileMagic = buffer.slice(0, 8);
+          if (!fileMagic.equals(pngMagic)) {
+            console.warn('[Write Binary] PNG magic number mismatch - file may be corrupted');
+            console.warn(`[Write Binary] Expected: ${pngMagic.toString('hex')}, Got: ${fileMagic.toString('hex')}`);
+          } else {
+            console.log('[Write Binary] PNG magic number verified ✓');
+          }
+        }
+      } else {
+        // If not base64, assume it's already a buffer or binary string
+        buffer = Buffer.from(content);
+      }
+
+      // Write binary buffer to VFS
+      await fileStore.write(session.app_id, path, buffer, mimeType);
+
+      await eventsRepo.log(
+        'file.updated',
+        { path, size: buffer.length },
+        {
+          sessionId,
+          appId: session.app_id,
+          actor: 'user',
+        },
+      );
+
+      return {
+        success: true,
+        path,
+        size: buffer.length,
+        message: 'Binary file saved successfully',
+      };
+    } catch (error: any) {
+      console.error('Error writing binary file:', error);
       return reply.code(500).send({ error: error.message });
     }
   });
@@ -183,17 +277,21 @@ export async function registerSessionFileRoutes(
     try {
       await fileStore.rename(session.app_id, oldPath, newPath);
 
-      await eventsRepo.log('file.renamed', { oldPath, newPath }, {
-        sessionId,
-        appId: session.app_id,
-        actor: 'user'
-      });
+      await eventsRepo.log(
+        'file.renamed',
+        { oldPath, newPath },
+        {
+          sessionId,
+          appId: session.app_id,
+          actor: 'user',
+        },
+      );
 
       return {
         success: true,
         oldPath,
         newPath,
-        message: 'File renamed successfully'
+        message: 'File renamed successfully',
       };
     } catch (error: any) {
       console.error('Error renaming file:', error);
@@ -225,16 +323,20 @@ export async function registerSessionFileRoutes(
     try {
       await fileStore.delete(session.app_id, path);
 
-      await eventsRepo.log('file.deleted', { path }, {
-        sessionId,
-        appId: session.app_id,
-        actor: 'user'
-      });
+      await eventsRepo.log(
+        'file.deleted',
+        { path },
+        {
+          sessionId,
+          appId: session.app_id,
+          actor: 'user',
+        },
+      );
 
       return {
         success: true,
         path,
-        message: 'File deleted successfully'
+        message: 'File deleted successfully',
       };
     } catch (error: any) {
       console.error('Error deleting file:', error);
@@ -264,11 +366,7 @@ export async function registerSessionFileRoutes(
     }
 
     try {
-      const versions = await fileStore.getVersions(
-        session.app_id,
-        path,
-        parseInt(limit, 10)
-      );
+      const versions = await fileStore.getVersions(session.app_id, path, parseInt(limit, 10));
 
       return { versions };
     } catch (error: any) {

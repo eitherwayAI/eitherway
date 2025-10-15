@@ -25,7 +25,7 @@ export class TranscriptRecorder {
       id,
       startTime,
       entries: [],
-      request
+      request,
     };
 
     this.log('info', `Started transcript ${id}`);
@@ -78,11 +78,7 @@ export class TranscriptRecorder {
       const filename = `transcript-${this.currentTranscript.id}.json`;
       const filepath = resolve(dir, filename);
 
-      await writeFile(
-        filepath,
-        JSON.stringify(this.currentTranscript, null, 2),
-        'utf-8'
-      );
+      await writeFile(filepath, JSON.stringify(this.currentTranscript, null, 2), 'utf-8');
 
       this.log('info', `Saved transcript to ${filepath}`);
     } catch (error: any) {

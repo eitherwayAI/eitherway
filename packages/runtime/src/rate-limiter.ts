@@ -17,7 +17,7 @@ export class RateLimiter {
 
     // Default rate limits
     this.setLimit('websearch', { maxRequests: 10, windowMs: 60000 }); // 10 per minute
-    this.setLimit('eithergen', { maxRequests: 5, windowMs: 60000 });  // 5 per minute
+    this.setLimit('eithergen', { maxRequests: 5, windowMs: 60000 }); // 5 per minute
   }
 
   /**
@@ -41,7 +41,7 @@ export class RateLimiter {
     const requests = this.requests.get(tool) || [];
 
     // Remove expired requests
-    const validRequests = requests.filter(time => now - time < config.windowMs);
+    const validRequests = requests.filter((time) => now - time < config.windowMs);
 
     if (validRequests.length >= config.maxRequests) {
       // Rate limit exceeded
@@ -50,7 +50,7 @@ export class RateLimiter {
 
       return {
         allowed: false,
-        retryAfter
+        retryAfter,
       };
     }
 
@@ -77,12 +77,12 @@ export class RateLimiter {
 
     const now = Date.now();
     const requests = this.requests.get(tool) || [];
-    const validRequests = requests.filter(time => now - time < config.windowMs);
+    const validRequests = requests.filter((time) => now - time < config.windowMs);
 
     return {
       current: validRequests.length,
       max: config.maxRequests,
-      windowMs: config.windowMs
+      windowMs: config.windowMs,
     };
   }
 }

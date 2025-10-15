@@ -19,7 +19,7 @@ export class EitherViewExecutor implements ToolExecutor {
     if (!guard.isPathAllowed(path)) {
       return {
         content: `Error: Access denied to path '${path}'. Path is not in allowed workspaces.`,
-        isError: true
+        isError: true,
       };
     }
 
@@ -58,8 +58,8 @@ export class EitherViewExecutor implements ToolExecutor {
             sha256,
             line_count: lineCount,
             truncated: true,
-            shown_lines: truncatedLines
-          }
+            shown_lines: truncatedLines,
+          },
         };
       }
 
@@ -73,13 +73,13 @@ export class EitherViewExecutor implements ToolExecutor {
           size: content.length,
           sha256,
           line_count: lineCount,
-          truncated: false
-        }
+          truncated: false,
+        },
       };
     } catch (error: any) {
       return {
         content: `Error reading file '${path}': ${error.message}`,
-        isError: true
+        isError: true,
       };
     }
   }
@@ -91,7 +91,7 @@ export class EitherViewExecutor implements ToolExecutor {
     path: string,
     max_bytes: number,
     encoding: string,
-    context: ExecutionContext
+    context: ExecutionContext,
   ): Promise<ToolExecutorResult> {
     const { fileStore, appId } = context;
 
@@ -133,8 +133,8 @@ export class EitherViewExecutor implements ToolExecutor {
             line_count: lineCount,
             truncated: true,
             shown_lines: truncatedLines,
-            storage: 'database'
-          }
+            storage: 'database',
+          },
         };
       }
 
@@ -149,13 +149,13 @@ export class EitherViewExecutor implements ToolExecutor {
           sha256,
           line_count: lineCount,
           truncated: false,
-          storage: 'database'
-        }
+          storage: 'database',
+        },
       };
     } catch (error: any) {
       return {
         content: `Error reading file '${path}' from database: ${error.message}`,
-        isError: true
+        isError: true,
       };
     }
   }

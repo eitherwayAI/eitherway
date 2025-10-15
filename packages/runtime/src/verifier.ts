@@ -46,7 +46,7 @@ export class VerifierRunner {
         { script: 'typecheck', name: 'Type Check' },
         { script: 'lint', name: 'Lint' },
         { script: 'test', name: 'Test' },
-        { script: 'build', name: 'Build' }
+        { script: 'build', name: 'Build' },
       ];
 
       for (const check of scriptChecks) {
@@ -59,7 +59,7 @@ export class VerifierRunner {
             name: check.name,
             ok: result.ok,
             output: result.output,
-            duration
+            duration,
           });
 
           // If a critical step fails, stop verification
@@ -74,12 +74,12 @@ export class VerifierRunner {
     }
 
     const totalDuration = Date.now() - startTime;
-    const passed = steps.length > 0 ? steps.every(s => s.ok) : true;
+    const passed = steps.length > 0 ? steps.every((s) => s.ok) : true;
 
     return {
       steps,
       passed,
-      totalDuration
+      totalDuration,
     };
   }
 
@@ -101,14 +101,14 @@ export class VerifierRunner {
           name: 'Static Validation',
           ok: true,
           output: 'index.html appears well-formed',
-          duration: 0
+          duration: 0,
         };
       } else {
         return {
           name: 'Static Validation',
           ok: false,
           output: 'index.html may be malformed (missing doctype or closing tag)',
-          duration: 0
+          duration: 0,
         };
       }
     } catch {
@@ -116,7 +116,7 @@ export class VerifierRunner {
         name: 'Static Validation',
         ok: true,
         output: 'No index.html found - skipping validation',
-        duration: 0
+        duration: 0,
       };
     }
   }
@@ -129,7 +129,7 @@ export class VerifierRunner {
       const proc = spawn(cmd[0], cmd.slice(1), {
         cwd: this.workingDir,
         shell: process.platform === 'win32',
-        env: { ...process.env, CI: 'true', NODE_ENV: 'test' }
+        env: { ...process.env, CI: 'true', NODE_ENV: 'test' },
       });
 
       let output = '';
@@ -154,14 +154,14 @@ export class VerifierRunner {
 
         resolve({
           ok: code === 0,
-          output: output.trim()
+          output: output.trim(),
         });
       });
 
       proc.on('error', (error) => {
         resolve({
           ok: false,
-          output: `Failed to execute command: ${error.message}`
+          output: `Failed to execute command: ${error.message}`,
         });
       });
 
@@ -170,7 +170,7 @@ export class VerifierRunner {
         proc.kill();
         resolve({
           ok: false,
-          output: 'Command timed out after 60 seconds'
+          output: 'Command timed out after 60 seconds',
         });
       }, 60000);
     });

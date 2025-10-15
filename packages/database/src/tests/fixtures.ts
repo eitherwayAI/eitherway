@@ -7,7 +7,7 @@ import {
   FilesRepository,
   FileReferencesRepository,
   SessionMemoryRepository,
-  WorkingSetRepository
+  WorkingSetRepository,
 } from '../repositories/index.js';
 
 export class TestFixtures {
@@ -40,16 +40,12 @@ export class TestFixtures {
   }> {
     const user = await this.usersRepo.create(
       `test-${Date.now()}-${Math.random().toString(36).substring(7)}@example.com`,
-      'Test User'
+      'Test User',
     );
 
     const app = await this.appsRepo.create(user.id, 'Todo App', 'private');
 
-    const session = await this.sessionsRepo.create(
-      user.id,
-      'Build a todo app with dark mode',
-      app.id
-    );
+    const session = await this.sessionsRepo.create(user.id, 'Build a todo app with dark mode', app.id);
 
     const fileContents = [
       {
@@ -67,7 +63,7 @@ export default function App() {
       </div>
     </ThemeProvider>
   );
-}`
+}`,
       },
       {
         path: 'src/components/TodoList.tsx',
@@ -84,7 +80,7 @@ export function TodoList() {
       ))}
     </div>
   );
-}`
+}`,
       },
       {
         path: 'src/context/ThemeContext.tsx',
@@ -100,7 +96,7 @@ export function ThemeProvider({ children }: any) {
       {children}
     </ThemeContext.Provider>
   );
-}`
+}`,
       },
       {
         path: 'src/types.ts',
@@ -110,30 +106,28 @@ export function ThemeProvider({ children }: any) {
   completed: boolean;
 }
 
-export type Theme = 'light' | 'dark';`
+export type Theme = 'light' | 'dark';`,
       },
       {
         path: 'package.json',
-        content: JSON.stringify({
-          name: 'todo-app',
-          version: '1.0.0',
-          dependencies: {
-            'react': '^18.2.0',
-            'react-dom': '^18.2.0'
-          }
-        }, null, 2)
-      }
+        content: JSON.stringify(
+          {
+            name: 'todo-app',
+            version: '1.0.0',
+            dependencies: {
+              react: '^18.2.0',
+              'react-dom': '^18.2.0',
+            },
+          },
+          null,
+          2,
+        ),
+      },
     ];
 
     const files = [];
     for (const fc of fileContents) {
-      const file = await this.filesRepo.upsertFile(
-        app.id,
-        fc.path,
-        fc.content,
-        user.id,
-        'text/typescript'
-      );
+      const file = await this.filesRepo.upsertFile(app.id, fc.path, fc.content, user.id, 'text/typescript');
       files.push(file);
     }
 
@@ -143,11 +137,14 @@ export type Theme = 'light' | 'dark';`
 
     const conversationMessages = [
       { role: 'user' as const, text: 'Build me a todo app with React' },
-      { role: 'assistant' as const, text: 'I\'ll create a todo app with React. Let me start with the basic structure.' },
+      { role: 'assistant' as const, text: "I'll create a todo app with React. Let me start with the basic structure." },
       { role: 'user' as const, text: 'Add dark mode support' },
-      { role: 'assistant' as const, text: 'I\'ve added a ThemeContext for dark mode support. You can now toggle between light and dark themes.' },
+      {
+        role: 'assistant' as const,
+        text: "I've added a ThemeContext for dark mode support. You can now toggle between light and dark themes.",
+      },
       { role: 'user' as const, text: 'Make the todos persistent' },
-      { role: 'assistant' as const, text: 'I\'ll add localStorage persistence for the todos.' }
+      { role: 'assistant' as const, text: "I'll add localStorage persistence for the todos." },
     ];
 
     const messages = [];
@@ -157,36 +154,25 @@ export type Theme = 'light' | 'dark';`
         msg.role,
         { text: msg.text },
         'claude-sonnet-4-5',
-        Math.floor(msg.text.length / 4)
+        Math.floor(msg.text.length / 4),
       );
       messages.push(message);
     }
 
     await this.memoryRepo.upsert(session.id, {
-      rollingSummary: 'User requested a todo app with React. Added dark mode via ThemeContext. Working on localStorage persistence.',
+      rollingSummary:
+        'User requested a todo app with React. Added dark mode via ThemeContext. Working on localStorage persistence.',
       facts: {
         framework: 'react',
         features: ['dark-mode', 'persistence'],
-        typescript: true
+        typescript: true,
       },
-      lastCompactedMessageId: messages[messages.length - 1].id.toString()
+      lastCompactedMessageId: messages[messages.length - 1].id.toString(),
     });
 
-    await this.workingSetRepo.add(
-      session.id,
-      app.id,
-      files[0].id,
-      'Main app component',
-      'agent'
-    );
+    await this.workingSetRepo.add(session.id, app.id, files[0].id, 'Main app component', 'agent');
 
-    await this.workingSetRepo.add(
-      session.id,
-      app.id,
-      files[2].id,
-      'Theme context for dark mode',
-      'user'
-    );
+    await this.workingSetRepo.add(session.id, app.id, files[2].id, 'Theme context for dark mode', 'user');
 
     await this.db.query(`REFRESH MATERIALIZED VIEW core.working_set_enriched`);
 
@@ -196,10 +182,7 @@ export type Theme = 'light' | 'dark';`
   }
 
   async cleanup(userId: string): Promise<void> {
-    const apps = await this.db.query<{ id: string }>(
-      `SELECT id FROM core.apps WHERE owner_id = $1`,
-      [userId]
-    );
+    const apps = await this.db.query<{ id: string }>(`SELECT id FROM core.apps WHERE owner_id = $1`, [userId]);
 
     for (const app of apps.rows) {
       await this.appsRepo.delete(app.id);

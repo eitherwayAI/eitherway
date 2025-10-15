@@ -12,30 +12,20 @@ export class ImageJobsRepository {
       appId?: string;
       size?: string;
       n?: number;
-    } = {}
+    } = {},
   ): Promise<ImageJob> {
     const result = await this.db.query<ImageJob>(
       `INSERT INTO core.image_jobs
        (session_id, app_id, prompt, model, size, n, state)
        VALUES ($1, $2, $3, $4, $5, $6, 'queued')
        RETURNING *`,
-      [
-        options.sessionId ?? null,
-        options.appId ?? null,
-        prompt,
-        model,
-        options.size ?? null,
-        options.n ?? 1
-      ]
+      [options.sessionId ?? null, options.appId ?? null, prompt, model, options.size ?? null, options.n ?? 1],
     );
     return result.rows[0];
   }
 
   async findById(id: string): Promise<ImageJob | null> {
-    const result = await this.db.query<ImageJob>(
-      `SELECT * FROM core.image_jobs WHERE id = $1`,
-      [id]
-    );
+    const result = await this.db.query<ImageJob>(`SELECT * FROM core.image_jobs WHERE id = $1`, [id]);
     return result.rows[0] ?? null;
   }
 
@@ -45,7 +35,7 @@ export class ImageJobsRepository {
        WHERE session_id = $1
        ORDER BY requested_at DESC
        LIMIT $2`,
-      [sessionId, limit]
+      [sessionId, limit],
     );
     return result.rows;
   }
@@ -56,16 +46,12 @@ export class ImageJobsRepository {
        WHERE state = $1
        ORDER BY requested_at ASC
        LIMIT $2`,
-      [state, limit]
+      [state, limit],
     );
     return result.rows;
   }
 
-  async updateState(
-    id: string,
-    state: ImageJobState,
-    error?: any
-  ): Promise<ImageJob> {
+  async updateState(id: string, state: ImageJobState, error?: any): Promise<ImageJob> {
     const now = new Date();
     const startedAt = state === 'generating' ? now : undefined;
     const finishedAt = ['succeeded', 'failed', 'canceled'].includes(state) ? now : undefined;
@@ -78,7 +64,7 @@ export class ImageJobsRepository {
            error = COALESCE($5, error)
        WHERE id = $1
        RETURNING *`,
-      [id, state, startedAt ?? null, finishedAt ?? null, error ? JSON.stringify(error) : null]
+      [id, state, startedAt ?? null, finishedAt ?? null, error ? JSON.stringify(error) : null],
     );
     return result.rows[0];
   }
@@ -113,7 +99,7 @@ export class ImageAssetsRepository {
       checksum?: Buffer;
       width?: number;
       height?: number;
-    } = {}
+    } = {},
   ): Promise<ImageAsset> {
     const result = await this.db.query<ImageAsset>(
       `INSERT INTO core.image_assets
@@ -128,17 +114,14 @@ export class ImageAssetsRepository {
         options.storageUrl ?? null,
         options.checksum ?? null,
         options.width ?? null,
-        options.height ?? null
-      ]
+        options.height ?? null,
+      ],
     );
     return result.rows[0];
   }
 
   async findById(id: string): Promise<ImageAsset | null> {
-    const result = await this.db.query<ImageAsset>(
-      `SELECT * FROM core.image_assets WHERE id = $1`,
-      [id]
-    );
+    const result = await this.db.query<ImageAsset>(`SELECT * FROM core.image_assets WHERE id = $1`, [id]);
     return result.rows[0] ?? null;
   }
 
@@ -147,7 +130,7 @@ export class ImageAssetsRepository {
       `SELECT * FROM core.image_assets
        WHERE job_id = $1
        ORDER BY position ASC`,
-      [jobId]
+      [jobId],
     );
     return result.rows;
   }
@@ -158,7 +141,7 @@ export class ImageAssetsRepository {
        FROM core.image_assets
        WHERE job_id = $1
        ORDER BY position ASC`,
-      [jobId]
+      [jobId],
     );
     return result.rows;
   }

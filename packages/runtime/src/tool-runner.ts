@@ -10,7 +10,7 @@ import type {
   ToolUse,
   ToolResult,
   ExecutionContext,
-  AgentConfig
+  AgentConfig,
 } from '@eitherway/tools-core';
 import { MetricsCollector } from './metrics.js';
 import { RateLimiter } from './rate-limiter.js';
@@ -23,11 +23,7 @@ export class ToolRunner {
   private metrics: MetricsCollector;
   private rateLimiter: RateLimiter;
 
-  constructor(
-    executors: ToolExecutor[],
-    workingDir: string,
-    config: AgentConfig
-  ) {
+  constructor(executors: ToolExecutor[], workingDir: string, config: AgentConfig) {
     this.executors = new Map();
     for (const executor of executors) {
       this.executors.set(executor.name, executor);
@@ -37,7 +33,7 @@ export class ToolRunner {
       workingDir,
       allowedPaths: config.security.allowedWorkspaces,
       deniedPaths: config.security.deniedPaths,
-      config
+      config,
     };
 
     this.executionCache = new Map();
@@ -59,7 +55,7 @@ export class ToolRunner {
         type: 'tool_result',
         tool_use_id: id,
         content: `Error: Unknown tool '${name}'`,
-        is_error: true
+        is_error: true,
       };
     }
 
@@ -70,7 +66,7 @@ export class ToolRunner {
         type: 'tool_result',
         tool_use_id: id,
         content: `Validation error: ${validation.errors.join(', ')}`,
-        is_error: true
+        is_error: true,
       };
     }
 
@@ -82,7 +78,7 @@ export class ToolRunner {
           type: 'tool_result',
           tool_use_id: id,
           content: `Rate limit exceeded for ${name}. Retry after ${rateCheck.retryAfter} seconds.`,
-          is_error: true
+          is_error: true,
         };
       }
     }
@@ -95,7 +91,7 @@ export class ToolRunner {
         type: 'tool_result',
         tool_use_id: id,
         content: cached.content,
-        is_error: cached.isError
+        is_error: cached.isError,
       };
     }
 
@@ -118,7 +114,7 @@ export class ToolRunner {
         file_count: fileCount,
         success: !result.isError,
         error: result.isError ? result.content : undefined,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
 
       // Cache the result
@@ -128,7 +124,7 @@ export class ToolRunner {
         type: 'tool_result',
         tool_use_id: id,
         content: result.content,
-        is_error: result.isError
+        is_error: result.isError,
       };
     } catch (error: any) {
       const errorMessage = error?.message || String(error);
@@ -142,14 +138,14 @@ export class ToolRunner {
         output_size: errorMessage.length,
         success: false,
         error: errorMessage,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
 
       return {
         type: 'tool_result',
         tool_use_id: id,
         content: `Execution error: ${errorMessage}`,
-        is_error: true
+        is_error: true,
       };
     }
   }
@@ -195,16 +191,14 @@ export class ToolRunner {
       resultMap.set(result.tool_use_id, result);
     }
 
-    return toolUses.map(tu => resultMap.get(tu.id)!);
+    return toolUses.map((tu) => resultMap.get(tu.id)!);
   }
 
   /**
    * Determine if a tool performs writes
    */
   private isWriteTool(name: string): boolean {
-    return name === 'either-write' ||
-           name === 'either-line-replace' ||
-           name === 'eithergen--generate_image';
+    return name === 'either-write' || name === 'either-line-replace' || name === 'eithergen--generate_image';
   }
 
   /**
@@ -231,7 +225,7 @@ export class ToolRunner {
           const tool = tools[index];
           activeCount++;
 
-          this.executeTool(tool).then(result => {
+          this.executeTool(tool).then((result) => {
             results[index] = result;
             activeCount--;
             if (currentIndex < tools.length) {
@@ -266,7 +260,7 @@ export class ToolRunner {
           const group = groups[currentIndex++];
           activeCount++;
 
-          this.executeSequentially(group).then(results => {
+          this.executeSequentially(group).then((results) => {
             allResults.push(...results);
             activeCount--;
             if (currentIndex < groups.length) {
@@ -366,7 +360,7 @@ export class SecurityGuard {
   constructor(config: AgentConfig['security']) {
     this.allowedPaths = config.allowedWorkspaces;
     this.deniedPaths = config.deniedPaths;
-    this.secretPatterns = config.secretPatterns.map(p => new RegExp(p, 'g'));
+    this.secretPatterns = config.secretPatterns.map((p) => new RegExp(p, 'g'));
   }
 
   /**
@@ -428,11 +422,11 @@ export class SecurityGuard {
             out += '(?:.*/)?'; // zero or more directories, including none
             i += 3;
           } else {
-            out += '.*';       // any characters, including '/'
+            out += '.*'; // any characters, including '/'
             i += 2;
           }
         } else {
-          out += '[^/]*';      // any chars except '/'
+          out += '[^/]*'; // any chars except '/'
           i += 1;
         }
       } else if (ch === '?') {

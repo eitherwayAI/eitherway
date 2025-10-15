@@ -32,17 +32,14 @@ export class IntegrityChecker {
       stored_checksum: Buffer;
       computed_checksum: Buffer;
       matches: boolean;
-    }>(
-      `SELECT * FROM core.verify_file_checksums($1)`,
-      [appId ?? null]
-    );
+    }>(`SELECT * FROM core.verify_file_checksums($1)`, [appId ?? null]);
 
-    return result.rows.map(row => ({
+    return result.rows.map((row) => ({
       fileId: row.file_id,
       path: row.path,
       storedChecksum: row.stored_checksum.toString('hex'),
       computedChecksum: row.computed_checksum.toString('hex'),
-      matches: row.matches
+      matches: row.matches,
     }));
   }
 
@@ -54,10 +51,7 @@ export class IntegrityChecker {
       has_valid_magic_bytes: boolean;
       has_valid_eof: boolean;
       checksum_valid: boolean;
-    }>(
-      `SELECT * FROM core.verify_image_integrity($1)`,
-      [jobId ?? null]
-    );
+    }>(`SELECT * FROM core.verify_image_integrity($1)`, [jobId ?? null]);
 
     const results: ImageIntegrityResult[] = [];
 
@@ -65,7 +59,7 @@ export class IntegrityChecker {
       try {
         const assetResult = await this.db.query<{ bytes: Buffer; width: number; height: number }>(
           `SELECT bytes, width, height FROM core.image_assets WHERE id = $1`,
-          [row.asset_id]
+          [row.asset_id],
         );
 
         const asset = assetResult.rows[0];
@@ -87,7 +81,7 @@ export class IntegrityChecker {
           hasValidMagicBytes: row.has_valid_magic_bytes,
           hasValidEOF: row.has_valid_eof,
           checksumValid: row.checksum_valid,
-          dimensionsValid
+          dimensionsValid,
         });
       } catch (error: any) {
         results.push({
@@ -98,7 +92,7 @@ export class IntegrityChecker {
           hasValidEOF: row.has_valid_eof,
           checksumValid: row.checksum_valid,
           dimensionsValid: false,
-          error: error.message
+          error: error.message,
         });
       }
     }
@@ -119,9 +113,9 @@ export class IntegrityChecker {
     const files = await this.verifyFileChecksums(appId);
     const images = await this.verifyImageIntegrity();
 
-    const validFiles = files.filter(f => f.matches).length;
-    const validImages = images.filter(i =>
-      i.hasValidMagicBytes && i.hasValidEOF && i.checksumValid && i.dimensionsValid
+    const validFiles = files.filter((f) => f.matches).length;
+    const validImages = images.filter(
+      (i) => i.hasValidMagicBytes && i.hasValidEOF && i.checksumValid && i.dimensionsValid,
     ).length;
 
     return {
@@ -131,8 +125,8 @@ export class IntegrityChecker {
         totalFiles: files.length,
         validFiles,
         totalImages: images.length,
-        validImages
-      }
+        validImages,
+      },
     };
   }
 
@@ -142,24 +136,19 @@ export class IntegrityChecker {
        FROM core.files f
        JOIN core.file_versions fv ON f.head_version_id = fv.id
        WHERE f.id = $1`,
-      [fileId]
+      [fileId],
     );
 
     const version = result.rows[0];
     if (!version) return false;
 
-    const content = version.content_text
-      ? Buffer.from(version.content_text, 'utf-8')
-      : version.content_bytes;
+    const content = version.content_text ? Buffer.from(version.content_text, 'utf-8') : version.content_bytes;
 
     if (!content) return false;
 
     const correctChecksum = createHash('sha256').update(content).digest();
 
-    await this.db.query(
-      `UPDATE core.files SET sha256 = $2 WHERE id = $1`,
-      [fileId, correctChecksum]
-    );
+    await this.db.query(`UPDATE core.files SET sha256 = $2 WHERE id = $1`, [fileId, correctChecksum]);
 
     return true;
   }

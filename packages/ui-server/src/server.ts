@@ -7,6 +7,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
+import multipart from '@fastify/multipart';
 import { Agent, DatabaseAgent, ConfigLoader, StreamingCallbacks } from '@eitherway/runtime';
 import { getAllExecutors } from '@eitherway/tools-impl';
 import { createDatabaseClient, FilesRepository, SessionsRepository, PostgresFileStore } from '@eitherway/database';
@@ -16,9 +17,16 @@ import { fileURLToPath } from 'url';
 import { maybeRewriteFile } from './cdn-rewriter.js';
 import { registerSessionRoutes } from './routes/sessions.js';
 import { registerSessionFileRoutes } from './routes/session-files.js';
+import { registerImageRoutes } from './routes/images.js';
+import { registerNetlifyRoutes } from './routes/netlify.js';
+import { registerDeploymentRoutes } from './routes/deployments.js';
+import { registerAppRoutes } from './routes/apps.js';
+import { registerBrandKitRoutes } from './routes/brand-kits.js';
 import { constants } from 'fs';
 import { randomUUID } from 'crypto';
 import { StreamEvents, createEventSender } from './events/index.js';
+import { API_CACHE_TTL_MS, CDN_CACHE_MAX_AGE_SECONDS, DEFAULT_SERVER_PORT } from './constants.js';
+import { isSecureUrl } from './security/ssrf-guard.js';
 
 // Resolve project root (go up from packages/ui-server/src to project root)
 const __filename = fileURLToPath(import.meta.url);
@@ -37,10 +45,7 @@ try {
   await access(CERT_PATH, constants.R_OK);
   await access(KEY_PATH, constants.R_OK);
 
-  const [cert, key] = await Promise.all([
-    readFile(CERT_PATH, 'utf-8'),
-    readFile(KEY_PATH, 'utf-8')
-  ]);
+  const [cert, key] = await Promise.all([readFile(CERT_PATH, 'utf-8'), readFile(KEY_PATH, 'utf-8')]);
 
   httpsOptions = { https: { cert, key } };
   useHttps = true;
@@ -52,16 +57,27 @@ try {
 
 const fastify = Fastify({
   logger: true,
-  ...httpsOptions
+  bodyLimit: 250 * 1024 * 1024, // 250MB to accommodate brand packages (200MB) + overhead
+  ...httpsOptions,
 });
 
 // Enable CORS
+// @ts-expect-error Fastify plugin type compatibility issue with current version
 await fastify.register(cors, {
-  origin: true
+  origin: true,
 });
 
 // Enable WebSocket
+// @ts-expect-error Fastify plugin type compatibility issue with current version
 await fastify.register(websocket);
+
+// Enable multipart for file uploads
+// @ts-expect-error Fastify plugin type compatibility issue with current version
+await fastify.register(multipart, {
+  limits: {
+    fileSize: 200 * 1024 * 1024, // 200MB max file size
+  },
+});
 
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || join(PROJECT_ROOT, 'workspace');
 const USE_LOCAL_FS = process.env.USE_LOCAL_FS === 'true';
@@ -80,6 +96,11 @@ try {
     console.log('✓ Database connected - using DB-backed VFS');
     await registerSessionRoutes(fastify, db);
     await registerSessionFileRoutes(fastify, db);
+    await registerImageRoutes(fastify, db);
+    await registerAppRoutes(fastify, db);
+    await registerNetlifyRoutes(fastify, db, WORKSPACE_DIR);
+    await registerDeploymentRoutes(fastify, db, WORKSPACE_DIR);
+    await registerBrandKitRoutes(fastify, db);
   } else {
     console.log('⚠ Database not available - files will only be saved to filesystem');
   }
@@ -94,31 +115,9 @@ fastify.get('/api/health', async () => {
   return {
     status: 'ok',
     workspace: WORKSPACE_DIR,
-    database: dbConnected ? 'connected' : 'disconnected'
+    database: dbConnected ? 'connected' : 'disconnected',
   };
 });
-
-function isSecureUrl(url: URL): { valid: boolean; error?: string } {
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    return { valid: false, error: 'Only HTTP/HTTPS protocols allowed' };
-  }
-
-  const hostname = url.hostname.toLowerCase();
-
-  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0') {
-    return { valid: false, error: 'Local addresses not allowed' };
-  }
-
-  if (hostname.match(/^10\.|^172\.(1[6-9]|2[0-9]|3[01])\.|^192\.168\./)) {
-    return { valid: false, error: 'Private IP ranges not allowed' };
-  }
-
-  if (hostname.match(/^169\.254\.|^fc00:|^fe80:/)) {
-    return { valid: false, error: 'Link-local addresses not allowed' };
-  }
-
-  return { valid: true };
-}
 
 /**
  * GET /api/proxy-cdn
@@ -128,7 +127,7 @@ fastify.get<{ Querystring: { url: string } }>('/api/proxy-cdn', async (request, 
   const { url } = request.query;
 
   if (!url) {
-    return reply.code(400).send({ error: 'Missing url parameter' });
+    return reply.code(400).header('Content-Type', 'application/json').send({ error: 'Missing url parameter' });
   }
 
   try {
@@ -136,35 +135,49 @@ fastify.get<{ Querystring: { url: string } }>('/api/proxy-cdn', async (request, 
     const securityCheck = isSecureUrl(targetUrl);
 
     if (!securityCheck.valid) {
-      return reply.code(403).send({ error: securityCheck.error });
+      return reply.code(403).header('Content-Type', 'application/json').send({
+        error: securityCheck.errorMessage,
+        code: securityCheck.errorCode,
+      });
     }
 
+    console.log('[Proxy CDN] Fetching:', url);
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': '*/*',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Accept: '*/*',
         'Accept-Language': 'en-US,en;q=0.9',
-        'Referer': targetUrl.origin + '/',
-        'Origin': targetUrl.origin
-      }
+        Referer: targetUrl.origin + '/',
+        Origin: targetUrl.origin,
+      },
     });
 
     if (!response.ok) {
-      return reply.code(response.status).send({ error: `Upstream returned ${response.status}` });
+      console.error('[Proxy CDN] Upstream error:', url, response.status);
+      return reply
+        .code(response.status)
+        .header('Content-Type', 'application/json')
+        .send({ error: `Upstream returned ${response.status}` });
     }
 
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
     const buffer = await response.arrayBuffer();
 
-    reply
+    console.log('[Proxy CDN] Success:', url, 'Type:', contentType, 'Size:', buffer.byteLength);
+
+    return reply
       .header('Content-Type', contentType)
       .header('Cross-Origin-Resource-Policy', 'cross-origin')
       .header('Access-Control-Allow-Origin', '*')
-      .header('Cache-Control', 'public, max-age=86400')
+      .header('Cache-Control', `public, max-age=${CDN_CACHE_MAX_AGE_SECONDS}`)
       .send(Buffer.from(buffer));
-
   } catch (error: any) {
-    reply.code(500).send({ error: `Proxy error: ${error.message}` });
+    console.error('[Proxy CDN] Error:', url, error.message);
+    return reply
+      .code(500)
+      .header('Content-Type', 'application/json')
+      .send({ error: `Proxy error: ${error.message}` });
   }
 });
 
@@ -172,7 +185,6 @@ const COINGECKO_DEMO_KEY = process.env.COINGECKO_DEMO_API_KEY || '';
 const COINGECKO_PRO_KEY = process.env.COINGECKO_PRO_API_KEY || '';
 
 const apiCache = new Map<string, { t: number; body: Buffer; headers: Record<string, string>; status: number }>();
-const API_CACHE_TTL = 30_000;
 
 /**
  * GET /api/proxy-api
@@ -194,27 +206,30 @@ fastify.get<{ Querystring: { url: string } }>('/api/proxy-api', async (request, 
 
   const securityCheck = isSecureUrl(targetUrl);
   if (!securityCheck.valid) {
-    return reply.code(403).send({ error: securityCheck.error });
+    return reply.code(403).send({
+      error: securityCheck.errorMessage,
+      code: securityCheck.errorCode,
+    });
   }
 
   const cacheKey = `GET:${targetUrl.toString()}`;
   const hit = apiCache.get(cacheKey);
-  if (hit && (Date.now() - hit.t) < API_CACHE_TTL) {
+  if (hit && Date.now() - hit.t < API_CACHE_TTL_MS) {
     return reply
       .headers({
         ...hit.headers,
         'Access-Control-Allow-Origin': '*',
-        'Vary': 'Origin',
+        Vary: 'Origin',
         'Cross-Origin-Resource-Policy': 'cross-origin',
-        'X-Cache': 'HIT'
+        'X-Cache': 'HIT',
       })
       .code(hit.status)
       .send(hit.body);
   }
 
   const headers: Record<string, string> = {
-    'Accept': 'application/json',
-    'User-Agent': 'EitherWay-Proxy/1.0'
+    Accept: 'application/json',
+    'User-Agent': 'EitherWay-Proxy/1.0',
   };
 
   if (targetUrl.hostname === 'api.coingecko.com' && COINGECKO_DEMO_KEY) {
@@ -228,7 +243,7 @@ fastify.get<{ Querystring: { url: string } }>('/api/proxy-api', async (request, 
     const upstream = await fetch(targetUrl.toString(), {
       method: 'GET',
       headers,
-      credentials: 'omit'
+      credentials: 'omit',
     });
 
     const body = Buffer.from(await upstream.arrayBuffer());
@@ -243,14 +258,14 @@ fastify.get<{ Querystring: { url: string } }>('/api/proxy-api', async (request, 
       .headers({
         ...passthrough,
         'Access-Control-Allow-Origin': '*',
-        'Vary': 'Origin',
+        Vary: 'Origin',
         'Cross-Origin-Resource-Policy': 'cross-origin',
         'Cache-Control': passthrough['cache-control'] || 'public, max-age=30',
       })
       .code(status)
       .send(body);
   } catch (error: any) {
-    reply.code(500).send({ error: `API proxy error: ${error.message}` });
+    return reply.code(500).send({ error: `API proxy error: ${error.message}` });
   }
 });
 
@@ -289,7 +304,7 @@ fastify.get<{ Params: { '*': string } }>('/api/files/*', async (request, reply) 
     const rewrittenContent = maybeRewriteFile(filePath, content, { serverOrigin });
     return { path: filePath, content: rewrittenContent };
   } catch (error: any) {
-    reply.code(404).send({ error: error.message });
+    return reply.code(404).send({ error: error.message });
   }
 });
 
@@ -328,11 +343,11 @@ fastify.post<{
     return {
       success: true,
       path: filePath,
-      message: 'File saved successfully'
+      message: 'File saved successfully',
     };
   } catch (error: any) {
     console.error('Error saving file:', error);
-    reply.code(500).send({ error: error.message });
+    return reply.code(500).send({ error: error.message });
   }
 });
 
@@ -438,25 +453,29 @@ fastify.post<{
       success: true,
       sessionId: newSessionId,
       appId: newSession.app_id,
-      files
+      files,
     };
   } catch (error: any) {
     console.error('Error switching workspace:', error);
-    reply.code(500).send({ error: error.message });
+    return reply.code(500).send({ error: error.message });
   }
 });
 
-fastify.register(async (fastify) => {
+await fastify.register(async (fastify) => {
   fastify.get<{
     Querystring: { sessionId?: string };
+    // @ts-expect-error Fastify WebSocket type compatibility issue
   }>('/api/agent', { websocket: true }, async (connection, request) => {
+    // @ts-expect-error Fastify WebSocket request type issue
     const { sessionId } = request.query;
 
     // Create event sender for this connection
+    // @ts-expect-error Fastify WebSocket socket type issue
     const sender = createEventSender(connection.socket);
 
     if (!sessionId && !USE_LOCAL_FS) {
       sender.send(StreamEvents.error('sessionId query parameter is required'));
+      // @ts-expect-error Fastify WebSocket socket type issue
       connection.socket.close();
       return;
     }
@@ -467,7 +486,7 @@ fastify.register(async (fastify) => {
       if (data.type === 'prompt') {
         try {
           let response: string;
-          let messageId: string = randomUUID(); // Generate message ID for streaming
+          const messageId: string = randomUUID(); // Generate message ID for streaming
 
           // Use DatabaseAgent when in database mode
           if (!USE_LOCAL_FS && dbConnected && db && sessionId) {
@@ -501,7 +520,7 @@ fastify.register(async (fastify) => {
               agentConfig,
               executors: getAllExecutors(),
               dryRun: false,
-              webSearch: agentConfig.tools.webSearch
+              webSearch: agentConfig.tools.webSearch,
             });
 
             // Set database context for file operations
@@ -547,11 +566,14 @@ fastify.register(async (fastify) => {
               },
               onComplete: (usage) => {
                 tokenUsage = usage;
-              }
+              },
             };
 
+            // Enrich prompt with brand kit context if available
+            const enrichedPrompt = await enrichPromptWithBrandKit(data.prompt, session, fileStore);
+
             // Process request with streaming
-            response = await dbAgent.processRequest(data.prompt, streamingCallbacks);
+            response = await dbAgent.processRequest(enrichedPrompt, streamingCallbacks);
 
             // Send stream_end event with token usage
             sender.send(StreamEvents.streamEnd(messageId, tokenUsage));
@@ -563,7 +585,7 @@ fastify.register(async (fastify) => {
               agentConfig,
               executors: getAllExecutors(),
               dryRun: false,
-              webSearch: agentConfig.tools.webSearch
+              webSearch: agentConfig.tools.webSearch,
             });
 
             // Use the messageId declared above
@@ -604,7 +626,7 @@ fastify.register(async (fastify) => {
               },
               onComplete: (usage) => {
                 tokenUsage = usage;
-              }
+              },
             };
 
             response = await agent.processRequest(data.prompt, streamingCallbacks);
@@ -636,7 +658,6 @@ fastify.register(async (fastify) => {
             const files = await getFileTree(WORKSPACE_DIR);
             sender.send(StreamEvents.filesUpdated(files));
           }
-
         } catch (error: any) {
           // Log the full error for debugging
           console.error('[Agent Error]', error);
@@ -676,6 +697,96 @@ fastify.register(async (fastify) => {
 });
 
 /**
+ * Helper: Build brand kit context for prompt injection
+ * Returns enriched prompt with brand kit assets and colors if available
+ * Reads brand-kit.json manifest from workspace (written by frontend after sync)
+ */
+async function enrichPromptWithBrandKit(
+  originalPrompt: string,
+  session: any,
+  fileStore: PostgresFileStore
+): Promise<string> {
+  try {
+    if (!session?.app_id) {
+      return originalPrompt;
+    }
+
+    // Read brand-kit.json manifest from workspace
+    console.log('[Brand Kit] Checking for brand-kit.json in workspace...');
+    console.log('[Brand Kit] Session app_id:', session.app_id);
+
+    let manifestContent: any;
+    try {
+      const manifestFile = await fileStore.read(session.app_id, 'brand-kit.json');
+      console.log('[Brand Kit] Manifest file retrieved, content type:', typeof manifestFile.content);
+
+      const contentString = manifestFile.content.toString();
+      console.log('[Brand Kit] Manifest content (first 500 chars):', contentString.substring(0, 500));
+
+      manifestContent = JSON.parse(contentString);
+      console.log('[Brand Kit] Manifest parsed successfully');
+      console.log('[Brand Kit] Manifest structure:', JSON.stringify(manifestContent, null, 2).substring(0, 1000));
+    } catch (error: any) {
+      console.log('[Brand Kit] Failed to read brand-kit.json:', error.message);
+      console.log('[Brand Kit] Error stack:', error.stack);
+      return originalPrompt;
+    }
+
+    const { colors, assets } = manifestContent.brandKit || {};
+    console.log('[Brand Kit] Extracted from manifest - colors:', colors?.length || 0, 'assets:', assets?.length || 0);
+
+    if ((!colors || colors.length === 0) && (!assets || assets.length === 0)) {
+      console.log('[Brand Kit] Brand kit manifest is empty - skipping enrichment');
+      return originalPrompt;
+    }
+
+    // Build brand context string (matching beta-deployment format)
+    let brandContext = '\n\nBRAND KIT AVAILABLE:\n';
+
+    if (colors && colors.length > 0) {
+      brandContext += '\nColor Palette:\n';
+      colors.forEach((color: any) => {
+        brandContext += `- ${color.hex}`;
+        if (color.name) brandContext += ` (${color.name})`;
+        if (color.role) brandContext += ` - ${color.role}`;
+        if (color.prominence) brandContext += ` [${Math.round(color.prominence * 100)}% prominence]`;
+        brandContext += '\n';
+      });
+    }
+
+    if (assets && assets.length > 0) {
+      brandContext += '\nBrand Assets:\n';
+      assets.forEach((asset: any) => {
+        if (asset.path) {
+          // Convert file path to web-accessible path
+          const webPath = asset.path.replace(/^public\//, '/');
+          brandContext += `- ${asset.fileName} (${asset.type}) at ${webPath}\n`;
+        }
+      });
+    }
+
+    brandContext += '\nIMPORTANT: Use these brand colors and assets in your design. The color palette should be your primary color scheme, and brand assets should be integrated where appropriate.\n';
+
+    const enrichedPrompt = brandContext + originalPrompt;
+
+    console.log('[Brand Kit] ✅ SUCCESS: Injected brand kit context into prompt!');
+    console.log('[Brand Kit] Colors:', colors?.length || 0, '| Assets:', assets?.length || 0);
+    console.log('[Brand Kit] Brand context preview:', brandContext.substring(0, 300));
+    console.log('[Brand Kit] Original prompt (first 100 chars):', originalPrompt.substring(0, 100));
+    console.log('[Brand Kit] Enriched prompt total length:', enrichedPrompt.length);
+    console.log('[Brand Kit] Full enriched prompt (first 500 chars):', enrichedPrompt.substring(0, 500));
+
+    // Prepend brand context to the user's prompt
+    return enrichedPrompt;
+
+  } catch (error: any) {
+    console.error('[Brand Kit] Failed to enrich prompt:', error.message);
+    console.error('[Brand Kit] Full error:', error);
+    return originalPrompt; // Fall back to original on error
+  }
+}
+
+/**
  * Helper: Get file tree
  */
 async function getFileTree(dir: string, basePath: string = ''): Promise<FileNode[]> {
@@ -697,7 +808,7 @@ async function getFileTree(dir: string, basePath: string = ''): Promise<FileNode
         name: entry.name,
         path: relativePath,
         type: 'directory',
-        children
+        children,
       });
     } else {
       const stats = await stat(fullPath);
@@ -705,7 +816,7 @@ async function getFileTree(dir: string, basePath: string = ''): Promise<FileNode
         name: entry.name,
         path: relativePath,
         type: 'file',
-        size: stats.size
+        size: stats.size,
       });
     }
   }
@@ -725,7 +836,7 @@ interface FileNode {
 }
 
 // Start server
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || DEFAULT_SERVER_PORT;
 
 try {
   await fastify.listen({ port: Number(PORT), host: '0.0.0.0' });

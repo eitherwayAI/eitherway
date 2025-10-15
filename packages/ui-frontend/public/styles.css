@@ -1,0 +1,43 @@
+/* === THEME TOKENS: Web3 (Green) === */
+:root,
+html[data-pattern="web3"] {
+  /* Core palette */
+  --color-bg:        #064e3b; /* emerald-900 */
+  --color-surface:   #065f46; /* emerald-800 */
+  --color-elevated:  #047857; /* emerald-700 */
+  --color-primary:   #10b981; /* emerald-500 */
+  --color-border:    #059669; /* emerald-600 */
+  --color-text:      #d1fae5; /* emerald-100 */
+  --color-text-muted:#a7f3d0; /* emerald-200 */
+
+  /* Cross-compat aliases used by some templates */
+  --bg-primary:    var(--color-bg);
+  --bg-secondary:  var(--color-surface);
+  --text-primary:  var(--color-text);
+  --text-secondary:var(--color-text-muted);
+  --border:        var(--color-border);
+  --accent:        var(--color-primary);
+
+  /* Component tokens consumed by base.css */
+  --btn-primary-bg:      var(--color-primary);
+  --btn-primary-text:    #0b301f;  /* dark text on medium green for contrast */
+  --btn-primary-border:  var(--color-border);
+
+  --btn-ghost-text:      var(--color-text);
+  --btn-ghost-border:    var(--color-border);
+
+  --card-bg:             var(--color-surface);
+  --card-border:         var(--color-border);
+
+  --input-bg:            var(--color-elevated);
+  --input-text:          var(--color-text);
+  --input-border:        var(--color-border);
+
+  --nav-bg:              var(--color-surface);
+  --table-row-hover:     rgba(16,185,129,0.12);
+
+  /* Shadows (kept neutral) */
+  --shadow-sm:  0 1px 2px rgba(0,0,0,.20);
+  --shadow-md:  0 6px 16px rgba(0,0,0,.25);
+}
+

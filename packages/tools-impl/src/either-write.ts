@@ -19,7 +19,7 @@ export class EitherWriteExecutor implements ToolExecutor {
     if (!guard.isPathAllowed(path)) {
       return {
         content: `Error: Access denied to path '${path}'. Path is not in allowed workspaces.`,
-        isError: true
+        isError: true,
       };
     }
 
@@ -44,7 +44,7 @@ export class EitherWriteExecutor implements ToolExecutor {
         if (!overwrite) {
           return {
             content: `Error: File '${path}' already exists. Set overwrite=true to replace it.`,
-            isError: true
+            isError: true,
           };
         }
 
@@ -66,7 +66,7 @@ export class EitherWriteExecutor implements ToolExecutor {
       if (content.length > maxSize) {
         return {
           content: `Error: Content size (${content.length} bytes) exceeds limit (${maxSize} bytes)`,
-          isError: true
+          isError: true,
         };
       }
 
@@ -86,7 +86,10 @@ export class EitherWriteExecutor implements ToolExecutor {
       } else {
         // New file - show first few lines
         const lines = content.split('\n');
-        const preview = lines.slice(0, 10).map((line: string, idx: number) => `${idx + 1}+ ${line}`).join('\n');
+        const preview = lines
+          .slice(0, 10)
+          .map((line: string, idx: number) => `${idx + 1}+ ${line}`)
+          .join('\n');
         const more = lines.length > 10 ? `\n... ${lines.length - 10} more lines` : '';
         diffSummary = `+++ ${path} (new file)\n${preview}${more}`;
       }
@@ -100,13 +103,13 @@ export class EitherWriteExecutor implements ToolExecutor {
           sha256: newSha256,
           line_count: lineCount,
           overwritten: isExisting,
-          old_sha256: oldSha256 || undefined
-        }
+          old_sha256: oldSha256 || undefined,
+        },
       };
     } catch (error: any) {
       return {
         content: `Error writing file '${path}': ${error.message}`,
-        isError: true
+        isError: true,
       };
     }
   }
@@ -114,7 +117,11 @@ export class EitherWriteExecutor implements ToolExecutor {
   /**
    * Execute using database FileStore
    */
-  private async executeWithDatabase(path: string, content: string, context: ExecutionContext): Promise<ToolExecutorResult> {
+  private async executeWithDatabase(
+    path: string,
+    content: string,
+    context: ExecutionContext,
+  ): Promise<ToolExecutorResult> {
     const { fileStore, appId } = context;
 
     try {
@@ -154,7 +161,10 @@ export class EitherWriteExecutor implements ToolExecutor {
       } else {
         // New file - show first few lines
         const lines = content.split('\n');
-        const preview = lines.slice(0, 10).map((line: string, idx: number) => `${idx + 1}+ ${line}`).join('\n');
+        const preview = lines
+          .slice(0, 10)
+          .map((line: string, idx: number) => `${idx + 1}+ ${line}`)
+          .join('\n');
         const more = lines.length > 10 ? `\n... ${lines.length - 10} more lines` : '';
         diffSummary = `+++ ${path} (new file)\n${preview}${more}`;
       }
@@ -168,13 +178,13 @@ export class EitherWriteExecutor implements ToolExecutor {
           sha256: newSha256,
           line_count: lineCount,
           overwritten: isExisting,
-          storage: 'database'
-        }
+          storage: 'database',
+        },
       };
     } catch (error: any) {
       return {
         content: `Error writing file '${path}' to database: ${error.message}`,
-        isError: true
+        isError: true,
       };
     }
   }

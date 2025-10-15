@@ -13,7 +13,7 @@ export class SecurityGuard {
   constructor(config: AgentConfig['security']) {
     this.allowedPaths = config.allowedWorkspaces;
     this.deniedPaths = config.deniedPaths;
-    this.secretPatterns = config.secretPatterns.map(p => new RegExp(p, 'g'));
+    this.secretPatterns = config.secretPatterns.map((p) => new RegExp(p, 'g'));
   }
 
   /**
@@ -75,11 +75,11 @@ export class SecurityGuard {
             out += '(?:.*/)?'; // zero or more directories, including none
             i += 3;
           } else {
-            out += '.*';       // any characters, including '/'
+            out += '.*'; // any characters, including '/'
             i += 2;
           }
         } else {
-          out += '[^/]*';      // any chars except '/'
+          out += '[^/]*'; // any chars except '/'
           i += 1;
         }
       } else if (ch === '?') {

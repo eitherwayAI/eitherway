@@ -1,8 +1,5 @@
 import { describe, it, beforeAll, afterAll, expect } from 'vitest';
-import {
-  createDatabaseClient,
-  DatabaseClient
-} from '../index.js';
+import { createDatabaseClient, DatabaseClient } from '../index.js';
 import { TestFixtures } from './fixtures.js';
 import { MemoryPreludeService } from '../services/memory-prelude.js';
 import { ImpactedFilesAnalyzer } from '../services/impacted-analyzer.js';
@@ -59,7 +56,7 @@ describe('Phase 3 Golden Tests', () => {
   it('should detect impacted files when changing shared component', async () => {
     const { user, app, files } = await fixtures.createRealisticSession();
 
-    const themeContextFile = files.find(f => f.path === 'src/context/ThemeContext.tsx');
+    const themeContextFile = files.find((f) => f.path === 'src/context/ThemeContext.tsx');
     expect(themeContextFile).toBeDefined();
 
     const analyzer = new ImpactedFilesAnalyzer(db);
@@ -68,7 +65,7 @@ describe('Phase 3 Golden Tests', () => {
     expect(impact.sourceFile.path).toBe('src/context/ThemeContext.tsx');
     expect(impact.impactedFiles.length).toBeGreaterThan(0);
 
-    const impactedPaths = impact.impactedFiles.map(f => f.path);
+    const impactedPaths = impact.impactedFiles.map((f) => f.path);
     expect(impactedPaths).toContain('src/App.tsx');
 
     const summary = await analyzer.getImpactSummary(app.id, themeContextFile!.id);
@@ -85,7 +82,7 @@ describe('Phase 3 Golden Tests', () => {
     const fileResults = await checker.verifyFileChecksums(app.id);
 
     expect(fileResults.length).toBe(files.length);
-    const allValid = fileResults.every(r => r.matches);
+    const allValid = fileResults.every((r) => r.matches);
     expect(allValid).toBe(true);
 
     await fixtures.cleanup(user.id);
@@ -103,7 +100,7 @@ describe('Phase 3 Golden Tests', () => {
     expect(workingSet.length).toBe(2);
     expect(queryTime).toBeLessThan(100);
 
-    workingSet.forEach(item => {
+    workingSet.forEach((item) => {
       expect(item.file_path).toBeDefined();
       expect(item.mime_type).toBeDefined();
     });

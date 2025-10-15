@@ -9,50 +9,40 @@ export class MessagesRepository {
     role: MessageRole,
     content: any,
     model?: string,
-    tokenCount?: number
+    tokenCount?: number,
   ): Promise<Message> {
     const result = await this.db.query<Message>(
       `INSERT INTO core.messages (session_id, role, content, model, token_count)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [sessionId, role, JSON.stringify(content), model ?? null, tokenCount ?? null]
+      [sessionId, role, JSON.stringify(content), model ?? null, tokenCount ?? null],
     );
     return result.rows[0];
   }
 
   async findById(id: string): Promise<Message | null> {
-    const result = await this.db.query<Message>(
-      `SELECT * FROM core.messages WHERE id = $1`,
-      [id]
-    );
+    const result = await this.db.query<Message>(`SELECT * FROM core.messages WHERE id = $1`, [id]);
     return result.rows[0] ?? null;
   }
 
-  async findBySession(
-    sessionId: string,
-    limit = 100,
-    offset = 0
-  ): Promise<Message[]> {
+  async findBySession(sessionId: string, limit = 100, offset = 0): Promise<Message[]> {
     const result = await this.db.query<Message>(
       `SELECT * FROM core.messages
        WHERE session_id = $1
        ORDER BY id ASC
        LIMIT $2 OFFSET $3`,
-      [sessionId, limit, offset]
+      [sessionId, limit, offset],
     );
     return result.rows;
   }
 
-  async findRecentBySession(
-    sessionId: string,
-    limit = 10
-  ): Promise<Message[]> {
+  async findRecentBySession(sessionId: string, limit = 10): Promise<Message[]> {
     const result = await this.db.query<Message>(
       `SELECT * FROM core.messages
        WHERE session_id = $1
        ORDER BY id DESC
        LIMIT $2`,
-      [sessionId, limit]
+      [sessionId, limit],
     );
     return result.rows.reverse();
   }
@@ -60,23 +50,19 @@ export class MessagesRepository {
   async countBySession(sessionId: string): Promise<number> {
     const result = await this.db.query<{ count: string }>(
       `SELECT COUNT(*) as count FROM core.messages WHERE session_id = $1`,
-      [sessionId]
+      [sessionId],
     );
     return parseInt(result.rows[0].count, 10);
   }
 
-  async searchContent(
-    sessionId: string,
-    searchTerm: string,
-    limit = 20
-  ): Promise<Message[]> {
+  async searchContent(sessionId: string, searchTerm: string, limit = 20): Promise<Message[]> {
     const result = await this.db.query<Message>(
       `SELECT * FROM core.messages
        WHERE session_id = $1
          AND content::text ILIKE $2
        ORDER BY id DESC
        LIMIT $3`,
-      [sessionId, `%${searchTerm}%`, limit]
+      [sessionId, `%${searchTerm}%`, limit],
     );
     return result.rows;
   }

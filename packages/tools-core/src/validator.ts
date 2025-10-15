@@ -16,7 +16,7 @@ export class ToolValidator {
       allErrors: true,
       useDefaults: true,
       coerceTypes: false,
-      strict: true
+      strict: true,
     });
 
     addFormats(this.ajv);
@@ -42,7 +42,7 @@ export class ToolValidator {
     if (!validator) {
       return {
         valid: false,
-        errors: [`Unknown tool: ${toolName}`]
+        errors: [`Unknown tool: ${toolName}`],
       };
     }
 
@@ -51,10 +51,10 @@ export class ToolValidator {
     if (!valid && validator.errors) {
       return {
         valid: false,
-        errors: validator.errors.map(err => {
+        errors: validator.errors.map((err) => {
           const path = err.instancePath || 'input';
           return `${path}: ${err.message}`;
-        })
+        }),
       };
     }
 

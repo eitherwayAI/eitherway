@@ -41,21 +41,23 @@ export class PostgresFileStore implements FileStore {
       const rootNodes: FileNode[] = [];
       const nodeMap = new Map<string, FileNode>();
 
-      files.forEach(file => {
+      files.forEach((file) => {
         const node: FileNode = {
           name: file.path.split('/').pop() || file.path,
           path: file.path,
           type: 'file',
           size: file.size_bytes || 0,
-          mimeType: file.mime_type || undefined
+          mimeType: file.mime_type || undefined,
         };
         nodeMap.set(file.path, node);
       });
 
       const dirMap = new Map<string, FileNode>();
 
-      files.forEach(file => {
-        const parts = file.path.split('/');
+      files.forEach((file) => {
+        // Normalize path: remove leading slashes to prevent empty directory names
+        const normalizedPath = file.path.replace(/^\/+/, '');
+        const parts = normalizedPath.split('/');
         const node = nodeMap.get(file.path)!;
 
         if (parts.length === 1) {
@@ -71,7 +73,7 @@ export class PostgresFileStore implements FileStore {
                 path: dirPath,
                 type: 'directory',
                 isDirectory: true,
-                children: []
+                children: [],
               };
               dirMap.set(dirPath, dirNode);
             }
@@ -79,7 +81,7 @@ export class PostgresFileStore implements FileStore {
             const parentDir = dirMap.get(dirPath)!;
 
             if (i === parts.length - 1) {
-              if (!parentDir.children!.some(c => c.path === node.path)) {
+              if (!parentDir.children!.some((c) => c.path === node.path)) {
                 parentDir.children!.push(node);
               }
             }
@@ -93,7 +95,7 @@ export class PostgresFileStore implements FileStore {
               path: topDirPath,
               type: 'directory',
               isDirectory: true,
-              children: []
+              children: [],
             });
           }
         }
@@ -105,22 +107,24 @@ export class PostgresFileStore implements FileStore {
         } else {
           const parentPath = path.substring(0, path.lastIndexOf('/'));
           const parentDir = dirMap.get(parentPath);
-          if (parentDir && !parentDir.children!.some(c => c.path === dir.path)) {
+          if (parentDir && !parentDir.children!.some((c) => c.path === dir.path)) {
             parentDir.children!.push(dir);
           }
         }
       });
 
       const sortNodes = (nodes: FileNode[]): FileNode[] => {
-        return nodes.sort((a, b) => {
-          if (a.type === b.type) return a.name.localeCompare(b.name);
-          return a.type === 'directory' ? -1 : 1;
-        }).map(node => {
-          if (node.children) {
-            node.children = sortNodes(node.children);
-          }
-          return node;
-        });
+        return nodes
+          .sort((a, b) => {
+            if (a.type === b.type) return a.name.localeCompare(b.name);
+            return a.type === 'directory' ? -1 : 1;
+          })
+          .map((node) => {
+            if (node.children) {
+              node.children = sortNodes(node.children);
+            }
+            return node;
+          });
       };
 
       return sortNodes(rootNodes);
@@ -149,7 +153,7 @@ export class PostgresFileStore implements FileStore {
       content,
       mimeType,
       path: file.path,
-      version: version.version
+      version: version.version,
     };
   }
 
@@ -158,7 +162,7 @@ export class PostgresFileStore implements FileStore {
     path: string,
     content: string | Buffer,
     mimeType?: string,
-    userId?: string
+    userId?: string,
   ): Promise<void> {
     await this.filesRepo.upsertFile(appId, path, content, userId, mimeType);
   }

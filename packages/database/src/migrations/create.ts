@@ -10,7 +10,7 @@ async function createMigration(name: string): Promise<void> {
   const migrationsDir = __dirname;
   const files = await readdir(migrationsDir);
 
-  const sqlFiles = files.filter(f => f.endsWith('.sql'));
+  const sqlFiles = files.filter((f) => f.endsWith('.sql'));
   const maxId = sqlFiles.reduce((max, file) => {
     const match = file.match(/^(\d+)_/);
     if (match) {

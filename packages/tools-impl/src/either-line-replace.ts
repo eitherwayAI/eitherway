@@ -21,7 +21,7 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
     if (!guard.isPathAllowed(path)) {
       return {
         content: `Error: Access denied to path '${path}'. Path is not in allowed workspaces.`,
-        isError: true
+        isError: true,
       };
     }
 
@@ -43,14 +43,14 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
       if (start_line < 1 || start_line > lines.length) {
         return {
           content: `Error: start_line ${start_line} out of range (file has ${lines.length} lines)`,
-          isError: true
+          isError: true,
         };
       }
 
       if (end_line < start_line || end_line > lines.length) {
         return {
           content: `Error: end_line ${end_line} invalid (must be >= start_line and <= ${lines.length})`,
-          isError: true
+          isError: true,
         };
       }
 
@@ -72,8 +72,8 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
               needle_mismatch: true,
               expected: needle,
               actualPreview: preview,
-              suggestion: 'Use either-view to check file contents and provide exact matching text'
-            }
+              suggestion: 'Use either-view to check file contents and provide exact matching text',
+            },
           };
         }
 
@@ -84,8 +84,8 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
             metadata: {
               path,
               needle_occurrences: needleOccurrences,
-              suggestion: 'Include more context in needle to create a unique match'
-            }
+              suggestion: 'Include more context in needle to create a unique match',
+            },
           };
         }
 
@@ -96,8 +96,8 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
             metadata: {
               path,
               needle_location_mismatch: true,
-              suggestion: 'Use either-search-files to find correct line numbers'
-            }
+              suggestion: 'Use either-search-files to find correct line numbers',
+            },
           };
         }
       }
@@ -124,7 +124,8 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
         const verifiedSha256 = createHash('sha256').update(verified).digest('hex');
         isVerified = verifiedSha256 === newSha256;
         if (!isVerified) {
-          verificationMsg = '\n\nWarning: Verification failed - file content differs from expected. File may have been modified by another process.';
+          verificationMsg =
+            '\n\nWarning: Verification failed - file content differs from expected. File may have been modified by another process.';
         }
       }
 
@@ -135,9 +136,10 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
       // Generate unified diff
       const diff = this.generateUnifiedDiff(path, targetLines, replacementLines, start_line);
 
-      const summary = netLineChange === 0
-        ? `${linesReplaced} line(s)`
-        : `${linesReplaced} line(s) → ${newLineCount} line(s) (${netLineChange > 0 ? '+' : ''}${netLineChange})`;
+      const summary =
+        netLineChange === 0
+          ? `${linesReplaced} line(s)`
+          : `${linesReplaced} line(s) → ${newLineCount} line(s) (${netLineChange > 0 ? '+' : ''}${netLineChange})`;
 
       return {
         content: `Successfully replaced lines ${start_line}-${end_line} in '${path}' (${summary})\n\n${diff}${verificationMsg}`,
@@ -152,13 +154,13 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
           original_sha256: originalSha256,
           new_sha256: newSha256,
           verified: isVerified,
-          needleVerified: needle ? true : false
-        }
+          needleVerified: needle ? true : false,
+        },
       };
     } catch (error: any) {
       return {
         content: `Error replacing lines in '${path}': ${error.message}`,
-        isError: true
+        isError: true,
       };
     }
   }
@@ -170,7 +172,7 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
     path: string,
     locator: any,
     replacement: string,
-    context: ExecutionContext
+    context: ExecutionContext,
   ): Promise<ToolExecutorResult> {
     const { fileStore, appId } = context;
     const { start_line, end_line, needle } = locator;
@@ -196,14 +198,14 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
       if (start_line < 1 || start_line > lines.length) {
         return {
           content: `Error: start_line ${start_line} out of range (file has ${lines.length} lines)`,
-          isError: true
+          isError: true,
         };
       }
 
       if (end_line < start_line || end_line > lines.length) {
         return {
           content: `Error: end_line ${end_line} invalid (must be >= start_line and <= ${lines.length})`,
-          isError: true
+          isError: true,
         };
       }
 
@@ -225,8 +227,8 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
               needle_mismatch: true,
               expected: needle,
               actualPreview: preview,
-              suggestion: 'Use either-view to check file contents and provide exact matching text'
-            }
+              suggestion: 'Use either-view to check file contents and provide exact matching text',
+            },
           };
         }
 
@@ -237,8 +239,8 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
             metadata: {
               path,
               needle_occurrences: needleOccurrences,
-              suggestion: 'Include more context in needle to create a unique match'
-            }
+              suggestion: 'Include more context in needle to create a unique match',
+            },
           };
         }
 
@@ -249,8 +251,8 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
             metadata: {
               path,
               needle_location_mismatch: true,
-              suggestion: 'Use either-search-files to find correct line numbers'
-            }
+              suggestion: 'Use either-search-files to find correct line numbers',
+            },
           };
         }
       }
@@ -276,9 +278,10 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
       // Generate unified diff
       const diff = this.generateUnifiedDiff(path, targetLines, replacementLines, start_line);
 
-      const summary = netLineChange === 0
-        ? `${linesReplaced} line(s)`
-        : `${linesReplaced} line(s) → ${newLineCount} line(s) (${netLineChange > 0 ? '+' : ''}${netLineChange})`;
+      const summary =
+        netLineChange === 0
+          ? `${linesReplaced} line(s)`
+          : `${linesReplaced} line(s) → ${newLineCount} line(s) (${netLineChange > 0 ? '+' : ''}${netLineChange})`;
 
       return {
         content: `Successfully replaced lines ${start_line}-${end_line} in '${path}' (${summary}) in database\n\n${diff}`,
@@ -293,13 +296,13 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
           original_sha256: originalSha256,
           new_sha256: newSha256,
           needleVerified: needle ? true : false,
-          storage: 'database'
-        }
+          storage: 'database',
+        },
       };
     } catch (error: any) {
       return {
         content: `Error replacing lines in '${path}' in database: ${error.message}`,
-        isError: true
+        isError: true,
       };
     }
   }
@@ -307,12 +310,7 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
   /**
    * Generate unified diff format
    */
-  private generateUnifiedDiff(
-    path: string,
-    oldLines: string[],
-    newLines: string[],
-    startLine: number
-  ): string {
+  private generateUnifiedDiff(path: string, oldLines: string[], newLines: string[], startLine: number): string {
     const diff: string[] = [];
 
     diff.push(`--- ${path}`);
@@ -320,12 +318,12 @@ export class EitherLineReplaceExecutor implements ToolExecutor {
     diff.push(`@@ -${startLine},${oldLines.length} +${startLine},${newLines.length} @@`);
 
     // Show removed lines
-    oldLines.forEach(line => {
+    oldLines.forEach((line) => {
       diff.push(`-${line}`);
     });
 
     // Show added lines
-    newLines.forEach(line => {
+    newLines.forEach((line) => {
       diff.push(`+${line}`);
     });
 

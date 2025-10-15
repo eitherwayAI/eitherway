@@ -1,15 +1,11 @@
 import { Agent, AgentOptions, StreamingCallbacks } from './agent.js';
-import type {
-  DatabaseClient,
-  Session,
-  Message
-} from '@eitherway/database';
+import type { DatabaseClient, Session, Message } from '@eitherway/database';
 import {
   SessionsRepository,
   MessagesRepository,
   SessionMemoryRepository,
   WorkingSetRepository,
-  EventsRepository
+  EventsRepository,
 } from '@eitherway/database';
 
 export interface DatabaseAgentOptions extends Omit<AgentOptions, 'workingDir'> {
@@ -48,23 +44,27 @@ export class DatabaseAgent {
       agentConfig: options.agentConfig,
       executors: options.executors,
       dryRun: options.dryRun,
-      webSearch: options.webSearch
+      webSearch: options.webSearch,
     });
   }
 
   async processRequest(prompt: string, callbacks?: StreamingCallbacks): Promise<string> {
-    await this.eventsRepo.log('request.started', { prompt }, {
-      sessionId: this.sessionId,
-      actor: 'user'
-    });
+    await this.eventsRepo.log(
+      'request.started',
+      { prompt },
+      {
+        sessionId: this.sessionId,
+        actor: 'user',
+      },
+    );
 
     // Load previous conversation history from database
     const previousMessages = await this.messagesRepo.findRecentBySession(this.sessionId, 50);
 
     // Convert database messages to Agent message format (filter out system/tool messages)
     const conversationHistory = previousMessages
-      .filter(msg => msg.role === 'user' || msg.role === 'assistant')
-      .map(msg => {
+      .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
+      .map((msg) => {
         let content = msg.content;
 
         // Ensure content is always an array (Claude API requirement)
@@ -89,7 +89,7 @@ export class DatabaseAgent {
 
         return {
           role: msg.role as 'user' | 'assistant',
-          content
+          content,
         };
       });
 
@@ -101,7 +101,7 @@ export class DatabaseAgent {
       'user' as const,
       { text: prompt },
       undefined,
-      undefined
+      undefined,
     );
 
     await this.sessionsRepo.touchLastMessage(this.sessionId);
@@ -120,39 +120,45 @@ export class DatabaseAgent {
       const lastAssistantMessage = history[history.length - 1];
 
       // Save the full content (could be text or array of content blocks)
-      const contentToSave = lastAssistantMessage?.role === 'assistant'
-        ? lastAssistantMessage.content
-        : { text: response };
+      const contentToSave =
+        lastAssistantMessage?.role === 'assistant' ? lastAssistantMessage.content : { text: response };
 
       const assistantMessage = await this.messagesRepo.create(
         this.sessionId,
         'assistant' as const,
         contentToSave as any,
         'claude-sonnet-4-5',
-        tokenCount
+        tokenCount,
       );
 
       await this.sessionsRepo.touchLastMessage(this.sessionId);
 
-      await this.eventsRepo.log('request.completed', {
-        userMessageId: userMessage.id,
-        assistantMessageId: assistantMessage.id,
-        tokenCount
-      }, {
-        sessionId: this.sessionId,
-        actor: 'assistant'
-      });
+      await this.eventsRepo.log(
+        'request.completed',
+        {
+          userMessageId: userMessage.id,
+          assistantMessageId: assistantMessage.id,
+          tokenCount,
+        },
+        {
+          sessionId: this.sessionId,
+          actor: 'assistant',
+        },
+      );
 
       await this.updateMemoryIfNeeded();
-
     } catch (error: any) {
-      await this.eventsRepo.log('request.failed', {
-        error: error.message,
-        stack: error.stack
-      }, {
-        sessionId: this.sessionId,
-        actor: 'system'
-      });
+      await this.eventsRepo.log(
+        'request.failed',
+        {
+          error: error.message,
+          stack: error.stack,
+        },
+        {
+          sessionId: this.sessionId,
+          actor: 'system',
+        },
+      );
       throw error;
     }
 
@@ -169,19 +175,21 @@ export class DatabaseAgent {
 
       await this.memoryRepo.upsert(this.sessionId, {
         rollingSummary: summary,
-        lastCompactedMessageId: recentMessages[recentMessages.length - 1]?.id.toString()
+        lastCompactedMessageId: recentMessages[recentMessages.length - 1]?.id.toString(),
       });
     }
   }
 
   private generateSummary(messages: Message[]): string {
-    const userMessages = messages.filter(m => m.role === 'user');
-    const topics = userMessages.map(m => {
-      if (typeof m.content === 'object' && m.content.text) {
-        return m.content.text.substring(0, 50);
-      }
-      return '';
-    }).filter(Boolean);
+    const userMessages = messages.filter((m) => m.role === 'user');
+    const topics = userMessages
+      .map((m) => {
+        if (typeof m.content === 'object' && m.content.text) {
+          return m.content.text.substring(0, 50);
+        }
+        return '';
+      })
+      .filter(Boolean);
 
     return `Recent topics: ${topics.join(', ')}`;
   }
@@ -195,13 +203,7 @@ export class DatabaseAgent {
       throw new Error('Cannot add to working set: no appId');
     }
 
-    await this.workingSetRepo.add(
-      this.sessionId,
-      this.appId,
-      fileId,
-      reason,
-      'agent'
-    );
+    await this.workingSetRepo.add(this.sessionId, this.appId, fileId, reason, 'agent');
   }
 
   async getWorkingSet(): Promise<any[]> {
