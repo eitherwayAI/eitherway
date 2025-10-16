@@ -152,7 +152,7 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
   'eithergen--generate_image': {
     name: 'eithergen--generate_image',
     description:
-      'Generate high-quality images using DALL-E 3 and save to database-backed VFS. This tool WAITS for generation to complete and validates the image before returning. The tool response includes the EXACT file path - you MUST use this exact path when referencing the image in HTML/code (e.g., if saved to "/public/hero.png", use src="/public/hero.png" not src="/hero.png"). Generation takes 10-30 seconds.',
+      'Generate high-quality images using GPT-Image-1 (OpenAI) and save to database-backed VFS. Images are automatically saved to /public/generated/ and auto-injected into your app. This tool WAITS for generation to complete and validates the image before returning. Generation takes 10-30 seconds. The image will be automatically inserted into index.html or src/App.jsx if found.',
     input_schema: {
       type: 'object',
       properties: {
@@ -163,7 +163,7 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
         path: {
           type: 'string',
           description:
-            'Path where the image should be saved (e.g., "/public/hero.png"). You MUST use this exact same path when referencing the image in HTML/code. Extension will be added automatically if missing.',
+            'Desired filename for the image (e.g., "hero.png" or "logo"). Images are automatically saved to /public/generated/ directory. Extension will be added automatically if missing. The tool will auto-inject the image into your app.',
         },
         size: {
           type: 'string',

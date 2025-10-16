@@ -8,7 +8,7 @@ export interface ImageGenerationOptions {
   prompt: string;
   model?: 'gpt-image-1' | 'dall-e-3' | 'dall-e-2';
   size?: '1024x1024' | '1792x1024' | '1024x1792' | '256x256' | '512x512';
-  quality?: 'standard' | 'hd';
+  quality?: 'standard' | 'hd' | 'low' | 'medium' | 'high' | 'auto';
   n?: number;
   sessionId?: string;
   appId?: string;
@@ -46,14 +46,43 @@ export class ImageGenerationService {
     try {
       await this.jobsRepo.markStarted(jobId);
 
-      const response = await this.openai.images.generate({
-        model: options.model || 'gpt-image-1',
+      // Note: gpt-image-1 does NOT support response_format parameter
+      // It always returns b64_json by default, unlike DALL-E 3
+      const model = options.model || 'gpt-image-1';
+      const requestParams: any = {
+        model,
         prompt: options.prompt,
         n: options.n || 1,
         size: options.size || '1024x1024',
-        quality: options.quality || 'standard',
-        response_format: 'b64_json',
-      });
+      };
+
+      // Map quality parameter based on model
+      if (model === 'gpt-image-1') {
+        // gpt-image-1 uses: low, medium, high, auto
+        const qualityMap: Record<string, string> = {
+          standard: 'medium',
+          hd: 'high',
+          low: 'low',
+          medium: 'medium',
+          high: 'high',
+          auto: 'auto',
+        };
+        requestParams.quality = qualityMap[options.quality || 'standard'] || 'high';
+      } else {
+        // DALL-E 3/2 uses: standard, hd
+        const qualityMap: Record<string, string> = {
+          low: 'standard',
+          medium: 'standard',
+          high: 'hd',
+          auto: 'hd',
+          standard: 'standard',
+          hd: 'hd',
+        };
+        requestParams.quality = qualityMap[options.quality || 'standard'] || 'standard';
+        requestParams.response_format = 'b64_json';
+      }
+
+      const response = await this.openai.images.generate(requestParams);
 
       if (!response.data || response.data.length === 0) {
         throw new Error('No image data returned from OpenAI');
