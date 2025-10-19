@@ -25,6 +25,7 @@ export interface Message {
   content: any;
   model: string | null;
   token_count: number | null;
+  metadata: any | null;
   created_at: Date;
 }
 

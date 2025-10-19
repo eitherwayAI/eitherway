@@ -20,6 +20,7 @@ const menuVariants = {
     opacity: 0,
     visibility: 'hidden',
     left: '-150px',
+    pointerEvents: 'none',
     transition: {
       duration: 0.2,
       ease: cubicEasingFn,
@@ -29,6 +30,7 @@ const menuVariants = {
     opacity: 1,
     visibility: 'initial',
     left: 0,
+    pointerEvents: 'auto',
     transition: {
       duration: 0.2,
       ease: cubicEasingFn,

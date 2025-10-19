@@ -104,6 +104,21 @@ export class DatabaseAgent {
       undefined,
     );
 
+    // Create assistant message BEFORE streaming starts (with empty content)
+    // This ensures we have a database ID to send in stream_start
+    const assistantMessage = await this.messagesRepo.create(
+      this.sessionId,
+      'assistant' as const,
+      { text: '' }, // Placeholder - will be updated after streaming
+      'claude-sonnet-4-5',
+      undefined, // Token count will be set after completion
+    );
+
+    // Notify that the message was created (so server can send stream_start with real DB ID)
+    if (callbacks?.onMessageCreated) {
+      callbacks.onMessageCreated(assistantMessage.id.toString());
+    }
+
     await this.sessionsRepo.touchLastMessage(this.sessionId);
 
     let response: string;
@@ -115,7 +130,7 @@ export class DatabaseAgent {
       const estimatedTokens = Math.ceil(response.length / 4);
       tokenCount = estimatedTokens;
 
-      // Get the full conversation history to save the last assistant message properly
+      // Get the full conversation history to update the assistant message properly
       const history = this.agent.getHistory();
       const lastAssistantMessage = history[history.length - 1];
 
@@ -123,13 +138,8 @@ export class DatabaseAgent {
       const contentToSave =
         lastAssistantMessage?.role === 'assistant' ? lastAssistantMessage.content : { text: response };
 
-      const assistantMessage = await this.messagesRepo.create(
-        this.sessionId,
-        'assistant' as const,
-        contentToSave as any,
-        'claude-sonnet-4-5',
-        tokenCount,
-      );
+      // UPDATE the existing message instead of creating a new one
+      await this.messagesRepo.updateContent(assistantMessage.id, contentToSave as any, tokenCount);
 
       await this.sessionsRepo.touchLastMessage(this.sessionId);
 

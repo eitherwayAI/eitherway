@@ -9,6 +9,7 @@ export interface StreamOptions {
   onChunk: (chunk: string) => void;
   onComplete: () => void;
   onError: (error: string) => void;
+  onStreamStart?: (messageId: string) => void;
   onPhase?: (phase: 'pending' | 'thinking' | 'reasoning' | 'code-writing' | 'building' | 'completed') => void;
   onReasoning?: (text: string) => void;
   onThinkingComplete?: (duration: number) => void;
@@ -37,6 +38,7 @@ export async function streamFromWebSocket(options: StreamOptions): Promise<Strea
     onChunk,
     onComplete,
     onError,
+    onStreamStart,
     onPhase,
     onReasoning,
     onThinkingComplete,
@@ -133,6 +135,9 @@ export async function streamFromWebSocket(options: StreamOptions): Promise<Strea
           case 'stream_start':
             // Message streaming started
             console.log('[WebSocket] Stream started, messageId:', data.messageId);
+            if (onStreamStart && data.messageId) {
+              onStreamStart(data.messageId);
+            }
             break;
 
           case 'delta':

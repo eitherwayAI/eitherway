@@ -12,6 +12,141 @@ import type { ToolExecutor, ExecutionContext, ToolExecutorResult } from '@either
 import { SecurityGuard } from './security.js';
 import { ImageGenerationService, createDatabaseClient, PostgresFileStore } from '@eitherway/database';
 
+// Constants for image path normalization
+const DEFAULT_DIR = '/public/generated';
+
+/**
+ * Normalize path to be under /public/generated/ with correct extension
+ */
+function toPublicPath(p: string, ext: string): string {
+  const hasExt = p.endsWith('.png') || p.endsWith('.jpg') || p.endsWith('.jpeg') || p.endsWith('.webp');
+  const withExt = hasExt ? p : `${p}${ext}`;
+  return withExt.startsWith('/public/') ? withExt : `${DEFAULT_DIR}/${withExt.replace(/^\/+/, '')}`;
+}
+
+/**
+ * Convert /public/foo.png to /foo.png for WebContainer static serving
+ */
+function toHtmlPath(publicPath: string): string {
+  // '/public/foo.png' -> '/foo.png' (WebContainer static root)
+  return publicPath.replace(/^\/public/, '');
+}
+
+/**
+ * Find any HTML file in the file tree
+ */
+function findAnyHtml(files: any[]): any | null {
+  for (const file of files) {
+    if (file.path && file.path.toLowerCase().endsWith('.html')) {
+      return file;
+    }
+  }
+  return null;
+}
+
+/**
+ * Inject <img> tag into HTML content
+ */
+function injectIntoHtml(src: string, imgPath: string, alt: string): string {
+  const img = `\n  <img src="${imgPath}" alt="${alt}" loading="lazy" style="max-width:100%;height:auto" />\n`;
+
+  // Prefer to place inside <main> if present
+  if (src.includes('</main>')) {
+    return src.replace('</main>', `${img}</main>`);
+  }
+
+  // else append before </body>
+  if (src.includes('</body>')) {
+    return src.replace('</body>', `${img}</body>`);
+  }
+
+  return src + img;
+}
+
+/**
+ * Inject <img> tag into React/JSX content
+ */
+function injectIntoReact(src: string, imgPath: string, alt: string): string {
+  const img = `<img src="${imgPath}" alt="${alt}" loading="lazy" style={{maxWidth:'100%',height:'auto'}} />`;
+
+  // naive heuristic: insert just before the first closing </main> or </div>
+  const mainCloseIdx = src.indexOf('</main>');
+  if (mainCloseIdx !== -1) {
+    return src.slice(0, mainCloseIdx) + '\n      ' + img + '\n      ' + src.slice(mainCloseIdx);
+  }
+
+  // Try to find the return statement and inject before closing tag
+  const returnIdx = src.lastIndexOf('return (');
+  if (returnIdx !== -1) {
+    const closeIdx = src.indexOf('</', returnIdx);
+    if (closeIdx !== -1) {
+      return src.slice(0, closeIdx) + '\n      ' + img + '\n      ' + src.slice(closeIdx);
+    }
+  }
+
+  return src + `\n// injected image\n${img}\n`;
+}
+
+/**
+ * Auto-inject image reference into HTML or React files
+ */
+async function injectImageReference(
+  fileStore: PostgresFileStore,
+  appId: string,
+  htmlPath: string,
+  alt = 'Generated image'
+): Promise<string | null> {
+  // 1) try /index.html, index.html
+  const candidates = ['/index.html', 'index.html'];
+  for (const candidate of candidates) {
+    try {
+      const f = await fileStore.read(appId, candidate);
+      if (f.content) {
+        const content = typeof f.content === 'string' ? f.content : new TextDecoder().decode(f.content);
+        const injected = injectIntoHtml(content, htmlPath, alt);
+        await fileStore.write(appId, candidate, injected, f.mimeType);
+        return candidate;
+      }
+    } catch {
+      // File doesn't exist, continue
+    }
+  }
+
+  // 2) try any *.html file
+  try {
+    const files = await fileStore.list(appId, 1000);
+    const anyHtml = findAnyHtml(files);
+    if (anyHtml) {
+      const f = await fileStore.read(appId, anyHtml.path);
+      if (f.content) {
+        const content = typeof f.content === 'string' ? f.content : new TextDecoder().decode(f.content);
+        const injected = injectIntoHtml(content, htmlPath, alt);
+        await fileStore.write(appId, anyHtml.path, injected, f.mimeType);
+        return anyHtml.path;
+      }
+    }
+  } catch {
+    // No HTML files found, continue
+  }
+
+  // 3) try React: src/App.*sx? -> insert into JSX
+  for (const p of ['src/App.tsx', 'src/App.ts', 'src/App.jsx', 'src/App.js']) {
+    try {
+      const f = await fileStore.read(appId, p);
+      if (f.content) {
+        const content = typeof f.content === 'string' ? f.content : new TextDecoder().decode(f.content);
+        const injected = injectIntoReact(content, htmlPath, alt);
+        await fileStore.write(appId, p, injected, f.mimeType);
+        return p;
+      }
+    } catch {
+      // File doesn't exist, continue
+    }
+  }
+
+  return null;
+}
+
 export class ImageGenExecutor implements ToolExecutor {
   name = 'eithergen--generate_image';
 
@@ -52,13 +187,13 @@ export class ImageGenExecutor implements ToolExecutor {
         };
       }
 
-      // Map size to DALL-E 3 supported sizes
+      // Map size to gpt-image-1 supported sizes
       const dalleSize = this.mapSize(size);
 
       // Start image generation job
       const jobId = await imageService.generateImage({
         prompt,
-        model: 'dall-e-3',
+        model: 'gpt-image-1',
         size: dalleSize,
         quality: quality as 'standard' | 'hd',
         n: 1,
@@ -102,55 +237,54 @@ export class ImageGenExecutor implements ToolExecutor {
       const mimeType = asset.mimeType;
       const extension = mimeType === 'image/png' ? '.png' : '.jpg';
 
-      // Ensure path has correct extension
-      let finalPath = path;
-      if (!finalPath.endsWith('.png') && !finalPath.endsWith('.jpg') && !finalPath.endsWith('.jpeg')) {
-        finalPath = path + extension;
-      }
+      // Normalize path to /public/generated/ directory
+      const finalPath = toPublicPath(path, extension);
+      const htmlPath = toHtmlPath(finalPath);
 
+      // Write image to database-backed VFS
       await fileStore.write(appId, finalPath, asset.bytes, mimeType);
+
+      // Auto-inject image reference into HTML or React files
+      const altText = prompt.substring(0, 100); // Use first 100 chars of prompt as alt
+      const injectedFile = await injectImageReference(fileStore, appId, htmlPath, altText);
 
       // DO NOT close db - it's a singleton shared by all tools
       // The server manages database lifecycle, not individual tools
 
       // Build public URL for the image
-      const serverOrigin = process.env.SERVER_ORIGIN || 'http://localhost:3001';
+      const serverOrigin = process.env.SERVER_ORIGIN || 'https://localhost:3001';
       const assetUrl = `${serverOrigin}/api/images/assets/${assetId}`;
 
-      // Determine the correct path for HTML/code usage
-      // Vite serves files from public/ directory at the root path
-      // So public/image.png should be referenced as /image.png
-      let htmlPath = finalPath;
-      if (finalPath.startsWith('public/') || finalPath.startsWith('/public/')) {
-        // Remove the public/ prefix for Vite
-        htmlPath = '/' + finalPath.replace(/^\/?public\//, '');
-      } else if (!finalPath.startsWith('/')) {
-        // Ensure absolute path
-        htmlPath = '/' + finalPath;
+      // Build success message with auto-injection status
+      let injectionStatus = '';
+      if (injectedFile) {
+        injectionStatus = `\n✨ Auto-injected into: ${injectedFile}\n   The image will now appear in your app preview!\n`;
+      } else {
+        injectionStatus = `\n⚠️  No HTML/React file found for auto-injection. Create an index.html or src/App.jsx file first.\n`;
       }
 
       return {
         content: `✅ Image generated and saved successfully!
 
 📁 Saved to: ${finalPath}
-⚠️  IMPORTANT: Use this path in your HTML/code: ${htmlPath}
-
-Example usage:
-<img src="${htmlPath}" alt="${prompt.substring(0, 50)}...">
-
+🌐 HTML path: ${htmlPath}${injectionStatus}
 Details:
 - Prompt: "${prompt}"
 - Size: ${dalleSize}
 - Quality: ${quality}
 - Format: ${mimeType}
 - File size: ${(asset.bytes.length / 1024).toFixed(2)} KB
+- Dimensions: ${result.assets[0].width}x${result.assets[0].height}
 - Job ID: ${jobId}
 - Asset ID: ${assetId}
 
-The image is now available in the file system and will display in the preview.`,
+Example usage (if manual placement needed):
+<img src="${htmlPath}" alt="${altText}" loading="lazy" style="max-width:100%;height:auto">`,
         isError: false,
         metadata: {
           path: finalPath,
+          htmlPath,
+          injectedFile,
           prompt,
           size: dalleSize,
           quality,
@@ -172,7 +306,7 @@ The image is now available in the file system and will display in the preview.`,
   }
 
   private mapSize(size: string): '1024x1024' | '1792x1024' | '1024x1792' {
-    // DALL-E 3 supports: 1024x1024, 1024x1792, 1792x1024
+    // gpt-image-1 supports: 1024x1024, 1024x1792, 1792x1024 (same as DALL-E 3)
     const [w, h] = size.split('x').map(Number);
     if (w >= 1024 && h >= 1024) {
       if (w > h) return '1792x1024';

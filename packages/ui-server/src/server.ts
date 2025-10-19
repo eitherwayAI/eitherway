@@ -22,6 +22,7 @@ import { registerNetlifyRoutes } from './routes/netlify.js';
 import { registerDeploymentRoutes } from './routes/deployments.js';
 import { registerAppRoutes } from './routes/apps.js';
 import { registerBrandKitRoutes } from './routes/brand-kits.js';
+import { registerUploadRoutes } from './routes/uploads.js';
 import { constants } from 'fs';
 import { randomUUID } from 'crypto';
 import { StreamEvents, createEventSender } from './events/index.js';
@@ -101,6 +102,7 @@ try {
     await registerNetlifyRoutes(fastify, db, WORKSPACE_DIR);
     await registerDeploymentRoutes(fastify, db, WORKSPACE_DIR);
     await registerBrandKitRoutes(fastify, db);
+    await registerUploadRoutes(fastify, db);
   } else {
     console.log('⚠ Database not available - files will only be saved to filesystem');
   }
@@ -486,7 +488,7 @@ await fastify.register(async (fastify) => {
       if (data.type === 'prompt') {
         try {
           let response: string;
-          const messageId: string = randomUUID(); // Generate message ID for streaming
+          let messageId!: string; // Declare at top level, will be assigned in callback or immediately
 
           // Use DatabaseAgent when in database mode
           if (!USE_LOCAL_FS && dbConnected && db && sessionId) {
@@ -528,15 +530,17 @@ await fastify.register(async (fastify) => {
               dbAgent.setDatabaseContext(fileStore, session.app_id, sessionId);
             }
 
-            // Use the messageId declared above
+            // Message ID will be set when DatabaseAgent creates the message
             let accumulatedText = '';
             let tokenUsage: { inputTokens: number; outputTokens: number } | undefined;
 
-            // Send stream_start event
-            sender.send(StreamEvents.streamStart(messageId));
-
             // Create streaming callbacks
             const streamingCallbacks: StreamingCallbacks = {
+              onMessageCreated: (dbMessageId) => {
+                // Capture the real database message ID and send stream_start
+                messageId = dbMessageId;
+                sender.send(StreamEvents.streamStart(messageId));
+              },
               onDelta: (delta) => {
                 if (delta.type === 'text') {
                   accumulatedText += delta.content;
@@ -588,7 +592,8 @@ await fastify.register(async (fastify) => {
               webSearch: agentConfig.tools.webSearch,
             });
 
-            // Use the messageId declared above
+            // For local filesystem mode, use UUID as messageId (no database)
+            messageId = randomUUID();
             let accumulatedText = '';
             let tokenUsage: { inputTokens: number; outputTokens: number } | undefined;
 

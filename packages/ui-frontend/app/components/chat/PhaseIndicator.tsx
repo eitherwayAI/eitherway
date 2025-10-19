@@ -12,7 +12,7 @@ const phaseConfig = {
     color: 'text-gray-400',
   },
   thinking: {
-    label: 'Thinking',
+    label: 'Working…',
     icon: 'i-ph:brain',
     color: 'text-blue-400',
   },
