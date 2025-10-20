@@ -304,6 +304,7 @@ export interface AgentOptions {
     allowedDomains?: string[];
     blockedDomains?: string[];
   };
+  systemPromptPrefix?: string; // P1.5: Optional dynamic prefix for context (e.g., Memory Prelude)
 }
 
 export class Agent {
@@ -312,6 +313,7 @@ export class Agent {
   private recorder: TranscriptRecorder;
   private conversationHistory: Message[];
   private options: AgentOptions;
+  private systemPromptPrefix: string; // P1.5: Dynamic system prompt prefix
 
   // --- READ-before-WRITE enforcement constants ---
   private static readonly WRITE_TOOLS = new Set(['either-line-replace', 'either-write']);
@@ -319,6 +321,7 @@ export class Agent {
 
   constructor(options: AgentOptions) {
     this.options = options;
+    this.systemPromptPrefix = options.systemPromptPrefix || ''; // P1.5: Store prefix
     this.modelClient = new ModelClient(options.claudeConfig);
     this.toolRunner = new ToolRunner(options.executors, options.workingDir, options.agentConfig);
     this.recorder = new TranscriptRecorder(options.agentConfig);
@@ -330,6 +333,13 @@ export class Agent {
    */
   loadConversationHistory(messages: Message[]): void {
     this.conversationHistory = messages;
+  }
+
+  /**
+   * P1.5: Update the system prompt prefix dynamically (for Memory Prelude)
+   */
+  setSystemPromptPrefix(prefix: string): void {
+    this.systemPromptPrefix = prefix;
   }
 
   /**
@@ -393,10 +403,15 @@ export class Agent {
         justExecutedTools = false;
       }
 
+      // P1.5: Build final system prompt (prefix + static prompt)
+      const finalSystemPrompt = this.systemPromptPrefix
+        ? `${this.systemPromptPrefix}\n\n---\n\n${SYSTEM_PROMPT}`
+        : SYSTEM_PROMPT;
+
       // Send message to Claude
       const response = await this.modelClient.sendMessage(
         this.conversationHistory,
-        SYSTEM_PROMPT,
+        finalSystemPrompt,
         getAllToolDefinitions(),
         {
           onDelta: async (delta) => {

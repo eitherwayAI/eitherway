@@ -6,6 +6,7 @@ import {
   SessionMemoryRepository,
   WorkingSetRepository,
   EventsRepository,
+  MemoryPreludeService, // P1.5: Import for dynamic system prompt
 } from '@eitherway/database';
 
 export interface DatabaseAgentOptions extends Omit<AgentOptions, 'workingDir'> {
@@ -24,6 +25,7 @@ export class DatabaseAgent {
   private memoryRepo: SessionMemoryRepository;
   private workingSetRepo: WorkingSetRepository;
   private eventsRepo: EventsRepository;
+  private memoryPreludeService: MemoryPreludeService; // P1.5: Service for building dynamic context
   private sessionId: string;
   private appId?: string;
 
@@ -37,6 +39,7 @@ export class DatabaseAgent {
     this.memoryRepo = new SessionMemoryRepository(this.db);
     this.workingSetRepo = new WorkingSetRepository(this.db);
     this.eventsRepo = new EventsRepository(this.db);
+    this.memoryPreludeService = new MemoryPreludeService(this.db); // P1.5: Initialize service
 
     this.agent = new Agent({
       workingDir: options.workingDir || process.cwd(),
@@ -58,14 +61,46 @@ export class DatabaseAgent {
       },
     );
 
-    // Load previous conversation history from database
-    const previousMessages = await this.messagesRepo.findRecentBySession(this.sessionId, 50);
+    // P1.5: Build Memory Prelude for dynamic context
+    let memoryPreludeText = '';
+    try {
+      const prelude = await this.memoryPreludeService.buildPrelude(this.sessionId);
+      memoryPreludeText = this.memoryPreludeService.formatAsSystemMessage(prelude);
+
+      // Set the dynamic system prompt prefix on the agent
+      this.agent.setSystemPromptPrefix(memoryPreludeText);
+    } catch (error) {
+      // Gracefully degrade if memory prelude fails (e.g., missing session data)
+      console.warn('[DatabaseAgent] Failed to build memory prelude:', error);
+      this.agent.setSystemPromptPrefix('');
+    }
+
+    // P1: Load previous conversation history with smart bounded history
+    // Check if we have a compaction point; if so, load only messages after that point
+    const memory = await this.memoryRepo.findBySession(this.sessionId);
+    let previousMessages: any[];
+
+    if (memory?.last_compacted_message_id) {
+      // Load messages after last compaction (with a safety cap of 10)
+      previousMessages = await this.messagesRepo.findAfterMessageId(
+        this.sessionId,
+        memory.last_compacted_message_id,
+        10
+      );
+    } else {
+      // No compaction yet, load last 10 messages
+      previousMessages = await this.messagesRepo.findRecentBySession(this.sessionId, 10);
+    }
 
     // Convert database messages to Agent message format (filter out system/tool messages)
+    // P1: Sanitize old tool results to prevent context bloat
     const conversationHistory = previousMessages
       .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
-      .map((msg) => {
+      .map((msg, index) => {
         let content = msg.content;
+
+        // P1: Determine if this is a recent message (last 5 messages keep full tool results)
+        const isRecent = index >= previousMessages.length - 5;
 
         // Ensure content is always an array (Claude API requirement)
         if (typeof content === 'string') {
@@ -73,7 +108,34 @@ export class DatabaseAgent {
           content = [{ type: 'text', text: content }];
         } else if (typeof content === 'object' && content !== null) {
           if (Array.isArray(content)) {
-            // Already an array - keep as-is
+            // P1: Strip large tool results from older messages
+            if (!isRecent) {
+              content = content.map((block: any) => {
+                if (block.type === 'tool_result') {
+                  // Replace with lightweight placeholder
+                  const toolInfo = block.tool_use_id || block.name || 'unknown';
+                  const pathInfo = block.content && typeof block.content === 'string'
+                    ? block.content.substring(0, 100)
+                    : '';
+                  return {
+                    type: 'text',
+                    text: `[Tool executed: ${toolInfo}${pathInfo ? ' - ' + pathInfo.split('\n')[0] : ''}]`,
+                  };
+                }
+                if (block.type === 'tool_use' && block.input?.content && block.input.content.length > 500) {
+                  // Truncate large tool inputs in older messages
+                  return {
+                    ...block,
+                    input: {
+                      ...block.input,
+                      content: block.input.content.substring(0, 500) + '... [truncated]',
+                    },
+                  };
+                }
+                return block;
+              });
+            }
+            // Already an array - use as-is (possibly sanitized)
             content = content;
           } else if ('text' in content && content.text) {
             // Object with text property - wrap in array
@@ -190,18 +252,62 @@ export class DatabaseAgent {
     }
   }
 
+  /**
+   * P1.5: Generate improved summary of conversation for context compaction
+   * Extracts key actions, files modified, and user requests
+   */
   private generateSummary(messages: Message[]): string {
-    const userMessages = messages.filter((m) => m.role === 'user');
-    const topics = userMessages
-      .map((m) => {
-        if (typeof m.content === 'object' && m.content.text) {
-          return m.content.text.substring(0, 50);
-        }
-        return '';
-      })
-      .filter(Boolean);
+    const summaryParts: string[] = [];
+    const filesModified = new Set<string>();
+    const keyActions: string[] = [];
 
-    return `Recent topics: ${topics.join(', ')}`;
+    for (const msg of messages) {
+      // Extract user requests
+      if (msg.role === 'user') {
+        let userText = '';
+        if (typeof msg.content === 'string') {
+          userText = msg.content;
+        } else if (typeof msg.content === 'object' && msg.content !== null) {
+          if (Array.isArray(msg.content)) {
+            const textBlocks = msg.content.filter((b: any) => b.type === 'text');
+            userText = textBlocks.map((b: any) => b.text).join(' ');
+          } else if ('text' in msg.content) {
+            userText = msg.content.text;
+          }
+        }
+
+        if (userText) {
+          // Extract first sentence or first 80 chars
+          const firstSentence = userText.split(/[.!?]/)[0].substring(0, 80);
+          if (firstSentence) {
+            keyActions.push(firstSentence.trim());
+          }
+        }
+      }
+
+      // Extract files from assistant tool uses
+      if (msg.role === 'assistant' && typeof msg.content === 'object' && Array.isArray(msg.content)) {
+        for (const block of msg.content) {
+          if (block.type === 'tool_use' && block.input?.path) {
+            filesModified.add(block.input.path);
+          }
+        }
+      }
+    }
+
+    // Build summary
+    if (keyActions.length > 0) {
+      summaryParts.push(`Recent requests: ${keyActions.slice(-3).join('; ')}`);
+    }
+
+    if (filesModified.size > 0) {
+      const fileList = Array.from(filesModified).slice(-5).join(', ');
+      summaryParts.push(`Modified files: ${fileList}`);
+    }
+
+    return summaryParts.length > 0
+      ? summaryParts.join('. ')
+      : 'Session in progress - building application.';
   }
 
   async saveTranscript(): Promise<void> {

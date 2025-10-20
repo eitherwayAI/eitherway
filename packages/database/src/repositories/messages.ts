@@ -47,6 +47,20 @@ export class MessagesRepository {
     return result.rows.reverse();
   }
 
+  /**
+   * P1: Find messages after a specific message ID (for bounded history based on last_compacted_message_id)
+   */
+  async findAfterMessageId(sessionId: string, afterMessageId: string, limit = 10): Promise<Message[]> {
+    const result = await this.db.query<Message>(
+      `SELECT * FROM core.messages
+       WHERE session_id = $1 AND id > $2
+       ORDER BY id ASC
+       LIMIT $3`,
+      [sessionId, afterMessageId, limit],
+    );
+    return result.rows;
+  }
+
   async countBySession(sessionId: string): Promise<number> {
     const result = await this.db.query<{ count: string }>(
       `SELECT COUNT(*) as count FROM core.messages WHERE session_id = $1`,
