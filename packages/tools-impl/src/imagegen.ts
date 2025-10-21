@@ -259,7 +259,7 @@ export class ImageGenExecutor implements ToolExecutor {
   name = 'eithergen--generate_image';
 
   async execute(input: Record<string, any>, context: ExecutionContext): Promise<ToolExecutorResult> {
-    const { prompt, path, size = '1792x1024', quality = 'hd' } = input;
+    const { prompt, path, size = '1536x1024', quality = 'hd' } = input;
 
     // Security check
     const guard = new SecurityGuard(context.config.security);
@@ -416,14 +416,15 @@ Example usage (if manual placement needed):
     }
   }
 
-  private mapSize(size: string): '1024x1024' | '1792x1024' | '1024x1792' {
-    // gpt-image-1 supports: 1024x1024, 1024x1792, 1792x1024 (same as DALL-E 3)
+  private mapSize(size: string): '1024x1024' | '1536x1024' | '1024x1536' {
+    // gpt-image-1 supports: 1024x1024, 1024x1536, 1536x1024, auto
+    // Using explicit sizes for predictability (avoiding 'auto')
     const [w, h] = size.split('x').map(Number);
     if (w >= 1024 && h >= 1024) {
-      if (w > h) return '1792x1024';
-      if (h > w) return '1024x1792';
-      return '1024x1024';
+      if (w > h) return '1536x1024'; // Landscape: 1536x1024
+      if (h > w) return '1024x1536'; // Portrait: 1024x1536
+      return '1024x1024'; // Square: 1024x1024
     }
-    return '1024x1024'; // Default
+    return '1024x1024'; // Default fallback
   }
 }
