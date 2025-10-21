@@ -16,6 +16,148 @@ const logger = createScopedLogger('WebContainerRunner');
 let devServerProcess: WebContainerProcess | null = null;
 let serverRunning = false; // Track if server is already running
 
+// Package.json change detection for auto-install
+let lastPackageJsonHash: string | null = null;
+let installInProgress = false;
+let pendingInstall: NodeJS.Timeout | null = null;
+const INSTALL_DEBOUNCE_MS = 1000; // 1 second debounce
+
+/**
+ * Compute hash of package.json content for change detection
+ */
+async function hashPackageJson(webcontainer: WebContainer): Promise<string | null> {
+  try {
+    const content = await webcontainer.fs.readFile('package.json', 'utf8');
+    // Simple hash using crypto if available, otherwise use content length + first/last chars
+    if (typeof crypto !== 'undefined' && crypto.subtle) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(content);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } else {
+      // Fallback: simple hash using content
+      return `${content.length}-${content.substring(0, 50)}-${content.substring(content.length - 50)}`;
+    }
+  } catch {
+    return null; // package.json doesn't exist
+  }
+}
+
+/**
+ * Clear Vite's dependency optimization cache
+ * This forces Vite to re-optimize dependencies on next request
+ */
+async function clearViteCache(webcontainer: WebContainer): Promise<void> {
+  try {
+    // Check if node_modules/.vite exists
+    const viteCache = 'node_modules/.vite';
+
+    try {
+      const stats = await webcontainer.fs.readdir(viteCache, { withFileTypes: true });
+
+      // Directory exists, try to remove it
+      // WebContainer doesn't have rm -rf, so we need to remove files first
+      for (const entry of stats) {
+        const entryPath = `${viteCache}/${entry.name}`;
+        try {
+          if (entry.isDirectory()) {
+            // For directories, remove recursively (this is a best effort)
+            await webcontainer.spawn('rm', ['-rf', entryPath]);
+          } else {
+            await webcontainer.fs.rm(entryPath);
+          }
+        } catch {
+          // Some files might be in use, continue
+        }
+      }
+
+      // Remove the .vite directory itself
+      try {
+        await webcontainer.fs.rm(viteCache, { recursive: true });
+      } catch {
+        // Might fail if not empty, that's ok
+      }
+
+      logger.info('🧹 Cleared Vite cache (node_modules/.vite) to force dependency re-optimization');
+    } catch {
+      // .vite directory doesn't exist yet, nothing to clear
+      logger.debug('No Vite cache to clear (first run or cache already cleared)');
+    }
+  } catch (error) {
+    logger.warn('Failed to clear Vite cache:', error);
+    // Non-fatal, continue anyway
+  }
+}
+
+/**
+ * Run npm install if package.json has changed (debounced)
+ */
+async function checkAndRunInstall(webcontainer: WebContainer): Promise<void> {
+  // Clear any pending install
+  if (pendingInstall) {
+    clearTimeout(pendingInstall);
+    pendingInstall = null;
+  }
+
+  // Debounce the install
+  pendingInstall = setTimeout(async () => {
+    if (installInProgress) {
+      logger.info('Install already in progress, skipping');
+      return;
+    }
+
+    const currentHash = await hashPackageJson(webcontainer);
+
+    // No package.json or hash unchanged
+    if (!currentHash || currentHash === lastPackageJsonHash) {
+      return;
+    }
+
+    // Hash changed - run install
+    logger.info('📦 package.json changed, running npm install...');
+    installInProgress = true;
+
+    try {
+      const installProcess = await webcontainer.spawn('npm', ['install']);
+
+      installProcess.output.pipeTo(
+        new WritableStream({
+          write(data) {
+            logger.debug('[npm install]', data);
+          },
+        }),
+      );
+
+      const exitCode = await installProcess.exit;
+
+      if (exitCode === 0) {
+        logger.info('✅ npm install completed successfully');
+        lastPackageJsonHash = currentHash; // Update hash only on success
+
+        // CRITICAL: Clear Vite cache to prevent "Outdated Optimize Dep" errors
+        // When new dependencies are installed, Vite's pre-bundled cache becomes stale
+        // Clearing it forces Vite to re-optimize deps on next request
+        await clearViteCache(webcontainer);
+
+        // Give Vite a moment to detect the cache is gone
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        logger.info('💡 Tip: If you see module errors, the preview will auto-refresh once Vite re-optimizes dependencies');
+      } else {
+        logger.error(`❌ npm install failed with exit code ${exitCode}`);
+        // Don't update hash so it will retry next time
+      }
+    } catch (error) {
+      logger.error('❌ npm install error:', error);
+      // Don't update hash so it will retry next time
+    } finally {
+      installInProgress = false;
+      pendingInstall = null;
+    }
+  }, INSTALL_DEBOUNCE_MS);
+}
+
 /**
  * Register preview URL with fallback if port event doesn't fire
  * WebContainer should automatically emit 'port' events, but this provides a safety net
@@ -338,9 +480,15 @@ export async function runDevServer(webcontainer: WebContainer, files: any[]): Pr
   const isStaticServer = !hasPackageJson;
 
   // For npm-based apps with HMR, skip restart if already running
-  // For static servers, we need to trigger a preview reload since they don't have HMR
+  // But still check if package.json changed and run install if needed
   if (serverRunning && !isStaticServer) {
     logger.info('Server already running - skipping restart, files will hot-reload automatically');
+
+    // Check if package.json changed and auto-install dependencies
+    if (hasPackageJson) {
+      await checkAndRunInstall(webcontainer);
+    }
+
     return;
   }
 
@@ -404,6 +552,13 @@ export async function runDevServer(webcontainer: WebContainer, files: any[]): Pr
         logger.error('npm install failed');
         return;
       }
+
+      // Initialize package.json hash after successful first install
+      lastPackageJsonHash = await hashPackageJson(webcontainer);
+      logger.debug('Initialized package.json hash for change detection');
+
+      // Clear Vite cache after initial install (ensures clean state)
+      await clearViteCache(webcontainer);
 
       // Start dev server
       logger.info('Starting dev server...');

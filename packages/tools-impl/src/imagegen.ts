@@ -45,10 +45,82 @@ function findAnyHtml(files: any[]): any | null {
 }
 
 /**
- * Inject <img> tag into HTML content
+ * Check if an image path is already referenced in any file
+ * Searches through text files (HTML, JS, TS, JSX, TSX, etc.) for the image path
  */
-function injectIntoHtml(src: string, imgPath: string, alt: string): string {
-  const img = `\n  <img src="${imgPath}" alt="${alt}" loading="lazy" style="max-width:100%;height:auto" />\n`;
+async function isImageReferenced(
+  fileStore: PostgresFileStore,
+  appId: string,
+  imagePath: string,
+  limit: number = 100
+): Promise<boolean> {
+  try {
+    const files = await fileStore.list(appId, limit);
+
+    // Build regex pattern for various ways the image might be referenced
+    // Matches: src="/path", src='/path', src={"/path"}, import from "/path", etc.
+    const patterns = [
+      // Exact matches with quotes
+      new RegExp(`["'\`]${imagePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'\`]`, 'i'),
+      // Without leading slash (for relative paths)
+      new RegExp(`["'\`]${imagePath.replace(/^\//, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'\`]`, 'i'),
+      // WebContainer public path (e.g., /public/generated/image.png referenced as /generated/image.png)
+      imagePath.startsWith('/public/')
+        ? new RegExp(`["'\`]${imagePath.replace('/public/', '/').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'\`]`, 'i')
+        : null,
+    ].filter(Boolean);
+
+    // Only check text files
+    const textExtensions = ['.html', '.htm', '.js', '.jsx', '.ts', '.tsx', '.vue', '.svelte', '.css', '.md'];
+
+    for (const file of files) {
+      if (!file.path) continue;
+
+      const ext = file.path.toLowerCase().match(/\.[^.]+$/)?.[0];
+      if (!ext || !textExtensions.includes(ext)) continue;
+
+      try {
+        const content = await fileStore.read(appId, file.path);
+        const text = typeof content.content === 'string'
+          ? content.content
+          : Buffer.from(content.content).toString('utf-8');
+
+        // Check all patterns
+        for (const pattern of patterns) {
+          if (pattern && pattern.test(text)) {
+            console.log(`[Image Reference] Found reference to ${imagePath} in ${file.path}`);
+            return true;
+          }
+        }
+      } catch {
+        // File read failed, skip
+        continue;
+      }
+    }
+
+    return false;
+  } catch (error) {
+    console.warn('[Image Reference] Error checking references:', error);
+    return false; // On error, assume not referenced
+  }
+}
+
+/**
+ * Inject <img> tag into HTML content with data attribute for idempotency
+ */
+function injectIntoHtml(src: string, imgPath: string, alt: string, assetId?: string): string {
+  const dataAttr = assetId ? ` data-eitherway-asset="${assetId}"` : '';
+  const img = `\n  <img src="${imgPath}" alt="${alt}"${dataAttr} loading="lazy" decoding="async" style="max-width:100%;height:auto;display:block" />\n`;
+
+  // Check if already injected (by data attribute or src)
+  if (assetId && src.includes(`data-eitherway-asset="${assetId}"`)) {
+    console.log('[Image Injection] Image already injected (found data attribute), skipping');
+    return src;
+  }
+  if (src.includes(`src="${imgPath}"`)) {
+    console.log('[Image Injection] Image already injected (found src), skipping');
+    return src;
+  }
 
   // Prefer to place inside <main> if present
   if (src.includes('</main>')) {
@@ -64,10 +136,21 @@ function injectIntoHtml(src: string, imgPath: string, alt: string): string {
 }
 
 /**
- * Inject <img> tag into React/JSX content
+ * Inject <img> tag into React/JSX content with data attribute for idempotency
  */
-function injectIntoReact(src: string, imgPath: string, alt: string): string {
-  const img = `<img src="${imgPath}" alt="${alt}" loading="lazy" style={{maxWidth:'100%',height:'auto'}} />`;
+function injectIntoReact(src: string, imgPath: string, alt: string, assetId?: string): string {
+  const dataAttr = assetId ? ` data-eitherway-asset="${assetId}"` : '';
+  const img = `<img src="${imgPath}" alt="${alt}"${dataAttr} loading="lazy" decoding="async" style={{maxWidth:'100%',height:'auto',display:'block'}} />`;
+
+  // Check if already injected (by data attribute or src)
+  if (assetId && src.includes(`data-eitherway-asset="${assetId}"`)) {
+    console.log('[Image Injection] Image already injected in React (found data attribute), skipping');
+    return src;
+  }
+  if (src.includes(`src="${imgPath}"`) || src.includes(`src='${imgPath}'`) || src.includes(`src={\`${imgPath}\`}`)) {
+    console.log('[Image Injection] Image already injected in React (found src), skipping');
+    return src;
+  }
 
   // naive heuristic: insert just before the first closing </main> or </div>
   const mainCloseIdx = src.indexOf('</main>');
@@ -89,61 +172,86 @@ function injectIntoReact(src: string, imgPath: string, alt: string): string {
 
 /**
  * Auto-inject image reference into HTML or React files
+ * Priority: React components > other HTML > index.html (last resort)
  */
 async function injectImageReference(
   fileStore: PostgresFileStore,
   appId: string,
   htmlPath: string,
-  alt = 'Generated image'
+  alt = 'Generated image',
+  assetId?: string
 ): Promise<string | null> {
-  // 1) try /index.html, index.html
-  const candidates = ['/index.html', 'index.html'];
-  for (const candidate of candidates) {
+  // STEP 0: Check if image is already referenced anywhere
+  const alreadyReferenced = await isImageReferenced(fileStore, appId, htmlPath);
+  if (alreadyReferenced) {
+    console.log(`[Image Injection] Image ${htmlPath} already referenced in project, skipping auto-injection`);
+    return null; // Return null to indicate no injection was needed
+  }
+
+  // PRIORITY 1: Try React components first (src/App.*sx?)
+  for (const p of ['src/App.tsx', 'src/App.jsx', 'src/App.ts', 'src/App.js']) {
     try {
-      const f = await fileStore.read(appId, candidate);
+      const f = await fileStore.read(appId, p);
       if (f.content) {
         const content = typeof f.content === 'string' ? f.content : new TextDecoder().decode(f.content);
-        const injected = injectIntoHtml(content, htmlPath, alt);
-        await fileStore.write(appId, candidate, injected, f.mimeType);
-        return candidate;
+        const injected = injectIntoReact(content, htmlPath, alt, assetId);
+
+        // Only write if content actually changed
+        if (injected !== content) {
+          await fileStore.write(appId, p, injected, f.mimeType);
+          console.log(`[Image Injection] Injected into React component: ${p}`);
+          return p;
+        }
       }
     } catch {
       // File doesn't exist, continue
     }
   }
 
-  // 2) try any *.html file
+  // PRIORITY 2: Try other HTML files (NOT index.html yet)
   try {
     const files = await fileStore.list(appId, 1000);
     const anyHtml = findAnyHtml(files);
-    if (anyHtml) {
+
+    // Only use non-index HTML files here
+    if (anyHtml && !anyHtml.path.endsWith('/index.html') && anyHtml.path !== 'index.html') {
       const f = await fileStore.read(appId, anyHtml.path);
       if (f.content) {
         const content = typeof f.content === 'string' ? f.content : new TextDecoder().decode(f.content);
-        const injected = injectIntoHtml(content, htmlPath, alt);
-        await fileStore.write(appId, anyHtml.path, injected, f.mimeType);
-        return anyHtml.path;
+        const injected = injectIntoHtml(content, htmlPath, alt, assetId);
+
+        if (injected !== content) {
+          await fileStore.write(appId, anyHtml.path, injected, f.mimeType);
+          console.log(`[Image Injection] Injected into HTML file: ${anyHtml.path}`);
+          return anyHtml.path;
+        }
       }
     }
   } catch {
     // No HTML files found, continue
   }
 
-  // 3) try React: src/App.*sx? -> insert into JSX
-  for (const p of ['src/App.tsx', 'src/App.ts', 'src/App.jsx', 'src/App.js']) {
+  // PRIORITY 3 (LAST RESORT): Try index.html
+  const indexCandidates = ['/index.html', 'index.html'];
+  for (const candidate of indexCandidates) {
     try {
-      const f = await fileStore.read(appId, p);
+      const f = await fileStore.read(appId, candidate);
       if (f.content) {
         const content = typeof f.content === 'string' ? f.content : new TextDecoder().decode(f.content);
-        const injected = injectIntoReact(content, htmlPath, alt);
-        await fileStore.write(appId, p, injected, f.mimeType);
-        return p;
+        const injected = injectIntoHtml(content, htmlPath, alt, assetId);
+
+        if (injected !== content) {
+          await fileStore.write(appId, candidate, injected, f.mimeType);
+          console.log(`[Image Injection] Injected into index.html (last resort): ${candidate}`);
+          return candidate;
+        }
       }
     } catch {
       // File doesn't exist, continue
     }
   }
 
+  console.log('[Image Injection] No suitable injection target found');
   return null;
 }
 
@@ -151,7 +259,7 @@ export class ImageGenExecutor implements ToolExecutor {
   name = 'eithergen--generate_image';
 
   async execute(input: Record<string, any>, context: ExecutionContext): Promise<ToolExecutorResult> {
-    const { prompt, path, size = '1024x1024', quality = 'standard' } = input;
+    const { prompt, path, size = '1792x1024', quality = 'hd' } = input;
 
     // Security check
     const guard = new SecurityGuard(context.config.security);
@@ -246,7 +354,7 @@ export class ImageGenExecutor implements ToolExecutor {
 
       // Auto-inject image reference into HTML or React files
       const altText = prompt.substring(0, 100); // Use first 100 chars of prompt as alt
-      const injectedFile = await injectImageReference(fileStore, appId, htmlPath, altText);
+      const injectedFile = await injectImageReference(fileStore, appId, htmlPath, altText, assetId);
 
       // DO NOT close db - it's a singleton shared by all tools
       // The server manages database lifecycle, not individual tools
@@ -259,8 +367,11 @@ export class ImageGenExecutor implements ToolExecutor {
       let injectionStatus = '';
       if (injectedFile) {
         injectionStatus = `\n✨ Auto-injected into: ${injectedFile}\n   The image will now appear in your app preview!\n`;
+      } else if (injectedFile === null) {
+        // null means already referenced or no suitable target
+        injectionStatus = `\n💡 Image ready to use at path: ${htmlPath}\n   (Skipped auto-injection - image already referenced or use manually)\n`;
       } else {
-        injectionStatus = `\n⚠️  No HTML/React file found for auto-injection. Create an index.html or src/App.jsx file first.\n`;
+        injectionStatus = `\n⚠️  No suitable injection target found.\n   Use manually with: <img src="${htmlPath}" alt="${altText}" />\n`;
       }
 
       return {
