@@ -53,6 +53,29 @@ export async function registerBrandKitRoutes(
   console.log('[Brand Kits] Repositories initialized');
 
   /**
+   * Sanitize filename to be web-safe and filesystem-safe
+   * Removes special characters, spaces, and normalizes to lowercase
+   * CRITICAL: This must match the sanitization logic in the frontend (Chat.client.tsx)
+   */
+  function sanitizeFilename(filename: string): string {
+    // Extract extension
+    const lastDotIndex = filename.lastIndexOf('.');
+    const name = lastDotIndex > 0 ? filename.slice(0, lastDotIndex) : filename;
+    const ext = lastDotIndex > 0 ? filename.slice(lastDotIndex) : '';
+
+    // Sanitize the name part:
+    // - Replace spaces and underscores with hyphens
+    // - Convert to lowercase
+    // - Remove special characters except hyphens and alphanumeric
+    const sanitizedName = name
+      .replace(/[\s_]+/g, '-')
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '');
+
+    return sanitizedName + ext.toLowerCase();
+  }
+
+  /**
    * Helper: Clean up temporary files for a brand kit
    * Called when:
    * - Brand kit is archived (Start New Chat)
@@ -545,7 +568,9 @@ export async function registerBrandKitRoutes(
         if (part.type === 'file') {
           // This is the file upload - consume it immediately
           console.log('[Brand Kits API] File part received:', part.filename, 'MIME:', part.mimetype);
-          fileName = part.filename;
+          // CRITICAL: Sanitize filename to match frontend sanitization (removes #, special chars, etc.)
+          fileName = sanitizeFilename(part.filename);
+          console.log('[Brand Kits API] Sanitized filename:', fileName);
           mimeType = part.mimetype;
           buffer = await part.toBuffer();
           console.log('[Brand Kits API] File buffered, size:', buffer.length, 'bytes');
@@ -780,13 +805,10 @@ export async function registerBrandKitRoutes(
 
       // === STEP 4: Create Database Record with Metadata ===
       const originalVariant = processedData.variants.find(v => v.purpose === 'original');
-      const metadata = {
+
+      // Build metadata based on asset type - each type has different metadata fields
+      const metadata: any = {
         kind: assetKind,
-        aspectRatio: (processedData.metadata as any).aspectRatio,
-        hasAlpha: (processedData.metadata as any).hasAlpha,
-        familyName: (processedData.metadata as any).familyName,
-        weight: (processedData.metadata as any).weight,
-        style: (processedData.metadata as any).style,
         variants: processedData.variants.map(v => ({
           purpose: v.purpose,
           fileName: v.fileName,
@@ -798,6 +820,27 @@ export async function registerBrandKitRoutes(
         })),
         aiAnalysis: aiAnalysis || undefined
       };
+
+      // Add type-specific metadata fields
+      if (assetKind === 'video') {
+        // VideoMetadata: duration, width, height, codec, fps
+        metadata.duration = (processedData.metadata as any).duration;
+        metadata.width = (processedData.metadata as any).width;
+        metadata.height = (processedData.metadata as any).height;
+        metadata.codec = (processedData.metadata as any).codec;
+        metadata.fps = (processedData.metadata as any).fps;
+      } else if (assetKind === 'font') {
+        // FontMetadata: familyName, styleName, weight, style, postScriptName
+        metadata.familyName = (processedData.metadata as any).familyName;
+        metadata.styleName = (processedData.metadata as any).styleName;
+        metadata.weight = (processedData.metadata as any).weight;
+        metadata.style = (processedData.metadata as any).style;
+        metadata.postScriptName = (processedData.metadata as any).postScriptName;
+      } else {
+        // ImageMetadata: aspectRatio, hasAlpha (for images, logos, icons)
+        metadata.aspectRatio = (processedData.metadata as any).aspectRatio;
+        metadata.hasAlpha = (processedData.metadata as any).hasAlpha;
+      }
 
       const asset = await assetsRepo.create({
         brandKitId,
