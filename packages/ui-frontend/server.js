@@ -11,10 +11,10 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Додаємо заголовки для SharedArrayBuffer для всіх запитів
+// Enable cross-origin isolation for SharedArrayBuffer (credentialless allows external resources)
 app.use((req, res, next) => {
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
   next();
 });
 
@@ -29,9 +29,9 @@ app.use(
         res.setHeader('Content-Type', 'application/wasm');
       }
 
-      // Додаємо заголовки для SharedArrayBuffer
+      // Enable cross-origin isolation for SharedArrayBuffer
       res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-      res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+      res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
     },
   }),
 );

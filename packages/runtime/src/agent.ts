@@ -257,6 +257,33 @@ VITE CONFIGURATION (IMPORTANT):
     ❌ optimizeDeps: { force: true, include: ['somelib'] }  // Slows down ALL builds
     ✓ Just add the library to package.json - cache clears automatically
 
+VITE CROSS-ORIGIN HEADERS (CRITICAL - MANDATORY):
+  When creating OR editing vite.config, you MUST ALWAYS include server headers.
+  NEVER create vite.config without these headers - it will break external images/APIs.
+
+  MANDATORY template - use this EVERY TIME you create or edit vite.config:
+  import { defineConfig } from 'vite'
+  import react from '@vitejs/plugin-react'
+
+  export default defineConfig({
+    server: {
+      cors: true,
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'credentialless',
+        'Cross-Origin-Resource-Policy': 'cross-origin',
+        'Access-Control-Allow-Origin': '*'
+      }
+    },
+    plugins: [react()]
+  })
+
+  CRITICAL RULES:
+  ❌ NEVER create vite.config without server.headers section
+  ❌ NEVER use 'require-corp' for COEP - it blocks external resources
+  ✅ ALWAYS include server.headers with 'credentialless' COEP
+  ✅ If editing vite.config for any reason, PRESERVE the server.headers section
+
 External API & CORS Handling:
   - Static resources (images, fonts, CDN scripts) in your source code are automatically rewritten to use the proxy
   - For dynamic API calls in code, you have two options:

@@ -18,6 +18,7 @@ async function fileExists(webcontainer: WebContainer, path: string) {
 }
 
 export async function ensureDevHeaders(webcontainer: WebContainer) {
+  console.log('[ensureDevHeaders] Starting header injection...');
   const candidates = ['vite.config.ts', 'vite.config.js', 'vite.config.mjs', 'vite.config.cjs'];
 
   let configPath: string | undefined;
@@ -25,6 +26,7 @@ export async function ensureDevHeaders(webcontainer: WebContainer) {
   for (const path of candidates) {
     if (await fileExists(webcontainer, path)) {
       configPath = path;
+      console.log('[ensureDevHeaders] Found config:', path);
       break;
     }
   }
@@ -38,12 +40,13 @@ export async function ensureDevHeaders(webcontainer: WebContainer) {
   } },`;
 
   if (!configPath) {
+    console.log('[ensureDevHeaders] No config found, creating vite.config.ts with headers');
     const content = `import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 export default defineConfig({ ${headerLines} plugins:[react()] })
 `;
     await webcontainer.fs.writeFile('vite.config.ts', content);
-
+    console.log('[ensureDevHeaders] Created vite.config.ts successfully');
     return;
   }
 
@@ -53,22 +56,43 @@ export default defineConfig({ ${headerLines} plugins:[react()] })
     return;
   }
 
+  // Check if correct headers already exist
+  if (original.includes('Cross-Origin-Embedder-Policy') && original.includes("'credentialless'")) {
+    console.log('[ensureDevHeaders] Headers already correct, skipping');
+    return; // Already has correct credentialless policy
+  }
+
+  // Fix incorrect require-corp policy by replacing it
   if (original.includes('Cross-Origin-Embedder-Policy')) {
+    console.log('[ensureDevHeaders] Found incorrect COEP header, replacing with credentialless');
+    // Remove existing COEP header section (might be require-corp)
+    const updated = original.replace(
+      /['"]Cross-Origin-Embedder-Policy['"]\s*:\s*['"]require-corp['"]/g,
+      "'Cross-Origin-Embedder-Policy': 'credentialless'",
+    );
+
+    await webcontainer.fs.writeFile(configPath, updated);
+    console.log('[ensureDevHeaders] Updated config with credentialless');
     return;
   }
 
+  // No COEP header exists, inject it
+  console.log('[ensureDevHeaders] No COEP headers found, injecting...');
   const idx = original.indexOf('defineConfig(');
 
   if (idx === -1) {
+    console.log('[ensureDevHeaders] No defineConfig found, skipping');
     return;
   }
 
   const braceIdx = original.indexOf('{', idx);
 
   if (braceIdx === -1) {
+    console.log('[ensureDevHeaders] No brace found after defineConfig, skipping');
     return;
   }
 
   const updated = `${original.slice(0, braceIdx + 1)} ${headerLines} ${original.slice(braceIdx + 1)}`;
   await webcontainer.fs.writeFile(configPath, updated);
+  console.log('[ensureDevHeaders] Injected headers successfully into', configPath);
 }

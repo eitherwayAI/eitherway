@@ -479,6 +479,12 @@ export async function runDevServer(webcontainer: WebContainer, files: any[]): Pr
   const hasPackageJson = findPackageJson(files);
   const isStaticServer = !hasPackageJson;
 
+  // ALWAYS ensure dev headers are correct, even if server is running
+  // This fixes the issue where agent overwrites vite.config without headers
+  if (hasPackageJson) {
+    await ensureDevHeaders(webcontainer);
+  }
+
   // For npm-based apps with HMR, skip restart if already running
   // But still check if package.json changed and run install if needed
   if (serverRunning && !isStaticServer) {
@@ -527,9 +533,8 @@ export async function runDevServer(webcontainer: WebContainer, files: any[]): Pr
 
   if (hasPackageJson) {
     try {
-      // Set up COEP headers (must run first to create vite.config if needed)
-      await ensureDevHeaders(webcontainer);
-
+      // Note: ensureDevHeaders is now called at the top of runDevServer
+      // to fix the issue where agent overwrites vite.config
       // No proxy setup needed - external resources load directly with COEP headers
 
       logger.info('Installing dependencies...');
