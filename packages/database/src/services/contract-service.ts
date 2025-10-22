@@ -15,9 +15,7 @@ import {
   createWalletClient,
   createPublicClient,
   http,
-  type Address,
   type Hex,
-  parseEther,
   formatEther
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -135,8 +133,7 @@ export class ContractService {
         sourceCode = await this.loadTemplate(params);
       }
 
-      // Compile with solc
-      const compilerVersion = params.compilerVersion || '0.8.20';
+      // Compile with solc (uses installed solc version)
       const optimizationRuns = params.optimizationRuns || 200;
 
       const input = {
@@ -176,15 +173,39 @@ export class ContractService {
 
       // Extract compiled contract
       const contractFile = output.contracts['contract.sol'];
-      const contractName = Object.keys(contractFile)[0];
-      const contract = contractFile[contractName];
+      const contractNames = Object.keys(contractFile);
+
+      // Find the main contract (the one with bytecode, not interfaces)
+      let contractName: string | undefined;
+      let contract: any;
+
+      for (const name of contractNames) {
+        const c = contractFile[name];
+        if (c.evm && c.evm.bytecode && c.evm.bytecode.object && c.evm.bytecode.object.length > 0) {
+          contractName = name;
+          contract = c;
+          break;
+        }
+      }
+
+      if (!contract || !contractName) {
+        return {
+          success: false,
+          error: 'No deployable contract found in compilation output',
+          sourceCode
+        };
+      }
 
       const bytecode = '0x' + contract.evm.bytecode.object;
       const abi = contract.abi;
 
       // Estimate gas
       const gasEstimates = contract.evm.gasEstimates;
-      const creationGas = gasEstimates?.creation?.totalCost || '0';
+      const rawGas = gasEstimates?.creation?.totalCost;
+      // Handle 'infinite' or non-numeric gas estimates
+      const creationGas = (rawGas && rawGas !== 'infinite' && !isNaN(Number(rawGas)))
+        ? String(rawGas)
+        : undefined;
 
       console.log('[ContractService] Compilation successful:', {
         contractName,

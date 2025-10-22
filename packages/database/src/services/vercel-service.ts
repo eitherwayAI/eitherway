@@ -324,7 +324,7 @@ export class VercelService {
 
       // Step 3: Create GitHub repository and push code
       console.log('[VercelService] Creating GitHub repository:', config.repoName);
-      const repoResult = await githubService.createRepositoryAndPush({
+      const repoResult = await githubService.bootstrapRepository({
         appId: config.appId,
         userId: config.userId,
         repo: config.repoName,

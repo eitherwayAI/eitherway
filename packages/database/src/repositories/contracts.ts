@@ -294,7 +294,7 @@ export class ContractsRepository {
       [contractId]
     );
 
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   // ============================================================================
