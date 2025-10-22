@@ -152,29 +152,48 @@ export class GitHubService {
         owner = userData.login;
       }
 
-      // 1. Create repository with auto_init to avoid "empty repository" errors
-      console.log('[GitHubService] Creating repository:', owner, '/', config.repo);
-      const createRepoResponse = await this.githubRequest(token, 'POST /user/repos', {
-        name: config.repo,
-        private: config.visibility === 'private',
-        description: config.description || 'Created via EitherWay',
-        auto_init: true // Create initial commit to avoid empty repo errors
-      });
+      // 1. Check if repository already exists
+      console.log('[GitHubService] Checking if repository exists:', owner, '/', config.repo);
+      const checkRepoResponse = await this.githubRequest(token, `GET /repos/${owner}/${config.repo}`);
 
-      if (!createRepoResponse.ok) {
-        const errorText = await createRepoResponse.text();
+      let repoData: any;
+
+      if (checkRepoResponse.ok) {
+        // Repository already exists, use it
+        repoData = await checkRepoResponse.json();
+        console.log('[GitHubService] Repository already exists:', repoData.html_url);
+      } else if (checkRepoResponse.status === 404) {
+        // Repository doesn't exist, create it
+        console.log('[GitHubService] Creating new repository:', owner, '/', config.repo);
+        const createRepoResponse = await this.githubRequest(token, 'POST /user/repos', {
+          name: config.repo,
+          private: config.visibility === 'private',
+          description: config.description || 'Created via EitherWay',
+          auto_init: true // Create initial commit to avoid empty repo errors
+        });
+
+        if (!createRepoResponse.ok) {
+          const errorText = await createRepoResponse.text();
+          return {
+            success: false,
+            error: `Failed to create repository: ${createRepoResponse.status} ${errorText}`
+          };
+        }
+
+        repoData = await createRepoResponse.json();
+        console.log('[GitHubService] Repository created:', repoData.html_url);
+
+        // Wait for GitHub to initialize the repository
+        console.log('[GitHubService] Waiting for GitHub to initialize repository...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } else {
+        // Unexpected error checking repository
+        const errorText = await checkRepoResponse.text();
         return {
           success: false,
-          error: `Failed to create repository: ${createRepoResponse.status} ${errorText}`
+          error: `Failed to check repository: ${checkRepoResponse.status} ${errorText}`
         };
       }
-
-      const repoData = await createRepoResponse.json() as any;
-      console.log('[GitHubService] Repository created:', repoData.html_url);
-
-      // Wait for GitHub to initialize the repository
-      console.log('[GitHubService] Waiting for GitHub to initialize repository...');
-      await new Promise(resolve => setTimeout(resolve, 2000));
 
       // 2. Gather all files from workspace
       console.log('[GitHubService] Gathering files from workspace...');

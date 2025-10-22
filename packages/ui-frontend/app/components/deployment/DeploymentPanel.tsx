@@ -56,10 +56,8 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
   const [siteName, setSiteName] = useState('');
 
   // Vercel state (now GitHub-integrated)
-  const [vercelGithubToken, setVercelGithubToken] = useState('');
   const [vercelToken, setVercelToken] = useState('');
-  const [vercelRepoName, setVercelRepoName] = useState('');
-  const [vercelRepoVisibility, setVercelRepoVisibility] = useState<'public' | 'private'>('public');
+  const [vercelProjectName, setVercelProjectName] = useState('');
 
   // GitHub state
   const [githubToken, setGithubToken] = useState('');
@@ -70,6 +68,37 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployResult, setDeployResult] = useState<DeployResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Deployment status (persistent)
+  const [deploymentStatus, setDeploymentStatus] = useState<{
+    netlify: any | null;
+    vercel: any | null;
+    github: any | null;
+  }>({
+    netlify: null,
+    vercel: null,
+    github: null
+  });
+  const [loadingStatus, setLoadingStatus] = useState(true);
+
+  // Fetch deployment status on mount
+  useEffect(() => {
+    const fetchDeploymentStatus = async () => {
+      try {
+        const response = await fetch(`/api/apps/${appId}/deploy/status`);
+        const data = await response.json();
+        if (data.success) {
+          setDeploymentStatus(data.deployments);
+        }
+      } catch (error) {
+        console.error('Failed to fetch deployment status:', error);
+      } finally {
+        setLoadingStatus(false);
+      }
+    };
+
+    fetchDeploymentStatus();
+  }, [appId]);
 
   const handleNetlifyDeploy = async () => {
     if (!netlifyToken) {
@@ -118,6 +147,7 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
 
       setDeployResult({ provider: 'netlify', ...deployData.data });
       setIsDeploying(false);
+      await refetchDeploymentStatus();
 
     } catch (error: any) {
       setError(`Failed to deploy: ${error.message}`);
@@ -126,16 +156,8 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
   };
 
   const handleVercelDeploy = async () => {
-    if (!vercelGithubToken) {
-      setError('Please enter your GitHub access token');
-      return;
-    }
     if (!vercelToken) {
       setError('Please enter your Vercel access token');
-      return;
-    }
-    if (!vercelRepoName) {
-      setError('Please enter a repository name');
       return;
     }
 
@@ -143,18 +165,29 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
     setError(null);
 
     try {
-      // Deploy to Vercel with GitHub integration
-      const deployResponse = await fetch('/api/vercel/deploy-github', {
+      // First, validate and save the Vercel token
+      const validateResponse = await fetch('/api/vercel/validate-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, token: vercelToken })
+      });
+
+      const validateData = await validateResponse.json();
+      if (!validateResponse.ok || !validateData.success) {
+        setError(`Token validation failed: ${validateData.error || 'Invalid token'}`);
+        setIsDeploying(false);
+        return;
+      }
+
+      // Deploy to Vercel using REST API (no GitHub required)
+      const deployResponse = await fetch('/api/vercel/deploy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           appId,
           userId,
           sessionId,
-          githubToken: vercelGithubToken,
-          vercelToken,
-          repoName: vercelRepoName,
-          repoVisibility: vercelRepoVisibility
+          projectName: vercelProjectName || undefined
         })
       });
 
@@ -167,13 +200,12 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
 
       setDeployResult({
         provider: 'vercel',
-        siteUrl: deployData.data.deploymentUrl || deployData.data.repoUrl,
-        projectId: deployData.data.projectId,
-        projectName: deployData.data.projectName,
-        repoUrl: deployData.data.repoUrl,
-        repoName: deployData.data.repoFullName
+        siteUrl: deployData.data.deploymentUrl,
+        deployUrl: deployData.data.inspectorUrl,
+        projectId: deployData.data.deploymentId
       });
       setIsDeploying(false);
+      await refetchDeploymentStatus();
 
     } catch (error: any) {
       setError(`Failed to deploy: ${error.message}`);
@@ -217,10 +249,9 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
           appId,
           userId,
           sessionId,
-          repoName,
-          isPrivate: repoVisibility === 'private',
-          description: `EitherWay App - ${repoName}`,
-          enablePages: true
+          repo: repoName,
+          visibility: repoVisibility,
+          description: `EitherWay App - ${repoName}`
         })
       });
 
@@ -238,6 +269,7 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
         repoName: deployData.data.fullName
       });
       setIsDeploying(false);
+      await refetchDeploymentStatus();
 
     } catch (error: any) {
       setError(`Failed to create repository: ${error.message}`);
@@ -253,134 +285,58 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
 
   const canDeploy = () => {
     if (provider === 'netlify') return !!netlifyToken;
-    if (provider === 'vercel') return !!vercelGithubToken && !!vercelToken && !!vercelRepoName;
+    if (provider === 'vercel') return !!vercelToken;
     if (provider === 'github') return !!githubToken && !!repoName;
     return false;
   };
 
-  // Show success view if deployment completed
-  if (deployResult) {
-    return (
-      <ModalOverlay onClose={onClose}>
-        <motion.div
-          initial={{ scale: 0.95, opacity: 0, y: 20 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.95, opacity: 0, y: 20 }}
-          transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          className="bg-[#1a1a1a] rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden border border-gray-800"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Success Header */}
-          <div className="px-6 py-5 border-b border-gray-800 flex items-center justify-between bg-gradient-to-r from-emerald-500/10 to-teal-500/10">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                <svg className="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-white">
-                  {deployResult.provider === 'github' ? 'Repository Created!' : 'Deployment Successful!'}
-                </h2>
-                <p className="text-sm text-gray-400 mt-0.5">
-                  {deployResult.provider === 'netlify' && 'Your site is now live on Netlify'}
-                  {deployResult.provider === 'vercel' && 'Your site is now live on Vercel'}
-                  {deployResult.provider === 'github' && 'Your code is now on GitHub'}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
+  const isAlreadyDeployed = () => {
+    if (provider === 'netlify') return !!deploymentStatus.netlify;
+    if (provider === 'vercel') return !!deploymentStatus.vercel;
+    if (provider === 'github') return !!deploymentStatus.github;
+    return false;
+  };
 
-          {/* Success Content */}
-          <div className="p-6">
-            <div className="space-y-3 mb-6">
-              <div className="bg-[#0e0e0e] border border-gray-800 rounded-xl p-4">
-                <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-[#00c7b7] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                  </svg>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-400 mb-1">
-                      {deployResult.provider === 'github' ? 'Repository URL' : 'Production URL'}
-                    </p>
-                    <a
-                      href={deployResult.siteUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-[#00c7b7] hover:text-[#00b3a6] break-all transition-colors"
-                    >
-                      {deployResult.siteUrl}
-                    </a>
-                  </div>
-                </div>
-              </div>
+  const getDeploymentInfo = () => {
+    if (provider === 'netlify') return deploymentStatus.netlify;
+    if (provider === 'vercel') return deploymentStatus.vercel;
+    if (provider === 'github') return deploymentStatus.github;
+    return null;
+  };
 
-              {deployResult.adminUrl && (
-                <div className="bg-[#0e0e0e] border border-gray-800 rounded-xl p-4">
-                  <div className="flex items-start gap-3">
-                    <svg className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-gray-400 mb-1">
-                        {deployResult.provider === 'netlify' ? 'Netlify Admin' : 'Dashboard'}
-                      </p>
-                      <a
-                        href={deployResult.adminUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-blue-400 hover:text-blue-300 break-all transition-colors"
-                      >
-                        {deployResult.adminUrl}
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
 
-            {/* Action Buttons */}
-            <div className="flex gap-3">
-              <button
-                onClick={() => window.open(deployResult.siteUrl, '_blank')}
-                className="flex-1 py-3 bg-gradient-to-r from-[#00c7b7] to-[#00a896] hover:from-[#00b3a6] hover:to-[#009688] text-white rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#00c7b7]/20"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                {deployResult.provider === 'github' ? 'Open Repository' : 'Open Site'}
-              </button>
-              <button
-                onClick={onClose}
-                className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl font-medium transition-colors"
-              >
-                Close
-              </button>
-            </div>
+  const refetchDeploymentStatus = async () => {
+    try {
+      const response = await fetch(`/api/apps/${appId}/deploy/status`);
+      const data = await response.json();
+      if (data.success) {
+        setDeploymentStatus(data.deployments);
+      }
+    } catch (error) {
+      console.error('Failed to refetch deployment status:', error);
+    }
+  };
 
-            {/* Deploy Info */}
-            <div className="mt-4 pt-4 border-t border-gray-800">
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span className="capitalize">{deployResult.provider}</span>
-                {deployResult.deployId && <span>Deploy ID: {deployResult.deployId}</span>}
-                {deployResult.projectId && <span>Project ID: {deployResult.projectId.slice(0, 12)}...</span>}
-                {deployResult.repoName && <span>Repository: {deployResult.repoName}</span>}
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      </ModalOverlay>
-    );
-  }
+  const getCurrentProviderResult = () => {
+    if (!deployResult) return null;
+    if (deployResult.provider === provider) return deployResult;
+    return null;
+  };
+
+  const hasSuccessForCurrentProvider = () => {
+    return !!getCurrentProviderResult();
+  };
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -444,8 +400,130 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
 
         {/* Content */}
         <div className="p-6 min-h-[340px]">
+          {/* Deployment Status (if already deployed) */}
+          {!loadingStatus && isAlreadyDeployed() && getDeploymentInfo() && !hasSuccessForCurrentProvider() && (
+            <div className="mb-5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold text-emerald-300 mb-1.5">
+                    Already deployed to {provider.charAt(0).toUpperCase() + provider.slice(1)}
+                  </h3>
+                  <div className="space-y-2">
+                    {getDeploymentInfo().deploymentUrl && (
+                      <div>
+                        <p className="text-xs text-emerald-200/60 mb-0.5">Production URL:</p>
+                        <a
+                          href={getDeploymentInfo().deploymentUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-emerald-300 hover:text-emerald-200 break-all transition-colors inline-flex items-center gap-1"
+                        >
+                          {getDeploymentInfo().deploymentUrl}
+                          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                        </a>
+                      </div>
+                    )}
+                    {getDeploymentInfo().completedAt && (
+                      <p className="text-xs text-emerald-200/60">
+                        Deployed on {formatDate(getDeploymentInfo().completedAt)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Just Deployed Success Message (inline) */}
+          {hasSuccessForCurrentProvider() && getCurrentProviderResult() && (
+            <div className="mb-5">
+              <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/30 rounded-xl p-5">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-emerald-300 mb-1">
+                      {getCurrentProviderResult()!.provider === 'github' ? 'Repository Created!' : 'Deployment Successful!'}
+                    </h3>
+                    <p className="text-sm text-emerald-200/80">
+                      {getCurrentProviderResult()!.provider === 'netlify' && 'Your site is now live on Netlify'}
+                      {getCurrentProviderResult()!.provider === 'vercel' && 'Your site is now live on Vercel'}
+                      {getCurrentProviderResult()!.provider === 'github' && 'Your code is now on GitHub'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 mb-4">
+                  <div className="bg-[#0e0e0e]/50 border border-emerald-500/20 rounded-lg p-3">
+                    <p className="text-xs font-medium text-emerald-200/60 mb-1.5">
+                      {getCurrentProviderResult()!.provider === 'github' ? 'Repository URL' : 'Production URL'}
+                    </p>
+                    <a
+                      href={getCurrentProviderResult()!.siteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-emerald-300 hover:text-emerald-200 break-all transition-colors inline-flex items-center gap-1.5"
+                    >
+                      {getCurrentProviderResult()!.siteUrl}
+                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+                  </div>
+
+                  {getCurrentProviderResult()!.adminUrl && (
+                    <div className="bg-[#0e0e0e]/50 border border-emerald-500/20 rounded-lg p-3">
+                      <p className="text-xs font-medium text-emerald-200/60 mb-1.5">
+                        {getCurrentProviderResult()!.provider === 'netlify' ? 'Netlify Admin' : 'Dashboard'}
+                      </p>
+                      <a
+                        href={getCurrentProviderResult()!.adminUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-400 hover:text-blue-300 break-all transition-colors inline-flex items-center gap-1.5"
+                      >
+                        {getCurrentProviderResult()!.adminUrl}
+                        <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => window.open(getCurrentProviderResult()!.siteUrl, '_blank')}
+                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2 text-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    {getCurrentProviderResult()!.provider === 'github' ? 'Open Repository' : 'Open Site'}
+                  </button>
+                  <button
+                    onClick={() => setDeployResult(null)}
+                    className="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors text-sm"
+                  >
+                    Deploy Again
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Netlify Form */}
-          {provider === 'netlify' && (
+          {provider === 'netlify' && !hasSuccessForCurrentProvider() && (
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -490,32 +568,8 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
           )}
 
           {/* Vercel Form */}
-          {provider === 'vercel' && (
+          {provider === 'vercel' && !hasSuccessForCurrentProvider() && (
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  GitHub Token *
-                </label>
-                <input
-                  type="password"
-                  value={vercelGithubToken}
-                  onChange={(e) => setVercelGithubToken(e.target.value)}
-                  placeholder="Enter your GitHub personal access token"
-                  className="w-full px-3 py-2 bg-[#0e0e0e] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent"
-                />
-                <p className="mt-1.5 text-xs text-gray-500">
-                  Generate a token with repo scope{' '}
-                  <a
-                    href="https://github.com/settings/tokens/new"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-white hover:underline"
-                  >
-                    here
-                  </a>
-                </p>
-              </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Vercel Token *
@@ -542,54 +596,24 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Repository Name *
+                  Project Name <span className="text-gray-500 font-normal">(optional)</span>
                 </label>
                 <input
                   type="text"
-                  value={vercelRepoName}
-                  onChange={(e) => setVercelRepoName(e.target.value)}
-                  placeholder="my-vercel-app"
+                  value={vercelProjectName}
+                  onChange={(e) => setVercelProjectName(e.target.value)}
+                  placeholder="my-vercel-project"
                   className="w-full px-3 py-2 bg-[#0e0e0e] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent"
                 />
                 <p className="mt-1.5 text-xs text-gray-500">
-                  Name for the GitHub repository
+                  Custom project name (auto-generated if not provided)
                 </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Repository Visibility *
-                </label>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setVercelRepoVisibility('public')}
-                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      vercelRepoVisibility === 'public'
-                        ? 'bg-white text-black'
-                        : 'bg-[#0e0e0e] text-gray-400 border border-gray-700 hover:border-gray-600'
-                    }`}
-                  >
-                    Public
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setVercelRepoVisibility('private')}
-                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      vercelRepoVisibility === 'private'
-                        ? 'bg-white text-black'
-                        : 'bg-[#0e0e0e] text-gray-400 border border-gray-700 hover:border-gray-600'
-                    }`}
-                  >
-                    Private
-                  </button>
-                </div>
               </div>
             </div>
           )}
 
           {/* GitHub Form */}
-          {provider === 'github' && (
+          {provider === 'github' && !hasSuccessForCurrentProvider() && (
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -659,7 +683,7 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
           )}
 
           {/* Error Message */}
-          {error && (
+          {error && !hasSuccessForCurrentProvider() && (
             <div className="mt-4 bg-red-500/10 border border-red-500/30 rounded-lg p-3">
               <div className="flex gap-2">
                 <svg className="w-5 h-5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -671,7 +695,7 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
           )}
 
           {/* Deploy Button */}
-          <button
+          {!hasSuccessForCurrentProvider() && <button
             onClick={handleDeploy}
             disabled={isDeploying || !canDeploy()}
             className={`mt-6 w-full py-3 rounded-xl font-medium transition-all text-sm flex items-center justify-center gap-2 ${
@@ -696,16 +720,26 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
                 <span>
-                  {provider === 'netlify' && 'Deploy to Netlify'}
-                  {provider === 'vercel' && 'Deploy to Vercel'}
-                  {provider === 'github' && 'Create Repository'}
+                  {isAlreadyDeployed() ? (
+                    <>
+                      {provider === 'netlify' && 'Deploy Again to Netlify'}
+                      {provider === 'vercel' && 'Deploy Again to Vercel'}
+                      {provider === 'github' && 'Create New Repository'}
+                    </>
+                  ) : (
+                    <>
+                      {provider === 'netlify' && 'Deploy to Netlify'}
+                      {provider === 'vercel' && 'Deploy to Vercel'}
+                      {provider === 'github' && 'Create Repository'}
+                    </>
+                  )}
                 </span>
               </>
             )}
-          </button>
+          </button>}
 
           {/* Info Box */}
-          <div className="mt-4 bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+          {!hasSuccessForCurrentProvider() && <div className="mt-4 bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
             <div className="flex gap-3">
               <svg className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -719,7 +753,7 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
                 </ul>
               </div>
             </div>
-          </div>
+          </div>}
         </div>
       </motion.div>
     </ModalOverlay>

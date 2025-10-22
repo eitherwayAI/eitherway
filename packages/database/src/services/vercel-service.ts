@@ -14,10 +14,6 @@ import { DeploymentsRepository } from '../repositories/deployments.js';
 import { mkdir, writeFile, rm, readdir, readFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execAsync = promisify(exec);
 
 // TYPES
 
@@ -57,6 +53,7 @@ export interface VercelGitHubDeployResult {
   projectName?: string;
   deploymentUrl?: string;
   error?: string;
+  partialSuccess?: boolean;  // Indicates repo was created but Vercel project failed
 }
 
 export interface VercelTokenValidationResult {
@@ -170,63 +167,30 @@ export class VercelService {
 
       await this.deployments.updateStatus(deploymentId, 'building');
 
-      // Check if this is a Vite project
-      const isVite = await this.isViteProject(config.appId);
-      console.log('[VercelService] Project type:', isVite ? 'Vite/React (will build)' : 'Static (direct deploy)');
-
-      let distDir: string;
-      let tempDir: string | null = null;
+      // Export source files and let Vercel build
+      console.log('[VercelService] Exporting source files for Vercel build...');
+      const excludePatterns = ['.git', '.DS_Store', '.env', '.env.local', 'node_modules', 'dist', 'build'];
+      const tempDir = await this.exportFilesToTemp(config.appId, excludePatterns);
 
       try {
-        if (isVite) {
-          // VITE/REMIX PROJECT PATH: Build and deploy output (dist/ or build/client/)
-          tempDir = await this.exportFilesToTemp(config.appId, ['.git', '.DS_Store', '.env', '.env.local', 'node_modules']);
-          distDir = await this.buildProject(tempDir);
-          console.log('[VercelService] Using build output directory:', distDir);
-        } else {
-          // STATIC PROJECT PATH: Export and deploy directly
-          const excludePatterns = ['.git', '.DS_Store', '.env', '.env.local', 'node_modules'];
-          tempDir = await this.exportFilesToTemp(config.appId, excludePatterns);
-          distDir = tempDir;
-        }
-
-        // Collect all files from the dist directory
-        const files = await this.collectFilesForDeployment(distDir);
+        // Collect all source files
+        const files = await this.collectFilesForDeployment(tempDir);
 
         if (files.length === 0) {
-          throw new Error('No files found to deploy. Please ensure the build output exists.');
+          throw new Error('No files found to deploy.');
         }
 
-        console.log('[VercelService] Collected', files.length, 'files for deployment');
+        console.log('[VercelService] Collected', files.length, 'source files for deployment');
         console.log('[VercelService] Sample files:', files.slice(0, 5).map(f => f.file).join(', '));
 
-        // Check if index.html exists - required for static deployment
-        let hasIndexHtml = files.some(f => f.file === 'index.html');
-        if (hasIndexHtml) {
-          console.log('[VercelService] Adding vercel.json for SPA routing');
-          const vercelConfig = {
-            rewrites: [
-              {
-                source: '/(.*)',
-                destination: '/index.html'
-              }
-            ]
-          };
-          const configJson = JSON.stringify(vercelConfig, null, 2);
-          const configBase64 = Buffer.from(configJson, 'utf-8').toString('base64');
-          files.push({
-            file: 'vercel.json',
-            data: configBase64
-          });
-          console.log('[VercelService] Added vercel.json with rewrites configuration');
-        }
-
         // Deploy to Vercel using Create Deployment API
+        // Vercel will auto-detect the framework and build it
         const projectName = config.projectName || `eitherway-${config.appId.slice(0, 8)}`;
         const deployUrl = config.teamId
-          ? `https://api.vercel.com/v13/deployments?teamId=${config.teamId}`
-          : 'https://api.vercel.com/v13/deployments';
+          ? `https://api.vercel.com/v13/deployments?teamId=${config.teamId}&skipAutoDetectionConfirmation=1`
+          : 'https://api.vercel.com/v13/deployments?skipAutoDetectionConfirmation=1';
 
+        console.log('[VercelService] Deploying to Vercel (Vercel will auto-detect framework)...');
         const deployResponse = await fetch(deployUrl, {
           method: 'POST',
           headers: {
@@ -236,10 +200,8 @@ export class VercelService {
           body: JSON.stringify({
             name: projectName,
             files,
-            target: 'production',
-            projectSettings: {
-              framework: null // Static deployment
-            }
+            target: 'production'
+            // Let Vercel auto-detect framework and build
           })
         });
 
@@ -302,7 +264,7 @@ export class VercelService {
       const { GitHubService } = await import('./github-service.js');
       const githubService = new GitHubService(this.db, this.fileStore, process.env.ENCRYPTION_KEY || '');
 
-      // Step 1: Validate GitHub token
+      // Step 1: Validate and save GitHub token
       const githubValidation = await githubService.validateToken(config.githubToken);
       if (!githubValidation.valid) {
         return {
@@ -311,7 +273,16 @@ export class VercelService {
         };
       }
 
-      // Step 2: Validate Vercel token
+      // Save GitHub token to database so bootstrapRepository can retrieve it
+      const saveResult = await githubService.saveUserToken(config.userId, config.githubToken);
+      if (!saveResult.success) {
+        return {
+          success: false,
+          error: `Failed to save GitHub token: ${saveResult.error}`
+        };
+      }
+
+      // Step 2: Validate and save Vercel token
       const vercelValidation = await this.validateToken(config.vercelToken);
       if (!vercelValidation.valid) {
         return {
@@ -320,7 +291,17 @@ export class VercelService {
         };
       }
 
-      console.log('[VercelService] Both tokens validated successfully');
+      // Save Vercel token so deployStatic can retrieve it
+      await this.userIntegrations.upsert({
+        user_id: config.userId,
+        service: 'vercel',
+        token: config.vercelToken,
+        service_user_id: vercelValidation.userId,
+        service_email: vercelValidation.email,
+        service_username: vercelValidation.username
+      });
+
+      console.log('[VercelService] Both tokens validated and saved successfully');
 
       // Step 3: Create GitHub repository and push code
       console.log('[VercelService] Creating GitHub repository:', config.repoName);
@@ -341,60 +322,43 @@ export class VercelService {
 
       console.log('[VercelService] GitHub repository created:', repoResult.htmlUrl);
 
-      // Step 4: Create Vercel project linked to GitHub repo
+      // Step 4: Deploy directly to Vercel (static deployment)
+      // This avoids the GitHub OAuth connection requirement
       const projectName = config.repoName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
       const owner = githubValidation.username;
       const repo = config.repoName;
 
-      console.log('[VercelService] Creating Vercel project linked to', `${owner}/${repo}`);
+      console.log('[VercelService] Creating static deployment to Vercel...');
 
-      const projectUrl = config.teamId
-        ? `https://api.vercel.com/v9/projects?teamId=${config.teamId}`
-        : 'https://api.vercel.com/v9/projects';
-
-      const projectResponse = await fetch(projectUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${config.vercelToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          name: projectName,
-          framework: 'vite',
-          gitRepository: {
-            type: 'github',
-            repo: `${owner}/${repo}`
-          }
-        })
+      // Use the existing deployStatic method to upload files directly
+      const deployResult = await this.deployStatic({
+        appId: config.appId,
+        userId: config.userId,
+        sessionId: config.sessionId,
+        projectName,
+        teamId: config.teamId
       });
 
-      if (!projectResponse.ok) {
-        const errorText = await projectResponse.text();
-        console.error('[VercelService] Vercel project creation failed:', errorText);
+      if (!deployResult.success) {
+        // Deployment failed, but GitHub repo was created
         return {
           success: false,
-          error: `Failed to create Vercel project: ${projectResponse.status} ${projectResponse.statusText} - ${errorText}`,
+          error: `GitHub repository created at ${repoResult.htmlUrl}, but Vercel deployment failed: ${deployResult.error}`,
           repoUrl: repoResult.htmlUrl,
-          repoFullName: `${owner}/${repo}`
+          repoFullName: `${owner}/${repo}`,
+          partialSuccess: true
         };
       }
 
-      const projectData = await projectResponse.json() as any;
-      console.log('[VercelService] Vercel project created:', projectData.id);
-
-      // The project creation triggers an automatic deployment
-      // We can optionally poll for the first deployment
-      const deploymentUrl = projectData.targets?.production?.url
-        ? `https://${projectData.targets.production.url}`
-        : `https://${projectName}.vercel.app`;
+      console.log('[VercelService] Deployment successful:', deployResult.deploymentUrl);
 
       return {
         success: true,
         repoUrl: repoResult.htmlUrl,
         repoFullName: `${owner}/${repo}`,
-        projectId: projectData.id,
-        projectName: projectData.name,
-        deploymentUrl
+        projectId: deployResult.deploymentId,  // Use deployment ID as project ID
+        projectName,
+        deploymentUrl: deployResult.deploymentUrl
       };
 
     } catch (error: any) {
@@ -403,32 +367,6 @@ export class VercelService {
         success: false,
         error: error.message
       };
-    }
-  }
-
-  /**
-   * Check if project is a Vite/React/Remix project that needs building
-   */
-  private async isViteProject(appId: string): Promise<boolean> {
-    try {
-      const packageJsonContent = await this.fileStore.read(appId, 'package.json');
-      if (!packageJsonContent || !packageJsonContent.content) {
-        return false;
-      }
-
-      const packageJson = JSON.parse(packageJsonContent.content as string);
-
-      // Check if vite, Remix, or React is in dependencies or devDependencies
-      const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
-      return Boolean(
-        deps?.vite ||
-        deps?.['@vitejs/plugin-react'] ||
-        deps?.['@remix-run/dev'] ||
-        deps?.['@remix-run/react']
-      );
-    } catch (error) {
-      console.log('[VercelService] Could not detect Vite/Remix project:', error);
-      return false;
     }
   }
 
@@ -492,87 +430,11 @@ export class VercelService {
   }
 
   /**
-   * Build Vite/Remix project and return the output directory
-   * Supports: Remix (build/client/), Vite (dist/), and other build tools
-   */
-  private async buildProject(tempDir: string): Promise<string> {
-    console.log('[VercelService] Installing dependencies...');
-
-    try {
-      // Verify package.json exists
-      const packageJsonPath = join(tempDir, 'package.json');
-      try {
-        await readFile(packageJsonPath, 'utf-8');
-        console.log('[VercelService] package.json found');
-      } catch (err) {
-        throw new Error(`package.json not found in temp directory: ${tempDir}`);
-      }
-
-      // Install dependencies
-      console.log('[VercelService] Running: npm install --production=false');
-      const { stderr: installErr } = await execAsync('npm install --production=false', {
-        cwd: tempDir,
-        timeout: 180000, // 3 minutes timeout
-        maxBuffer: 10 * 1024 * 1024 // 10MB buffer
-      });
-
-      console.log('[VercelService] npm install completed');
-      if (installErr && installErr.toLowerCase().includes('error') && !installErr.toLowerCase().includes('npm warn')) {
-        throw new Error(`npm install failed: ${installErr.substring(0, 1000)}`);
-      }
-
-      console.log('[VercelService] Building project (running npm run build)...');
-
-      // Build the project
-      const { stderr: buildErr } = await execAsync('npm run build', {
-        cwd: tempDir,
-        timeout: 180000, // 3 minutes timeout
-        maxBuffer: 10 * 1024 * 1024 // 10MB buffer
-      });
-
-      if (buildErr && buildErr.toLowerCase().includes('error') && !buildErr.toLowerCase().includes('warn')) {
-        throw new Error(`Build failed: ${buildErr.substring(0, 1000)}`);
-      }
-
-      console.log('[VercelService] Build completed successfully');
-
-      // Check for build output directory (Remix uses build/client, Vite uses dist)
-      const possibleOutputs = [
-        join(tempDir, 'build', 'client'),  // Remix default
-        join(tempDir, 'dist'),              // Vite default
-        join(tempDir, 'build'),             // Alternative build output
-      ];
-
-      let distPath: string | null = null;
-      for (const outputPath of possibleOutputs) {
-        try {
-          await readdir(outputPath);
-          distPath = outputPath;
-          console.log('[VercelService] Found build output at:', distPath);
-          break;
-        } catch (err) {
-          // Try next path
-          continue;
-        }
-      }
-
-      if (!distPath) {
-        throw new Error(`Build succeeded but no output directory found. Checked: ${possibleOutputs.join(', ')}`);
-      }
-
-      return distPath;
-    } catch (error: any) {
-      console.error('[VercelService] Build failed:', error);
-      throw new Error(`Build failed: ${error.message}`);
-    }
-  }
-
-  /**
    * Collect all files recursively for deployment
-   * Returns files in Vercel's inline format: { file: 'path', data: 'base64...' }
+   * Returns files in Vercel's inline format: { file: 'path', data: 'base64...', encoding: 'base64' }
    */
-  private async collectFilesForDeployment(dir: string, baseDir: string = dir): Promise<Array<{ file: string; data: string }>> {
-    const files: Array<{ file: string; data: string }> = [];
+  private async collectFilesForDeployment(dir: string, baseDir: string = dir): Promise<Array<{ file: string; data: string; encoding: string }>> {
+    const files: Array<{ file: string; data: string; encoding: string }> = [];
     const entries = await readdir(dir, { withFileTypes: true });
 
     for (const entry of entries) {
@@ -588,7 +450,8 @@ export class VercelService {
 
         files.push({
           file: relativePath,
-          data: base64
+          data: base64,
+          encoding: 'base64'
         });
       }
     }

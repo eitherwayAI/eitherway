@@ -106,6 +106,34 @@ export class DeploymentsRepository {
     return result.rows[0] || null;
   }
 
+  async getLatestByType(appId: string): Promise<Record<string, Deployment | null>> {
+    const result = await this.db.query<Deployment>(
+      `SELECT DISTINCT ON (deployment_type) *
+       FROM core.deployments
+       WHERE app_id = $1 AND status = 'success'
+       ORDER BY deployment_type, created_at DESC`,
+      [appId]
+    );
+
+    const deployments: Record<string, Deployment | null> = {
+      netlify: null,
+      vercel: null,
+      github: null
+    };
+
+    for (const deployment of result.rows) {
+      if (deployment.deployment_type === 'netlify') {
+        deployments.netlify = deployment;
+      } else if (deployment.deployment_type === 'vercel') {
+        deployments.vercel = deployment;
+      } else if (deployment.deployment_type === 'github_pages') {
+        deployments.github = deployment;
+      }
+    }
+
+    return deployments;
+  }
+
   async getSummary(appId: string): Promise<{
     total_deployments: number;
     successful_deployments: number;

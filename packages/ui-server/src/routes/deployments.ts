@@ -243,6 +243,57 @@ export async function registerDeploymentRoutes(
     }
   });
 
+  /**
+   * GET /api/apps/:appId/deploy/status
+   * Get latest deployment status for each provider (netlify, vercel, github)
+   */
+  fastify.get<{
+    Params: { appId: string };
+  }>('/api/apps/:appId/deploy/status', async (request, reply) => {
+    const { appId } = request.params;
+
+    try {
+      const deployments = await deploymentsRepo.getLatestByType(appId);
+
+      return reply.code(200).send({
+        success: true,
+        deployments: {
+          netlify: deployments.netlify ? {
+            id: deployments.netlify.id,
+            status: deployments.netlify.status,
+            deploymentUrl: deployments.netlify.deployment_url,
+            repositoryUrl: deployments.netlify.repository_url,
+            createdAt: deployments.netlify.created_at,
+            completedAt: deployments.netlify.completed_at
+          } : null,
+          vercel: deployments.vercel ? {
+            id: deployments.vercel.id,
+            status: deployments.vercel.status,
+            deploymentUrl: deployments.vercel.deployment_url,
+            createdAt: deployments.vercel.created_at,
+            completedAt: deployments.vercel.completed_at
+          } : null,
+          github: deployments.github ? {
+            id: deployments.github.id,
+            status: deployments.github.status,
+            deploymentUrl: deployments.github.deployment_url,
+            repositoryUrl: deployments.github.repository_url,
+            branch: deployments.github.branch,
+            createdAt: deployments.github.created_at,
+            completedAt: deployments.github.completed_at
+          } : null
+        }
+      });
+    } catch (error: any) {
+      console.error('[Deployment] Error fetching status:', error);
+      return reply.code(500).send({
+        success: false,
+        error: 'Failed to fetch deployment status',
+        message: error.message
+      });
+    }
+  });
+
   // EXPORT ROUTES
 
   /**
