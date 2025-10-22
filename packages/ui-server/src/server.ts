@@ -8,7 +8,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import multipart from '@fastify/multipart';
-import { Agent, DatabaseAgent, ConfigLoader, StreamingCallbacks } from '@eitherway/runtime';
+import { Agent, DatabaseAgent, ConfigLoader, StreamingCallbacks, buildBrandKitContext } from '@eitherway/runtime';
 import { getAllExecutors } from '@eitherway/tools-impl';
 import { createDatabaseClient, FilesRepository, SessionsRepository, PostgresFileStore } from '@eitherway/database';
 import { readdir, readFile, stat, writeFile, rm, mkdir, access } from 'fs/promises';
@@ -737,49 +737,32 @@ async function enrichPromptWithBrandKit(
       return originalPrompt;
     }
 
-    const { colors, assets } = manifestContent.brandKit || {};
-    console.log('[Brand Kit] Extracted from manifest - colors:', colors?.length || 0, 'assets:', assets?.length || 0);
+    // Extract brand kit data
+    const brandKitData = manifestContent.brandKit || {};
+    console.log('[Brand Kit] Extracted from manifest - colors:', brandKitData.colors?.length || 0, 'assets:', brandKitData.assets?.length || 0);
 
-    if ((!colors || colors.length === 0) && (!assets || assets.length === 0)) {
+    if ((!brandKitData.colors || brandKitData.colors.length === 0) && (!brandKitData.assets || brandKitData.assets.length === 0)) {
       console.log('[Brand Kit] Brand kit manifest is empty - skipping enrichment');
       return originalPrompt;
     }
 
-    // Build brand context string (matching beta-deployment format)
-    let brandContext = '\n\nBRAND KIT AVAILABLE:\n';
-
-    if (colors && colors.length > 0) {
-      brandContext += '\nColor Palette:\n';
-      colors.forEach((color: any) => {
-        brandContext += `- ${color.hex}`;
-        if (color.name) brandContext += ` (${color.name})`;
-        if (color.role) brandContext += ` - ${color.role}`;
-        if (color.prominence) brandContext += ` [${Math.round(color.prominence * 100)}% prominence]`;
-        brandContext += '\n';
-      });
-    }
-
-    if (assets && assets.length > 0) {
-      brandContext += '\nBrand Assets:\n';
-      assets.forEach((asset: any) => {
-        if (asset.path) {
-          // Convert file path to web-accessible path
-          const webPath = asset.path.replace(/^public\//, '/');
-          brandContext += `- ${asset.fileName} (${asset.type}) at ${webPath}\n`;
-        }
-      });
-    }
-
-    brandContext += '\nIMPORTANT: Use these brand colors and assets in your design. The color palette should be your primary color scheme, and brand assets should be integrated where appropriate.\n';
+    // Build intelligent brand context using our new context builder
+    console.log('[Brand Kit] Building intelligent context with AI analysis and variant information...');
+    const brandContext = buildBrandKitContext({
+      id: brandKitData.id || 'unknown',
+      name: brandKitData.name || 'Brand Kit',
+      assets: brandKitData.assets || [],
+      colors: brandKitData.colors || []
+    });
 
     const enrichedPrompt = brandContext + originalPrompt;
 
-    console.log('[Brand Kit] ✅ SUCCESS: Injected brand kit context into prompt!');
-    console.log('[Brand Kit] Colors:', colors?.length || 0, '| Assets:', assets?.length || 0);
-    console.log('[Brand Kit] Brand context preview:', brandContext.substring(0, 300));
+    console.log('[Brand Kit] ✅ SUCCESS: Injected intelligent brand kit context into prompt!');
+    console.log('[Brand Kit] Colors:', brandKitData.colors?.length || 0, '| Assets:', brandKitData.assets?.length || 0);
+    console.log('[Brand Kit] Brand context length:', brandContext.length, 'chars');
+    console.log('[Brand Kit] Brand context preview (first 500 chars):', brandContext.substring(0, 500));
     console.log('[Brand Kit] Original prompt (first 100 chars):', originalPrompt.substring(0, 100));
     console.log('[Brand Kit] Enriched prompt total length:', enrichedPrompt.length);
-    console.log('[Brand Kit] Full enriched prompt (first 500 chars):', enrichedPrompt.substring(0, 500));
 
     // Prepend brand context to the user's prompt
     return enrichedPrompt;

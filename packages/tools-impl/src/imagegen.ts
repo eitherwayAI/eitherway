@@ -417,8 +417,7 @@ Example usage (if manual placement needed):
   }
 
   private mapSize(size: string): '1024x1024' | '1536x1024' | '1024x1536' {
-    // gpt-image-1 supports: 1024x1024, 1024x1536, 1536x1024, auto
-    // Using explicit sizes for predictability (avoiding 'auto')
+    // GPT-Image-1 supports: 1024x1024 (square), 1536x1024 (landscape), 1024x1536 (portrait)
     const [w, h] = size.split('x').map(Number);
     if (w >= 1024 && h >= 1024) {
       if (w > h) return '1536x1024'; // Landscape: 1536x1024

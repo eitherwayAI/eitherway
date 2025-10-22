@@ -4,23 +4,12 @@ import { authStore } from '~/lib/stores/auth';
 import { chatStore } from '~/lib/stores/chat';
 import { brandKitStore } from '~/lib/stores/brandKit';
 import { useWalletConnection } from '~/lib/web3/hooks';
-import { webcontainer } from '~/lib/webcontainer/index';
-import { syncBrandAssetsToWebContainer } from '~/utils/brandAssetSync';
 import { createScopedLogger } from '~/utils/logger';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CategoryTabs, type AssetCategory } from './CategoryTabs';
+import { AssetCard } from './AssetCard';
 
 const logger = createScopedLogger('BrandKitPanel');
-
-type UploadState = 'pending' | 'uploading' | 'processing' | 'completed' | 'failed';
-
-interface UploadItem {
-  id: string;
-  file: File;
-  status: UploadState;
-  progress: number;
-  message?: string;
-  error?: string;
-}
 
 interface BrandKitPanelProps {
   onClose: () => void;
@@ -34,6 +23,24 @@ interface BrandAsset {
   fileSizeBytes: number;
   processingStatus: string;
   uploadedAt: string;
+  storageKey?: string;
+  metadata?: {
+    kind?: string;
+    aspectRatio?: string;
+    familyName?: string;
+    weight?: number;
+    variants?: Array<{
+      purpose: string;
+      fileName: string;
+      storageKey: string;
+    }>;
+    aiAnalysis?: {
+      description?: string;
+      recommendations?: {
+        bestFor?: string[];
+      };
+    };
+  };
 }
 
 interface BrandColor {
@@ -60,28 +67,20 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
   const agentWorking = !!chat.currentPhase && chat.currentPhase !== 'completed';
   const { isConnected, address } = useWalletConnection();
 
-  // Debug logging
-  console.log('[BrandKitPanel] Render - agentWorking:', agentWorking, 'currentPhase:', chat.currentPhase);
   const [isUploading, setIsUploading] = useState(false);
-  const [isLoadingExisting, setIsLoadingExisting] = useState(true);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
   const [globalMessage, setGlobalMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [brandKitData, setBrandKitData] = useState<BrandKitData | null>(null);
   const [currentBrandKitId, setCurrentBrandKitId] = useState<string | null>(null);
-  const [recentlyUploadedCount, setRecentlyUploadedCount] = useState<number>(0);
-  const [showUploadSuccess, setShowUploadSuccess] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [activeCategory, setActiveCategory] = useState<AssetCategory>('logos');
+  const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
+  const [uploadingFiles, setUploadingFiles] = useState<string[]>([]);
 
-  // Prioritize wallet address (email auth is mostly mock)
   const userId = (isConnected && address ? address : user?.email) || null;
 
-  // Do NOT fetch from server automatically - brand kits are per-session, not per-user
+  // Load session brand kit
   useEffect(() => {
     const loadSessionBrandKit = async () => {
-      setIsLoadingExisting(false);
-
       const { pendingBrandKitId } = brandKitStore.get();
 
       if (!pendingBrandKitId) {
@@ -90,19 +89,15 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
       }
 
       try {
-        // Fetch the specific brand kit by ID (not user's active brand kit)
         const kitData = await fetchBrandKitData(pendingBrandKitId);
         if (kitData) {
           setCurrentBrandKitId(pendingBrandKitId);
           logger.info('Loaded brand kit from current session:', pendingBrandKitId);
         } else {
-          // Brand kit ID in localStorage is invalid/deleted, clear it
-          logger.warn('Brand kit ID in localStorage not found, clearing');
           brandKitStore.set({ pendingBrandKitId: null, dirty: false });
         }
       } catch (err: any) {
         logger.error('Error loading session brand kit:', err);
-        // Clear invalid brand kit ID
         brandKitStore.set({ pendingBrandKitId: null, dirty: false });
       }
     };
@@ -110,17 +105,14 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
     loadSessionBrandKit();
   }, [chat.sessionId]);
 
-  // Fetch brand kit data with assets and colors
   const fetchBrandKitData = async (brandKitId: string) => {
     try {
       const response = await fetch(`/api/brand-kits/${brandKitId}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch brand kit data');
-      }
+      if (!response.ok) throw new Error('Failed to fetch brand kit data');
+
       const data = await response.json();
       if (data.success && data.brandKit) {
         setBrandKitData(data.brandKit);
-        setRefreshKey(prev => prev + 1); // Force re-render
         return data.brandKit;
       }
       return null;
@@ -131,566 +123,307 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
   };
 
   const handleDeleteAsset = async (assetId: string, fileName: string) => {
-    if (!currentBrandKitId) return;
-
-    if (!confirm(`Delete ${fileName}? This will also update your color palette.`)) {
-      return;
-    }
+    if (!currentBrandKitId || !confirm(`Delete ${fileName}?`)) return;
 
     try {
+      setDeletingAssetId(assetId);
       setGlobalMessage(`Deleting ${fileName}...`);
 
       const deleteResponse = await fetch(`/api/brand-kits/${currentBrandKitId}/assets/${assetId}`, {
         method: 'DELETE',
       });
 
-      if (!deleteResponse.ok) {
-        throw new Error(`Failed to delete asset: ${deleteResponse.statusText}`);
-      }
+      if (!deleteResponse.ok) throw new Error(`Failed to delete asset`);
 
-      // Re-aggregate colors after deletion
-      setGlobalMessage('Updating color palette...');
-      const aggregateResponse = await fetch(`/api/brand-kits/${currentBrandKitId}/aggregate-colors`, {
+      // Re-aggregate colors
+      await fetch(`/api/brand-kits/${currentBrandKitId}/aggregate-colors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       });
 
-      if (!aggregateResponse.ok) {
-        setGlobalMessage('Color update failed, but asset deleted');
-      }
-
-      // Refresh brand kit data
       await fetchBrandKitData(currentBrandKitId);
-
-      setGlobalMessage(`✓ ${fileName} deleted successfully`);
-
-      // Notify chat component to refresh assets
+      setGlobalMessage(`✓ ${fileName} deleted`);
       window.dispatchEvent(new CustomEvent('brand-kit-updated'));
-
-      // Clear message after 3 seconds
       setTimeout(() => setGlobalMessage(null), 3000);
     } catch (err: any) {
-      console.error('[BrandKitPanel] Delete failed:', err);
       setError(err.message || 'Failed to delete asset');
       setGlobalMessage(null);
+    } finally {
+      setDeletingAssetId(null);
     }
   };
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('[BrandKitPanel] handleFileSelect called');
-    const files = event.target.files;
-    console.log('[BrandKitPanel] Files selected:', files?.length || 0);
-    if (files && files.length > 0) {
-      setSelectedFiles((prev) => [...prev, ...Array.from(files)]);
-      // Reset input so the same file can be selected again
-      event.target.value = '';
-    }
-  };
-
-  const handleRemoveFile = (index: number) => {
-    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const updateUploadItem = (id: string, updates: Partial<UploadItem>) => {
-    setUploadItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...updates } : item)));
-  };
-
-  const handleFileUpload = async (files: File[]) => {
-    if (!files || files.length === 0) {
-      return;
-    }
-    if (!userId) {
-      setError('Please connect your wallet to upload brand assets');
+  const handleFileUpload = async (files: FileList | null, category?: AssetCategory) => {
+    if (!files || files.length === 0 || !userId) {
+      if (!userId) setError('Please connect your wallet to upload brand assets');
       return;
     }
 
     setIsUploading(true);
     setError(null);
-    setGlobalMessage(null);
-
-    // Clear selected files
-    setSelectedFiles([]);
-
-    // Create upload items for each file
-    const newUploadItems: UploadItem[] = files.map((file) => ({
-      id: `${file.name}-${Date.now()}-${Math.random()}`,
-      file,
-      status: 'pending' as UploadState,
-      progress: 0,
-    }));
-
-    setUploadItems(newUploadItems);
+    const fileArray = Array.from(files);
+    setUploadingFiles(fileArray.map(f => f.name));
 
     try {
-      // Step 1: Get or create a brand kit
+      // Get or create brand kit
       let brandKitId = currentBrandKitId;
-
-      // If no existing brand kit, create one
       if (!brandKitId) {
         setGlobalMessage('Creating brand kit...');
-        const brandKitName = `Brand Kit - ${new Date().toLocaleDateString()}`;
-
         const createResponse = await fetch('/api/brand-kits', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: userId,
-            name: brandKitName,
-            description: 'Auto-generated brand kit from upload',
+            name: `Brand Kit - ${new Date().toLocaleDateString()}`,
+            description: 'Auto-generated brand kit',
           }),
         });
 
-        if (!createResponse.ok) {
-          const contentType = createResponse.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            const errorData = await createResponse.json();
-            const errorMsg = errorData.error || 'Failed to create brand kit';
-            const errorDetails = errorData.details || errorData.message || '';
-            throw new Error(`${errorMsg}${errorDetails ? `: ${errorDetails}` : ''}`);
-          } else {
-            const text = await createResponse.text();
-            throw new Error(`Failed to create brand kit: ${text || `HTTP ${createResponse.status}`}`);
-          }
-        }
-
+        if (!createResponse.ok) throw new Error('Failed to create brand kit');
         const { brandKit } = await createResponse.json();
         brandKitId = brandKit.id;
         setCurrentBrandKitId(brandKitId);
       }
 
-      setGlobalMessage(null);
+      setGlobalMessage(`Uploading ${fileArray.length} file(s)...`);
 
-      // Step 2: Upload each file with progress tracking
-      const uploadPromises = newUploadItems.map(async (uploadItem) => {
-        try {
-          updateUploadItem(uploadItem.id, { status: 'uploading', progress: 0 });
+      // Upload files
+      for (const file of fileArray) {
+        const formData = new FormData();
+        formData.append('file', file);
 
-          const formData = new FormData();
-          formData.append('file', uploadItem.file);
+        const uploadResponse = await fetch(`/api/brand-kits/${brandKitId}/assets`, {
+          method: 'POST',
+          body: formData,
+        });
 
-          const uploadResponse = await fetch(`/api/brand-kits/${brandKitId}/assets`, {
-            method: 'POST',
-            body: formData,
-          });
+        if (!uploadResponse.ok) throw new Error(`Failed to upload ${file.name}`);
+      }
 
-          // Simulate progress for visual feedback (real progress would need server-sent events)
-          updateUploadItem(uploadItem.id, { progress: 50 });
-
-          if (!uploadResponse.ok) {
-            const contentType = uploadResponse.headers.get('content-type');
-            let errorMsg = 'Upload failed';
-            if (contentType && contentType.includes('application/json')) {
-              const errorData = await uploadResponse.json();
-              errorMsg = errorData.error || 'Unknown error';
-            }
-            throw new Error(errorMsg);
-          }
-
-          const uploadContentType = uploadResponse.headers.get('content-type');
-          if (!uploadContentType || !uploadContentType.includes('application/json')) {
-            const text = await uploadResponse.text();
-            throw new Error(`Invalid response: Expected JSON but got: ${text.substring(0, 100)}`);
-          }
-
-          updateUploadItem(uploadItem.id, { progress: 100, status: 'completed' });
-          return await uploadResponse.json();
-        } catch (err: any) {
-          updateUploadItem(uploadItem.id, {
-            status: 'failed',
-            error: err.message || 'Upload failed',
-          });
-          throw err;
-        }
-      });
-
-      await Promise.all(uploadPromises);
-
-      // Aggregate colors across all assets
-      setGlobalMessage('Extracting brand color palette...');
-      const aggregateResponse = await fetch(`/api/brand-kits/${brandKitId}/aggregate-colors`, {
+      // Aggregate colors
+      setGlobalMessage('Extracting brand colors...');
+      await fetch(`/api/brand-kits/${brandKitId}/aggregate-colors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       });
 
-      if (!aggregateResponse.ok) {
-        setGlobalMessage('Color extraction failed, but assets uploaded successfully');
-      } else {
-        const aggregateData = await aggregateResponse.json();
-        setGlobalMessage(
-          `✓ Extracted ${aggregateData.colorsExtracted || 0} colors from ${aggregateData.assetsProcessed || 0} assets`,
-        );
-      }
-
-      // Fetch updated brand kit data to show assets and colors
       await fetchBrandKitData(brandKitId);
-
-      // Mark assets pending for sync
       brandKitStore.setKey('pendingBrandKitId', brandKitId);
       brandKitStore.setKey('dirty', true);
 
-      // Show success state
-      setRecentlyUploadedCount(newUploadItems.length);
-      setShowUploadSuccess(true);
-
-      // Notify chat component to refresh assets
+      setGlobalMessage(`✓ ${fileArray.length} file(s) uploaded successfully`);
       window.dispatchEvent(new CustomEvent('brand-kit-updated'));
-
-      // Clear upload items and success banner after delays
-      setTimeout(() => {
-        setUploadItems([]);
-      }, 2000);
-
-      setTimeout(() => {
-        setGlobalMessage(null);
-        setShowUploadSuccess(false);
-        setRecentlyUploadedCount(0);
-      }, 5000);
+      setTimeout(() => setGlobalMessage(null), 3000);
     } catch (err: any) {
-      console.error('Brand kit upload error:', err);
       setError(err.message || 'Upload failed');
     } finally {
       setIsUploading(false);
+      setUploadingFiles([]);
     }
   };
 
+  // Filter assets by category
+  const getFilteredAssets = (): BrandAsset[] => {
+    if (!brandKitData) return [];
+
+    return brandKitData.assets.filter((asset) => {
+      const kind = asset.metadata?.kind;
+
+      switch (activeCategory) {
+        case 'icons':
+          return kind === 'icon' || asset.mimeType === 'image/x-icon' || asset.fileName.endsWith('.ico');
+        case 'logos':
+          return kind === 'logo' || (!kind && asset.mimeType.startsWith('image/') && !asset.fileName.endsWith('.ico'));
+        case 'images':
+          return kind === 'image';
+        case 'fonts':
+          return kind === 'font' || asset.mimeType.startsWith('font/') || /\.(ttf|otf|woff|woff2)$/i.test(asset.fileName);
+        case 'videos':
+          return kind === 'video' || asset.mimeType.startsWith('video/') || asset.fileName.endsWith('.mp4');
+        default:
+          return false;
+      }
+    });
+  };
+
+  const filteredAssets = getFilteredAssets();
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-gray-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+      <div className="bg-gray-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+        {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-700">
-          <h2 className="text-2xl font-bold text-white">Brand Kit</h2>
+          <div>
+            <h2 className="text-2xl font-bold text-white">Brand Kit Gallery</h2>
+            <p className="text-sm text-gray-400 mt-1">Manage your logos, fonts, images & colors</p>
+          </div>
           <button
             onClick={onClose}
             className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-            disabled={isUploading}
           >
             Close
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="space-y-4">
-            {/* Upload Area */}
-            <div className="p-6 bg-gray-800 rounded-lg border-2 border-dashed border-gray-600 text-center">
-              <svg
-                className="w-16 h-16 mx-auto mb-4 text-gray-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                />
-              </svg>
-              <p className="text-white font-medium mb-2">Upload Your Brand Assets</p>
-              <p className="text-sm text-gray-400 mb-4">Drag and drop or click to upload logos, colors, and fonts</p>
-              <input
-                key={`file-input-${refreshKey}`}
-                type="file"
-                className="hidden"
-                id={`brand-kit-upload-${refreshKey}`}
-                accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/x-icon,.ico,.ttf,.otf,.woff,.woff2,.zip,.mp4,video/mp4"
-                multiple
-                onChange={handleFileSelect}
-                disabled={isUploading || agentWorking}
-              />
-              <label
-                htmlFor={`brand-kit-upload-${refreshKey}`}
-                title={agentWorking ? 'Wait for the agent to finish before uploading' : 'Choose files'}
-                className={`inline-block px-6 py-3 rounded-lg cursor-pointer transition-colors ${
-                  isUploading || agentWorking ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                } text-white`}
-              >
-                {isUploading ? 'Uploading...' : 'Choose Files'}
-              </label>
-            </div>
 
-            {/* File Preview - Slack Style */}
-            <AnimatePresence>
-              {selectedFiles.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="bg-gray-800 rounded-lg p-4 overflow-hidden"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-sm font-semibold text-gray-300">
-                      {selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''} selected
-                    </h4>
-                    <button
-                      onClick={() => handleFileUpload(selectedFiles)}
-                      disabled={isUploading}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm font-medium"
-                    >
-                      {isUploading ? 'Uploading...' : 'Upload Files'}
-                    </button>
-                  </div>
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {selectedFiles.map((file, index) => {
-                      const isImage = file.type.startsWith('image/');
-                      const imageUrl = isImage ? URL.createObjectURL(file) : null;
+        {/* Category Tabs */}
+        <div className="px-6 pt-4">
+          <CategoryTabs
+            activeCategory={activeCategory}
+            onCategoryChange={setActiveCategory}
+            counts={{
+              icons: brandKitData?.assets.filter(a =>
+                a.metadata?.kind === 'icon' || a.mimeType === 'image/x-icon' || a.fileName.endsWith('.ico')
+              ).length || 0,
+              logos: brandKitData?.assets.filter(a =>
+                a.metadata?.kind === 'logo' || (!a.metadata?.kind && a.mimeType.startsWith('image/') && !a.fileName.endsWith('.ico'))
+              ).length || 0,
+              images: brandKitData?.assets.filter(a => a.metadata?.kind === 'image').length || 0,
+              fonts: brandKitData?.assets.filter(a =>
+                a.metadata?.kind === 'font' || a.mimeType.startsWith('font/') || /\.(ttf|otf|woff|woff2)$/i.test(a.fileName)
+              ).length || 0,
+              videos: brandKitData?.assets.filter(a =>
+                a.metadata?.kind === 'video' || a.mimeType.startsWith('video/') || a.fileName.endsWith('.mp4')
+              ).length || 0,
+            }}
+          />
+        </div>
 
-                      return (
-                        <motion.div
-                          key={`${file.name}-${index}`}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: 20 }}
-                          className="flex items-center gap-3 p-3 bg-gray-700/50 rounded-lg group"
-                        >
-                          {/* File thumbnail/icon */}
-                          <div className="w-12 h-12 flex-shrink-0 bg-gray-600 rounded overflow-hidden flex items-center justify-center">
-                            {imageUrl ? (
-                              <img src={imageUrl} alt={file.name} className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="text-gray-300">
-                                {file.type.startsWith('video/') && <div className="i-ph:video text-2xl" />}
-                                {(file.type.includes('font') || file.name.match(/\.(ttf|otf|woff|woff2)$/i)) && (
-                                  <div className="i-ph:text-aa text-2xl" />
-                                )}
-                                {file.type.includes('zip') && <div className="i-ph:file-zip text-2xl" />}
-                                {!file.type.startsWith('video/') &&
-                                  !file.type.includes('font') &&
-                                  !file.name.match(/\.(ttf|otf|woff|woff2)$/i) &&
-                                  !file.type.includes('zip') && <div className="i-ph:file text-2xl" />}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* File info */}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-white truncate font-medium">{file.name}</p>
-                            <p className="text-xs text-gray-400">
-                              {(file.size / 1024).toFixed(1)} KB
-                              {file.type && ` • ${file.type.split('/')[1].toUpperCase()}`}
-                            </p>
-                          </div>
-
-                          {/* Remove button */}
-                          <button
-                            onClick={() => handleRemoveFile(index)}
-                            disabled={isUploading}
-                            className="flex-shrink-0 p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-900/20 rounded transition-colors opacity-0 group-hover:opacity-100 disabled:cursor-not-allowed"
-                            title="Remove file"
-                          >
-                            <div className="i-ph:x text-lg" />
-                          </button>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Upload Progress - Slack Style */}
-            <AnimatePresence>
-              {uploadItems.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="bg-gray-800 rounded-lg p-4 overflow-hidden"
-                >
-                  <h4 className="text-sm font-semibold text-gray-300 mb-3">Uploading Files</h4>
-                  <div className="space-y-3">
-                    {uploadItems.map((item) => (
-                      <motion.div
-                        key={item.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 20 }}
-                        className="bg-gray-700/50 rounded-lg p-3"
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <div className="text-gray-400">
-                              {item.file.type.startsWith('image/') && <div className="i-ph:image text-lg" />}
-                              {item.file.type.startsWith('font/') && <div className="i-ph:text-aa text-lg" />}
-                              {item.file.type.startsWith('video/') && <div className="i-ph:video text-lg" />}
-                              {item.file.type.includes('zip') && <div className="i-ph:file-zip text-lg" />}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs text-white truncate">{item.file.name}</p>
-                              <p className="text-xs text-gray-400">{(item.file.size / 1024).toFixed(1)} KB</p>
-                            </div>
-                          </div>
-                          <div className="ml-2">
-                            {item.status === 'pending' && (
-                              <div className="i-ph:clock text-gray-400 text-lg animate-pulse" />
-                            )}
-                            {item.status === 'uploading' && (
-                              <div className="i-ph:spinner text-blue-400 text-lg animate-spin" />
-                            )}
-                            {item.status === 'completed' && <div className="i-ph:check-circle text-green-400 text-lg" />}
-                            {item.status === 'failed' && <div className="i-ph:x-circle text-red-400 text-lg" />}
-                          </div>
-                        </div>
-                        {/* Progress Bar */}
-                        {(item.status === 'uploading' || item.status === 'completed') && (
-                          <div className="w-full bg-gray-600 rounded-full h-1.5 overflow-hidden">
-                            <motion.div
-                              initial={{ width: 0 }}
-                              animate={{ width: `${item.progress}%` }}
-                              transition={{ duration: 0.3 }}
-                              className={`h-full rounded-full ${
-                                item.status === 'completed' ? 'bg-green-500' : 'bg-blue-500'
-                              }`}
-                            />
-                          </div>
-                        )}
-                        {/* Error Message */}
-                        {item.error && <p className="text-xs text-red-400 mt-1">{item.error}</p>}
-                      </motion.div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Upload Success Banner */}
-            <AnimatePresence>
-              {showUploadSuccess && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                  className="bg-green-900/30 border-2 border-green-500/50 rounded-lg p-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="i-ph:check-circle text-green-400 text-2xl flex-shrink-0" />
-                    <div>
-                      <h4 className="text-sm font-bold text-green-300">Upload Complete!</h4>
-                      <p className="text-xs text-green-200">
-                        Successfully uploaded {recentlyUploadedCount} file{recentlyUploadedCount > 1 ? 's' : ''} to your
-                        brand kit
-                      </p>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Global Message */}
+        {/* Messages */}
+        <div className="px-6 pt-4">
+          <AnimatePresence>
             {globalMessage && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="bg-blue-900/20 border border-blue-700 rounded-lg p-3"
+                className="bg-blue-900/20 border border-blue-700 rounded-lg p-3 mb-2"
               >
-                <p className="text-xs text-blue-300">{globalMessage}</p>
+                <p className="text-sm text-blue-300">{globalMessage}</p>
               </motion.div>
             )}
-
-            {/* Error Message */}
             {error && (
-              <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
-                <h4 className="text-sm font-semibold text-red-400 mb-1">Error</h4>
-                <p className="text-xs text-red-300">{error}</p>
-              </div>
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-red-900/20 border border-red-700 rounded-lg p-3 mb-2"
+              >
+                <p className="text-sm text-red-300">{error}</p>
+              </motion.div>
             )}
-
-            {/* Info Box */}
-            {!isUploading && uploadItems.length === 0 && !brandKitData && (
-              <div className="bg-blue-900/20 border border-blue-700 rounded-lg p-4">
-                <h4 className="text-sm font-semibold text-blue-400 mb-2">Supported file types:</h4>
-                <ul className="text-xs text-blue-300 space-y-1">
-                  <li>
-                    • <strong>Images:</strong> PNG, JPEG, SVG, ICO (up to 20MB)
-                  </li>
-                  <li>
-                    • <strong>Fonts:</strong> TTF, OTF, WOFF, WOFF2 (up to 10MB)
-                  </li>
-                  <li>
-                    • <strong>Archives:</strong> ZIP brand packages (up to 200MB)
-                  </li>
-                  <li>
-                    • <strong>Videos:</strong> MP4 promo clips (up to 100MB)
-                  </li>
-                </ul>
-                <p className="text-xs text-blue-400 mt-3">Colors are automatically extracted from logos and images!</p>
-              </div>
-            )}
-
-            {/* Uploaded Assets - Always show section */}
-            <div key={`assets-${refreshKey}`} className="bg-gray-800 rounded-lg p-4 border-2 border-gray-700">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-base font-bold text-white">Your Brand Assets</h4>
-                {brandKitData && brandKitData.assets.length > 0 && (
-                  <span className="text-xs px-2 py-1 bg-blue-600 text-white rounded-full font-medium">
-                    {brandKitData.assets.length} file{brandKitData.assets.length > 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
-              {!brandKitData || brandKitData.assets.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-4">
-                  No assets uploaded yet. Upload files above to get started!
-                </p>
-              ) : (
-                  <div className="space-y-2">
-                    {brandKitData.assets.map((asset) => (
-                      <div key={asset.id} className="flex items-center justify-between p-2 bg-gray-700 rounded group">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <div className="text-gray-400">
-                            {asset.mimeType.startsWith('image/') && <div className="i-ph:image text-lg" />}
-                            {asset.mimeType.startsWith('font/') && <div className="i-ph:text-aa text-lg" />}
-                            {asset.mimeType.startsWith('video/') && <div className="i-ph:video text-lg" />}
-                            {asset.mimeType.includes('zip') && <div className="i-ph:file-zip text-lg" />}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-white truncate">{asset.fileName}</p>
-                            <p className="text-xs text-gray-400">
-                              {(asset.fileSizeBytes / 1024).toFixed(1)} KB • {asset.assetType}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="text-xs">
-                            {asset.processingStatus === 'completed' && <span className="text-green-400">✓</span>}
-                            {asset.processingStatus === 'processing' && <span className="text-yellow-400">...</span>}
-                            {asset.processingStatus === 'failed' && <span className="text-red-400">✗</span>}
-                          </div>
-                          <button
-                            onClick={() => handleDeleteAsset(asset.id, asset.fileName)}
-                            disabled={isUploading}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-600 rounded text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Delete asset"
-                          >
-                            <div className="i-ph:x text-sm" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-            </div>
-
-            {/* Extracted Colors */}
-            {brandKitData && brandKitData.colors.length > 0 && (
-              <div className="bg-gray-800 rounded-lg p-4">
-                <h4 className="text-sm font-semibold text-gray-300 mb-3">Extracted Color Palette</h4>
-                <div className="grid grid-cols-5 gap-2">
-                  {brandKitData.colors.map((color) => (
-                    <div key={color.id} className="flex flex-col items-center">
-                      <div
-                        className="w-12 h-12 rounded-lg border-2 border-gray-600"
-                        style={{ backgroundColor: color.hex }}
-                        title={`${color.name || color.hex}\n${color.prominence ? `${(color.prominence * 100).toFixed(0)}% prominence` : ''}`}
-                      />
-                      <p className="text-xs text-gray-400 mt-1 text-center">{color.hex}</p>
-                      {color.name && <p className="text-xs text-gray-500 truncate max-w-full">{color.name}</p>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          </AnimatePresence>
         </div>
+
+        {/* Gallery Grid */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {filteredAssets.length === 0 ? (
+            /* Empty State with centered + button */
+            <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center">
+              <input
+                type="file"
+                id="gallery-upload"
+                className="hidden"
+                accept={
+                  activeCategory === 'fonts' ? '.ttf,.otf,.woff,.woff2' :
+                  activeCategory === 'videos' ? '.mp4,video/mp4' :
+                  'image/png,image/jpeg,image/jpg,image/svg+xml,image/x-icon,.ico'
+                }
+                multiple
+                onChange={(e) => handleFileUpload(e.target.files, activeCategory)}
+                disabled={isUploading || agentWorking}
+              />
+              <label
+                htmlFor="gallery-upload"
+                className={`relative group bg-gray-800/50 rounded-2xl border-2 border-dashed border-gray-600 hover:border-blue-500 transition-all cursor-pointer flex items-center justify-center w-64 h-64 mb-6 ${
+                  isUploading || agentWorking ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                <div className="text-center p-6">
+                  <div className="i-ph:plus text-7xl text-gray-500 group-hover:text-blue-400 transition-colors mb-4" />
+                  <p className="text-base font-medium text-gray-400 group-hover:text-blue-300 transition-colors">
+                    {isUploading ? 'Uploading...' : `Add ${activeCategory}`}
+                  </p>
+                </div>
+              </label>
+              <div className="text-6xl text-gray-700 mb-3">
+                {activeCategory === 'icons' && <div className="i-ph:app-window" />}
+                {activeCategory === 'logos' && <div className="i-ph:image" />}
+                {activeCategory === 'images' && <div className="i-ph:images" />}
+                {activeCategory === 'fonts' && <div className="i-ph:text-aa" />}
+                {activeCategory === 'videos' && <div className="i-ph:video" />}
+              </div>
+              <h3 className="text-xl font-semibold text-gray-300 mb-2">
+                No {activeCategory} yet
+              </h3>
+              <p className="text-sm text-gray-400 max-w-md">
+                Click the + button above to upload your {activeCategory}
+              </p>
+            </div>
+          ) : (
+            /* Horizontal gallery with + button on the left */
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4 auto-rows-[180px]">
+              {/* Add Asset Card (Plus Icon) - First in grid */}
+              <input
+                type="file"
+                id="gallery-upload"
+                className="hidden"
+                accept={
+                  activeCategory === 'fonts' ? '.ttf,.otf,.woff,.woff2' :
+                  activeCategory === 'videos' ? '.mp4,video/mp4' :
+                  'image/png,image/jpeg,image/jpg,image/svg+xml,image/x-icon,.ico'
+                }
+                multiple
+                onChange={(e) => handleFileUpload(e.target.files, activeCategory)}
+                disabled={isUploading || agentWorking}
+              />
+              <label
+                htmlFor="gallery-upload"
+                className={`relative group bg-gray-800/50 rounded-2xl border-2 border-dashed border-gray-600 hover:border-blue-500 transition-all cursor-pointer ${
+                  isUploading || agentWorking ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <div className="i-ph:plus text-5xl text-gray-500 group-hover:text-blue-400 transition-colors mb-2" />
+                  <p className="text-xs font-medium text-gray-400 group-hover:text-blue-300 transition-colors">
+                    {isUploading ? 'Uploading...' : `Add`}
+                  </p>
+                </div>
+              </label>
+
+              {/* Asset Cards */}
+              <AnimatePresence mode="popLayout">
+                {filteredAssets.map((asset) => (
+                  <AssetCard
+                    key={asset.id}
+                    asset={asset}
+                    onDelete={() => handleDeleteAsset(asset.id, asset.fileName)}
+                    isDeleting={deletingAssetId === asset.id}
+                  />
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
+
+        {/* Color Palette Footer */}
+        {brandKitData && brandKitData.colors.length > 0 && (
+          <div className="border-t border-gray-700 p-6 bg-gray-800/50">
+            <h4 className="text-sm font-semibold text-gray-300 mb-3">Brand Colors</h4>
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {brandKitData.colors.slice(0, 12).map((color) => (
+                <div key={color.id} className="flex flex-col items-center flex-shrink-0">
+                  <div
+                    className="w-10 h-10 rounded-lg border-2 border-gray-600"
+                    style={{ backgroundColor: color.hex }}
+                    title={color.name || color.hex}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">{color.hex}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

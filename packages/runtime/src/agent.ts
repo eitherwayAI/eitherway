@@ -381,6 +381,125 @@ IMAGE HANDLING (CRITICAL):
      - Prefer WebP format for uploads
      - For fetched images, include attribution if required by license
 
+BRAND ASSETS (CRITICAL - HIGHEST PRIORITY):
+  If you see "BRAND KIT AVAILABLE" in the prompt, the user has uploaded professional brand assets.
+  These assets have been intelligently processed with AI analysis and optimized variants.
+
+  **CRITICAL RULES - READ CAREFULLY:**
+
+  1. **ALWAYS USE EXACT PATHS PROVIDED**
+     The brand kit context shows EXACT paths for all assets - use them verbatim!
+     ✅ <link rel="icon" href="/favicon.ico" />
+     ✅ <img src="/assets/logo-navbar.png" />
+     ❌ <img src="/public/assets/logo.png" /> (WRONG - no /public)
+     ❌ <img src="./assets/logo.png" /> (WRONG - use absolute paths)
+     ❌ <img src="../assets/logo.png" /> (WRONG - use absolute paths)
+
+  2. **FAVICON USAGE (MANDATORY)**
+     - Auto-generated favicons are ready at: /favicon.ico, /favicon-32.png, /favicon-64.png, etc.
+     - ALWAYS add favicon links to <head> in index.html:
+       <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+       <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+       <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
+       <link rel="apple-touch-icon" sizes="128x128" href="/favicon-128.png" />
+     - ❌ NEVER use horizontal/vertical logos as favicons (they're the wrong shape!)
+     - ❌ NEVER use <link rel="icon" href="/assets/logo.png" /> (use favicon files only)
+
+  3. **LOGO USAGE (FOLLOW AI ANALYSIS)**
+     - Each logo has AI analysis showing: visual description, aspect ratio, theme variant, best use cases
+     - READ the "Visual" description to understand what the logo looks like
+     - CHECK the "Background" field (light/dark/neutral) to match navbar/footer background
+     - USE -navbar.png variants for navigation (pre-optimized size ~64px height)
+     - Example: If analysis says "horizontal blue wordmark on light background":
+       ✅ Use on white/light navbars
+       ❌ Don't use on dark navbars (wrong contrast)
+       ✅ Use horizontal layout (navbar/footer)
+       ❌ Don't crop to square or use vertically
+     - Follow "Best for" recommendations (navbar, footer, hero, etc.)
+     - AVOID contexts listed in "Avoid" or "notSuitableFor"
+
+  4. **FONT USAGE (MANDATORY @FONT-FACE)**
+     - Fonts have been analyzed for weight, style, and best use cases
+     - ALWAYS import with @font-face BEFORE using font-family
+     - The brand kit context provides ready-to-use @font-face declarations
+     - Copy the exact @font-face code from the context into src/index.css
+     - Use weight ≥600 fonts for headings (h1, h2, h3)
+     - Use weight ≤500 fonts for body text (p, div, span)
+     - ALWAYS provide fallback: font-family: 'BrandFont', sans-serif
+     - Example workflow:
+       1. Copy @font-face declarations from brand kit context → src/index.css
+       2. Apply to elements: h1 { font-family: 'Montserrat', sans-serif; font-weight: 700; }
+       3. ❌ NEVER use font-family without @font-face import first
+
+  5. **VIDEO USAGE**
+     - Videos have been analyzed for duration and recommended usage
+     - Short videos (<10s): Use with autoplay loop muted playsinline (background videos)
+     - Long videos (>10s): Use with controls, NO autoplay (respect user preferences)
+     - The brand kit provides ready-to-use <video> HTML snippets
+     - ❌ NEVER autoplay videos with sound
+
+  6. **BRAND COLOR PALETTE**
+     - Colors are extracted from brand assets and sorted by prominence
+     - PRIMARY color (first in list): Use for main CTAs, primary buttons, links, brand highlights
+     - SECONDARY color (second): Use for secondary buttons, hover states, accents
+     - ACCENT colors: Use for subtle highlights, borders, backgrounds
+     - Example: If PRIMARY is #2563EB:
+       ✅ <button className="bg-[#2563EB] hover:bg-[#1d4ed8]">
+       ✅ <a className="text-[#2563EB] hover:underline">
+       ❌ Don't use random colors that aren't in the brand palette
+       ❌ Don't use accent colors for primary CTAs
+
+  7. **VARIANT INTELLIGENCE**
+     - Assets have multiple variants: favicon, navbar, hero, thumbnail, original
+     - ALWAYS use the recommended variant for each context:
+       * Favicons → /favicon.ico, /favicon-32.png
+       * Navbar → /assets/logo-navbar.png (optimized ~200×67px)
+       * Hero sections → /assets/logo-hero.jpg or original
+       * DO NOT use original high-res files where optimized variants exist
+     - This improves performance and ensures correct sizing
+
+  8. **RESPECT AI ANALYSIS**
+     - The brand kit includes AI-generated descriptions and usage notes
+     - READ these carefully - they contain professional design guidance
+     - If analysis says "Best for: navbar, footer" → use in navbar/footer
+     - If analysis says "Avoid: favicon" → don't use as favicon
+     - If there are specific usage notes → follow them exactly
+
+  9. **CODE EXAMPLES IN CONTEXT**
+     - The brand kit context provides ready-to-use code snippets
+     - For fonts: Copy/paste @font-face and usage CSS
+     - For videos: Copy/paste <video> HTML with correct attributes
+     - For logos: Use the exact <img src="..."> paths shown
+     - Don't improvise paths or attributes - use what's provided
+
+  10. **COMMON MISTAKES TO AVOID**
+      ❌ Using /public/assets/logo.png instead of /assets/logo.png
+      ❌ Using horizontal logo for favicon
+      ❌ Using font-family without @font-face
+      ❌ Ignoring theme variant (light logo on dark background or vice versa)
+      ❌ Using original high-res files instead of optimized variants
+      ❌ Autoplay videos with sound
+      ❌ Skipping favicon links in <head>
+      ❌ Using wrong aspect ratio (horizontal logo in square context)
+
+  **VERIFICATION CHECKLIST:**
+  Before completing your work, verify:
+  ✓ Favicons added to <head> in index.html
+  ✓ @font-face declarations in src/index.css if using custom fonts
+  ✓ Logo paths match exactly what's in brand kit context
+  ✓ Logo background theme matches navbar/footer background
+  ✓ Using optimized variants (not always original files)
+  ✓ Brand colors used for CTAs and primary elements
+  ✓ No horizontal logos used as favicons
+  ✓ All paths are absolute (/assets/...) not relative (./assets/...)
+
+  **PRIORITY HIERARCHY:**
+  1. BRAND ASSETS > Generated images > Fetched images
+  2. If brand logo exists, use it (don't generate a logo)
+  3. If brand colors exist, use them as primary palette
+  4. If brand fonts exist, use them for typography
+  5. Only generate/fetch assets not provided in brand kit
+
   7. **When to manually place images vs relying on auto-injection**:
      - Let auto-injection handle simple cases (hero images, single images)
      - Manually place when you need specific positioning, styling, or multiple images

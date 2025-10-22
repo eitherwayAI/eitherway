@@ -7,7 +7,10 @@ import { ImageJobsRepository, ImageAssetsRepository } from '../repositories/imag
 export interface ImageGenerationOptions {
   prompt: string;
   model?: 'gpt-image-1' | 'dall-e-3' | 'dall-e-2';
-  size?: '1024x1024' | '1792x1024' | '1024x1792' | '256x256' | '512x512';
+  // GPT-Image-1: 1024x1024, 1536x1024, 1024x1536
+  // DALL-E 3: 1024x1024, 1792x1024, 1024x1792
+  // DALL-E 2: 256x256, 512x512, 1024x1024
+  size?: '1024x1024' | '1536x1024' | '1024x1536' | '1792x1024' | '1024x1792' | '256x256' | '512x512';
   quality?: 'standard' | 'hd' | 'low' | 'medium' | 'high' | 'auto';
   n?: number;
   sessionId?: string;

@@ -52,4 +52,10 @@ export type { DeploymentConfig, DeploymentResult } from './services/deployment-s
 export { PaletteExtractor } from './services/palette-extractor.js';
 export type { ExtractedColor, PaletteExtractionOptions } from './services/palette-extractor.js';
 
+export { AssetProcessor } from './services/asset-processor.js';
+export type { ProcessedAssetVariant, ImageMetadata, FontMetadata, VideoMetadata } from './services/asset-processor.js';
+
+export { AssetVisionAnalyzer } from './services/asset-vision-analyzer.js';
+export type { AssetAIAnalysis } from './services/asset-vision-analyzer.js';
+
 export type * from './types.js';

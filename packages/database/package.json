@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
     "archiver": "^7.0.1",
     "diff": "^5.1.0",
     "form-data": "^4.0.0",

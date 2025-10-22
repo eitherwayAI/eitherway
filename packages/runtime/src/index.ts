@@ -10,6 +10,7 @@ export { TranscriptRecorder } from './transcript.js';
 export { ConfigLoader } from './config.js';
 export { MetricsCollector } from './metrics.js';
 export { RateLimiter } from './rate-limiter.js';
+export { buildBrandKitContext } from './brand-kit-context.js';
 
 export type { AgentOptions, StreamingCallbacks, StreamingPhase } from './agent.js';
 export type { DatabaseAgentOptions } from './database-agent.js';

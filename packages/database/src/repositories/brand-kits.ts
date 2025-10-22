@@ -255,6 +255,21 @@ export class BrandAssetsRepository {
     return result.rows[0] || null;
   }
 
+  async updateMetadata(
+    id: string,
+    metadata: Record<string, any>
+  ): Promise<BrandAsset | null> {
+    const result = await this.db.query(
+      `UPDATE core.brand_assets
+       SET metadata = $1
+       WHERE id = $2
+       RETURNING *`,
+      [JSON.stringify(metadata), id]
+    );
+
+    return result.rows[0] || null;
+  }
+
   async delete(id: string): Promise<boolean> {
     const result = await this.db.query(
       `DELETE FROM core.brand_assets WHERE id = $1`,

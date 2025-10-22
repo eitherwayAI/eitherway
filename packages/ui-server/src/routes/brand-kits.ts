@@ -22,11 +22,12 @@ import {
   BrandColorsRepository,
   PaletteExtractor,
   EventsRepository,
-  UsersRepository
+  UsersRepository,
+  AssetProcessor,
+  AssetVisionAnalyzer
 } from '@eitherway/database';
 import { writeFile, mkdir, readFile, rm } from 'fs/promises';
 import { join } from 'path';
-import { randomUUID } from 'crypto';
 
 export async function registerBrandKitRoutes(
   fastify: FastifyInstance,
@@ -40,6 +41,10 @@ export async function registerBrandKitRoutes(
   const paletteExtractor = new PaletteExtractor();
   const eventsRepo = new EventsRepository(db);
   const usersRepo = new UsersRepository(db);
+  const assetProcessor = new AssetProcessor();
+  const visionAnalyzer = process.env.ANTHROPIC_API_KEY
+    ? new AssetVisionAnalyzer(process.env.ANTHROPIC_API_KEY)
+    : null; // Vision analysis is optional
 
   // Storage configuration (local for now, can be upgraded to S3/GCS)
   const UPLOAD_DIR = process.env.BRAND_KIT_UPLOAD_DIR || '/tmp/eitherway-brand-kits';
@@ -508,7 +513,7 @@ export async function registerBrandKitRoutes(
 
   /**
    * POST /api/brand-kits/:id/assets
-   * Upload asset and extract color palette
+   * Upload asset with intelligent processing and vision analysis
    */
   fastify.post<{
     Params: { id: string };
@@ -541,13 +546,15 @@ export async function registerBrandKitRoutes(
       const mimeType = data.mimetype;
 
       console.log('[Brand Kits API] File buffered, size:', buffer.length, 'bytes');
+      console.log('[Brand Kits API] Starting intelligent asset processing...');
 
       // Strict file type validation - only allow specified types
       const mimeToKind: Record<string, { kind: string; maxSize: number }> = {
         // Images: PNG, JPEG, SVG, ICO (20MB max)
-        'image/png': { kind: 'image', maxSize: 20 * 1024 * 1024 },
-        'image/jpeg': { kind: 'image', maxSize: 20 * 1024 * 1024 },
-        'image/jpg': { kind: 'image', maxSize: 20 * 1024 * 1024 },
+        // PNG/JPEG default to 'logo' - will be refined by AI analysis
+        'image/png': { kind: 'logo', maxSize: 20 * 1024 * 1024 },
+        'image/jpeg': { kind: 'logo', maxSize: 20 * 1024 * 1024 },
+        'image/jpg': { kind: 'logo', maxSize: 20 * 1024 * 1024 },
         'image/svg+xml': { kind: 'logo', maxSize: 20 * 1024 * 1024 },
         'image/x-icon': { kind: 'icon', maxSize: 20 * 1024 * 1024 },
         'image/vnd.microsoft.icon': { kind: 'icon', maxSize: 20 * 1024 * 1024 },
@@ -596,55 +603,157 @@ export async function registerBrandKitRoutes(
 
       const assetKind = fileTypeInfo.kind;
 
-      // Generate storage key
-      const fileExt = fileName.split('.').pop() || 'bin';
-      const storageKey = `brand-kits/${brandKit.user_id}/${brandKitId}/${randomUUID()}.${fileExt}`;
+      console.log(`[Brand Kits API] Processing ${assetKind} asset: ${fileName}`);
 
-      const fullPath = join(UPLOAD_DIR, storageKey);
-      await mkdir(join(UPLOAD_DIR, `brand-kits/${brandKit.user_id}/${brandKitId}`), { recursive: true });
-      await writeFile(fullPath, buffer);
+      // === STEP 1: Process Asset (Generate Variants) ===
+      let processedData;
+      try {
+        if (['image', 'logo', 'icon'].includes(assetKind)) {
+          processedData = await assetProcessor.processImage(buffer, fileName, mimeType, brandKitId, brandKit.user_id);
+          console.log(`[Brand Kits API] Generated ${processedData.variants.length} image variants`);
+        } else if (assetKind === 'font') {
+          processedData = await assetProcessor.processFont(buffer, fileName, mimeType, brandKitId, brandKit.user_id);
+          console.log(`[Brand Kits API] Processed font: ${processedData.metadata.familyName} ${processedData.metadata.styleName}`);
+        } else if (assetKind === 'video') {
+          processedData = await assetProcessor.processVideo(buffer, fileName, brandKitId, brandKit.user_id);
+          console.log('[Brand Kits API] Processed video asset');
+        } else {
+          // For other types (brand_zip, etc), skip processing
+          processedData = {
+            variants: [{
+              purpose: 'original' as const,
+              fileName,
+              storageKey: `brand-kits/${brandKit.user_id}/${brandKitId}/${fileName}`,
+              width: 0,
+              height: 0,
+              fileSizeBytes: buffer.length,
+              mimeType,
+              buffer
+            }],
+            metadata: {}
+          };
+        }
+      } catch (error: any) {
+        console.error('[Brand Kits API] Asset processing failed:', error);
+        return reply.code(500).send({
+          error: 'Asset processing failed',
+          message: error.message
+        });
+      }
+
+      // === STEP 2: Vision Analysis (For Images) ===
+      let aiAnalysis = null;
+      if (visionAnalyzer && ['image', 'logo', 'icon'].includes(assetKind) && 'originalWidth' in processedData.metadata) {
+        try {
+          console.log('[Brand Kits API] Running vision analysis...');
+          aiAnalysis = await visionAnalyzer.analyzeAsset(
+            buffer,
+            fileName,
+            mimeType,
+            processedData.metadata as import('@eitherway/database').ImageMetadata,
+            assetKind as 'image' | 'logo' | 'icon'
+          );
+          console.log('[Brand Kits API] Vision analysis complete:', aiAnalysis.description.substring(0, 50) + '...');
+        } catch (error: any) {
+          console.warn('[Brand Kits API] Vision analysis failed (non-critical):', error.message);
+          // Vision analysis is optional, continue without it
+        }
+      } else if (assetKind === 'font' && visionAnalyzer && 'familyName' in processedData.metadata) {
+        // For fonts, use metadata-based analysis
+        try {
+          aiAnalysis = await visionAnalyzer.analyzeAsset(
+            buffer,
+            fileName,
+            mimeType,
+            processedData.metadata as import('@eitherway/database').FontMetadata,
+            'font'
+          );
+        } catch (error: any) {
+          console.warn('[Brand Kits API] Font analysis failed (non-critical):', error.message);
+        }
+      } else if (assetKind === 'video' && visionAnalyzer && 'duration' in processedData.metadata) {
+        // For videos, use metadata-based analysis
+        try {
+          aiAnalysis = await visionAnalyzer.analyzeAsset(
+            buffer,
+            fileName,
+            mimeType,
+            processedData.metadata as import('@eitherway/database').VideoMetadata,
+            'video'
+          );
+        } catch (error: any) {
+          console.warn('[Brand Kits API] Video analysis failed (non-critical):', error.message);
+        }
+      }
+
+      // === STEP 3: Save All Variants to Disk ===
+      const variantPaths: Array<{ purpose: string; path: string; size: number }> = [];
+      for (const variant of processedData.variants) {
+        try {
+          const fullPath = join(UPLOAD_DIR, variant.storageKey);
+          const dirPath = join(UPLOAD_DIR, `brand-kits/${brandKit.user_id}/${brandKitId}`);
+          await mkdir(dirPath, { recursive: true });
+          await writeFile(fullPath, variant.buffer);
+
+          variantPaths.push({
+            purpose: variant.purpose,
+            path: variant.storageKey,
+            size: variant.fileSizeBytes
+          });
+
+          console.log(`[Brand Kits API] Saved variant: ${variant.purpose} → ${variant.fileName} (${variant.fileSizeBytes} bytes)`);
+        } catch (error: any) {
+          console.error(`[Brand Kits API] Failed to save variant ${variant.fileName}:`, error);
+        }
+      }
+
+      // === STEP 4: Create Database Record with Metadata ===
+      const originalVariant = processedData.variants.find(v => v.purpose === 'original');
+      const metadata = {
+        kind: assetKind,
+        aspectRatio: (processedData.metadata as any).aspectRatio,
+        hasAlpha: (processedData.metadata as any).hasAlpha,
+        familyName: (processedData.metadata as any).familyName,
+        weight: (processedData.metadata as any).weight,
+        style: (processedData.metadata as any).style,
+        variants: processedData.variants.map(v => ({
+          purpose: v.purpose,
+          fileName: v.fileName,
+          storageKey: v.storageKey,
+          width: v.width,
+          height: v.height,
+          fileSizeBytes: v.fileSizeBytes,
+          mimeType: v.mimeType
+        })),
+        aiAnalysis: aiAnalysis || undefined
+      };
 
       const asset = await assetsRepo.create({
         brandKitId,
         userId: brandKit.user_id,
         assetType: assetKind as 'logo' | 'image' | 'icon' | 'pattern',
         fileName,
-        storageKey,
+        storageKey: originalVariant?.storageKey || `brand-kits/${brandKit.user_id}/${brandKitId}/${fileName}`,
         storageProvider: 'local',
         mimeType,
         fileSizeBytes: buffer.length,
-        metadata: { kind: assetKind } // Store detailed kind in metadata
+        widthPx: originalVariant?.width,
+        heightPx: originalVariant?.height,
+        metadata
       });
 
-      // Process the asset synchronously to ensure it's ready for color extraction
-      try {
-        await assetsRepo.updateProcessingStatus(asset.id, 'processing');
+      // Mark as completed
+      await assetsRepo.updateProcessingStatus(asset.id, 'completed');
 
-        // Extract dimensions for raster images
-        const shouldProcessImage = ['image', 'logo', 'icon'].includes(assetKind) && mimeType !== 'image/svg+xml';
-        if (shouldProcessImage) {
-          const sharp = (await import('sharp')).default;
-          const metadata = await sharp(buffer).metadata();
+      await eventsRepo.log('brand_kit.asset_processed', {
+        brandKitId,
+        assetId: asset.id,
+        assetKind,
+        variantsGenerated: processedData.variants.length,
+        hasAIAnalysis: !!aiAnalysis
+      }, { sessionId: undefined, appId: undefined, actor: 'system' });
 
-          if (metadata.width && metadata.height) {
-            await assetsRepo.updateDimensions(asset.id, metadata.width, metadata.height);
-          }
-        }
-
-        await assetsRepo.updateProcessingStatus(asset.id, 'completed');
-
-        await eventsRepo.log('brand_kit.asset_processed', {
-          brandKitId,
-          assetId: asset.id,
-          assetKind
-        }, { sessionId: undefined, appId: undefined, actor: 'system' });
-
-        console.log('[Brand Kits API] Asset processed successfully:', asset.id);
-
-      } catch (error: any) {
-        console.error('[Brand Kits API] Asset processing failed:', error);
-        await assetsRepo.updateProcessingStatus(asset.id, 'failed', error.message);
-      }
+      console.log('[Brand Kits API] Asset upload complete:', asset.id);
 
       return {
         success: true,
@@ -653,7 +762,12 @@ export async function registerBrandKitRoutes(
           assetType: asset.asset_type,
           fileName: asset.file_name,
           processingStatus: 'completed',
-          uploadedAt: asset.uploaded_at
+          uploadedAt: asset.uploaded_at,
+          variantsGenerated: processedData.variants.length,
+          aiAnalysis: aiAnalysis ? {
+            description: aiAnalysis.description,
+            bestFor: aiAnalysis.recommendations.bestFor
+          } : undefined
         }
       };
 

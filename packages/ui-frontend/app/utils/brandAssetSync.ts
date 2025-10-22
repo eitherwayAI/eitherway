@@ -9,13 +9,28 @@ import { BACKEND_URL } from '~/config/api';
 
 const logger = createScopedLogger('BrandAssetSync');
 
+interface BrandAssetVariant {
+  purpose: string;
+  fileName: string;
+  storageKey: string;
+  width: number;
+  height: number;
+  fileSizeBytes: number;
+  mimeType: string;
+}
+
 interface BrandAsset {
   id: string;
   fileName: string;
   storageKey: string;
   mimeType: string;
   assetType: string;
-  metadata?: { kind?: string };
+  metadata?: {
+    kind?: string;
+    variants?: BrandAssetVariant[];
+    aspectRatio?: string;
+    familyName?: string;
+  };
 }
 
 /**
@@ -90,7 +105,7 @@ function arrayBufferToString(buffer: ArrayBuffer): string {
 }
 
 /**
- * Sync brand assets to WebContainer filesystem
+ * Sync brand assets to WebContainer filesystem (including all variants)
  */
 export async function syncBrandAssetsToWebContainer(
   webcontainer: WebContainer,
@@ -104,52 +119,79 @@ export async function syncBrandAssetsToWebContainer(
 
   for (const asset of assets) {
     try {
-      const destPath = getAssetDestinationPath(asset);
+      const hasVariants = asset.metadata?.variants && asset.metadata.variants.length > 0;
 
-      if (!destPath) {
-        logger.debug(`Skipping asset: ${asset.fileName} (no destination)`);
-        skipped++;
-        continue;
-      }
+      if (hasVariants) {
+        // Sync all variants with intelligent routing
+        logger.info(`Syncing ${asset.metadata!.variants!.length} variants for ${asset.fileName}`);
 
-      // Ensure parent directory exists
-      const dirPath = destPath.split('/').slice(0, -1).join('/');
-      if (dirPath) {
-        await ensureDirectory(webcontainer, dirPath);
-      }
+        for (const variant of asset.metadata!.variants!) {
+          try {
+            const destPath = getVariantDestinationPath(variant, asset);
 
-      // Fetch asset file
-      logger.debug(`Fetching brand asset: ${asset.fileName}`);
-      const fileBuffer = await fetchBrandAssetFile(asset.storageKey);
+            if (!destPath) {
+              logger.debug(`Skipping variant: ${variant.fileName} (no destination)`);
+              continue;
+            }
 
-      // Determine if file should be stored as text or binary
-      const isTextFile = asset.mimeType.includes('svg') || asset.mimeType.includes('text');
+            // Ensure parent directory exists
+            const dirPath = destPath.split('/').slice(0, -1).join('/');
+            if (dirPath) {
+              await ensureDirectory(webcontainer, dirPath);
+            }
 
-      if (isTextFile) {
-        // Text file (SVG): write as UTF-8 string
-        const textContents = arrayBufferToString(fileBuffer);
-        await webcontainer.fs.writeFile(destPath, textContents);
-        logger.debug(`Text asset ${asset.fileName}: stored as UTF-8, length: ${textContents.length}`);
-      } else {
-        // Binary file (PNG, JPEG, fonts, etc.): write as Uint8Array directly
-        const binaryContents = new Uint8Array(fileBuffer);
-        await webcontainer.fs.writeFile(destPath, binaryContents);
+            // Fetch variant file
+            const fileBuffer = await fetchBrandAssetFile(variant.storageKey);
 
-        // Log first bytes for verification
-        const firstBytes = binaryContents.slice(0, 8);
-        logger.debug(`Binary asset ${asset.fileName}: stored as Uint8Array, size: ${binaryContents.length} bytes`);
-        logger.debug(`First bytes (hex): ${Array.from(firstBytes).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
+            // Determine if file should be stored as text or binary
+            const isTextFile = variant.mimeType.includes('svg') || variant.mimeType.includes('text');
 
-        // Verify PNG magic number if it's a PNG
-        if (asset.mimeType === 'image/png') {
-          const pngMagic = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-          const matches = pngMagic.every((byte, i) => binaryContents[i] === byte);
-          logger.debug(`PNG magic number check: ${matches ? '✓ Valid' : '✗ Invalid'}`);
+            if (isTextFile) {
+              const textContents = arrayBufferToString(fileBuffer);
+              await webcontainer.fs.writeFile(destPath, textContents);
+              logger.debug(`Text variant ${variant.fileName}: stored as UTF-8`);
+            } else {
+              const binaryContents = new Uint8Array(fileBuffer);
+              await webcontainer.fs.writeFile(destPath, binaryContents);
+              logger.debug(`Binary variant ${variant.fileName}: ${binaryContents.length} bytes`);
+            }
+
+            logger.info(`✓ Synced variant: ${variant.purpose} → ${destPath}`);
+            synced++;
+          } catch (error) {
+            logger.error(`Failed to sync variant ${variant.fileName}:`, error);
+            failed++;
+          }
         }
-      }
+      } else {
+        // Legacy: No variants, sync original file
+        const destPath = getAssetDestinationPath(asset);
 
-      logger.info(`✓ Synced brand asset: ${destPath}`);
-      synced++;
+        if (!destPath) {
+          logger.debug(`Skipping asset: ${asset.fileName} (no destination)`);
+          skipped++;
+          continue;
+        }
+
+        const dirPath = destPath.split('/').slice(0, -1).join('/');
+        if (dirPath) {
+          await ensureDirectory(webcontainer, dirPath);
+        }
+
+        const fileBuffer = await fetchBrandAssetFile(asset.storageKey);
+        const isTextFile = asset.mimeType.includes('svg') || asset.mimeType.includes('text');
+
+        if (isTextFile) {
+          const textContents = arrayBufferToString(fileBuffer);
+          await webcontainer.fs.writeFile(destPath, textContents);
+        } else {
+          const binaryContents = new Uint8Array(fileBuffer);
+          await webcontainer.fs.writeFile(destPath, binaryContents);
+        }
+
+        logger.info(`✓ Synced brand asset: ${destPath}`);
+        synced++;
+      }
     } catch (error) {
       logger.error(`Failed to sync asset ${asset.fileName}:`, error);
       failed++;
@@ -158,4 +200,54 @@ export async function syncBrandAssetsToWebContainer(
 
   logger.info(`Brand asset sync complete: ${synced} synced, ${skipped} skipped, ${failed} failed`);
   return { synced, skipped, failed };
+}
+
+/**
+ * Get WebContainer destination path for a specific variant
+ */
+function getVariantDestinationPath(variant: BrandAssetVariant, asset: BrandAsset): string {
+  const kind = asset.metadata?.kind || asset.assetType;
+
+  // Favicons go to public root
+  if (variant.purpose === 'favicon') {
+    return `public/${variant.fileName}`;
+  }
+
+  // Navbar/hero/optimized variants
+  if (variant.purpose === 'navbar' || variant.purpose === 'hero' || variant.purpose === 'optimized') {
+    if (kind === 'font') {
+      return `public/fonts/${variant.fileName}`;
+    }
+    if (kind === 'video') {
+      return `public/videos/${variant.fileName}`;
+    }
+    // Images/logos go to public/assets
+    return `public/assets/${variant.fileName}`;
+  }
+
+  // Original files
+  if (variant.purpose === 'original') {
+    if (kind === 'icon') {
+      return `public/${variant.fileName}`;
+    }
+    if (kind === 'logo') {
+      return `public/assets/${variant.fileName}`;
+    }
+    if (kind === 'image') {
+      return `public/assets/${variant.fileName}`;
+    }
+    if (kind === 'font') {
+      return `public/fonts/${variant.fileName}`;
+    }
+    if (kind === 'video') {
+      return `public/videos/${variant.fileName}`;
+    }
+  }
+
+  // Thumbnails: skip (only for UI)
+  if (variant.purpose === 'thumbnail') {
+    return '';
+  }
+
+  return '';
 }
