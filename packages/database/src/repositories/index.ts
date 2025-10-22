@@ -7,3 +7,6 @@ export { SessionMemoryRepository, WorkingSetRepository } from './session-memory.
 export { ImageJobsRepository, ImageAssetsRepository } from './images.js';
 export { EventsRepository } from './events.js';
 export { EmbeddingsRepository } from './embeddings.js';
+export { DeploymentsRepository, ExportsRepository } from './deployments.js';
+export { UserIntegrationsRepository, NetlifySitesRepository } from './netlify.js';
+export { VercelProjectsRepository } from './vercel.js';

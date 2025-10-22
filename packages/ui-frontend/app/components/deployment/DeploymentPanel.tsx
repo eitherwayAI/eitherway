@@ -1,10 +1,10 @@
 /**
  * Deployment & Download Modals
  *
- * Modern modals for deployment to Netlify and downloading project files
+ * Modern modals for deployment to Netlify, Vercel, GitHub and downloading project files
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // TYPES
@@ -15,6 +15,21 @@ interface DeploymentPanelProps {
   userId: string;
   initialTab?: 'deploy' | 'download';
   onClose?: () => void;
+}
+
+type DeployProvider = 'netlify' | 'vercel' | 'github';
+
+interface DeployResult {
+  provider: DeployProvider;
+  siteId?: string;
+  deployId?: string;
+  siteUrl: string;
+  adminUrl?: string;
+  deployUrl?: string;
+  projectId?: string;
+  projectName?: string;
+  repoUrl?: string;
+  repoName?: string;
 }
 
 // MAIN COMPONENT
@@ -31,24 +46,32 @@ export function DeploymentPanel({ appId, sessionId, userId, initialTab = 'deploy
   );
 }
 
-// DEPLOY MODAL (NETLIFY ONLY)
-
-interface DeployResult {
-  siteId: string;
-  deployId: string;
-  siteUrl: string;
-  adminUrl: string;
-  deployUrl: string;
-}
+// DEPLOY MODAL (MULTI-PROVIDER)
 
 function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanelProps, 'initialTab'>) {
+  const [provider, setProvider] = useState<DeployProvider>('netlify');
+
+  // Netlify state
   const [netlifyToken, setNetlifyToken] = useState('');
   const [siteName, setSiteName] = useState('');
+
+  // Vercel state (now GitHub-integrated)
+  const [vercelGithubToken, setVercelGithubToken] = useState('');
+  const [vercelToken, setVercelToken] = useState('');
+  const [vercelRepoName, setVercelRepoName] = useState('');
+  const [vercelRepoVisibility, setVercelRepoVisibility] = useState<'public' | 'private'>('public');
+
+  // GitHub state
+  const [githubToken, setGithubToken] = useState('');
+  const [repoName, setRepoName] = useState('');
+  const [repoVisibility, setRepoVisibility] = useState<'public' | 'private'>('public');
+
+  // Shared state
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployResult, setDeployResult] = useState<DeployResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleDeploy = async () => {
+  const handleNetlifyDeploy = async () => {
     if (!netlifyToken) {
       setError('Please enter your Netlify access token');
       return;
@@ -58,29 +81,21 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
     setError(null);
 
     try {
-      // Step 1: Validate and save the token
-      console.log('[Deploy] Validating Netlify token...');
+      // Validate token
       const validateResponse = await fetch('/api/netlify/validate-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          token: netlifyToken
-        })
+        body: JSON.stringify({ userId, token: netlifyToken })
       });
 
       const validateData = await validateResponse.json();
-
       if (!validateResponse.ok || !validateData.success) {
         setError(`Token validation failed: ${validateData.error || 'Invalid token'}`);
         setIsDeploying(false);
         return;
       }
 
-      console.log('[Deploy] Token validated successfully!');
-
-      // Step 2: Deploy to Netlify
-      console.log('[Deploy] Starting deployment...');
+      // Deploy to Netlify
       const deployResponse = await fetch('/api/netlify/deploy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -95,23 +110,152 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
       });
 
       const deployData = await deployResponse.json();
-
       if (!deployResponse.ok || !deployData.success) {
         setError(`Deployment failed: ${deployData.error || 'Unknown error'}`);
         setIsDeploying(false);
         return;
       }
 
-      console.log('[Deploy] Deployment successful!', deployData.data);
-
-      setDeployResult(deployData.data);
+      setDeployResult({ provider: 'netlify', ...deployData.data });
       setIsDeploying(false);
 
     } catch (error: any) {
-      console.error('Deployment error:', error);
       setError(`Failed to deploy: ${error.message}`);
       setIsDeploying(false);
     }
+  };
+
+  const handleVercelDeploy = async () => {
+    if (!vercelGithubToken) {
+      setError('Please enter your GitHub access token');
+      return;
+    }
+    if (!vercelToken) {
+      setError('Please enter your Vercel access token');
+      return;
+    }
+    if (!vercelRepoName) {
+      setError('Please enter a repository name');
+      return;
+    }
+
+    setIsDeploying(true);
+    setError(null);
+
+    try {
+      // Deploy to Vercel with GitHub integration
+      const deployResponse = await fetch('/api/vercel/deploy-github', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appId,
+          userId,
+          sessionId,
+          githubToken: vercelGithubToken,
+          vercelToken,
+          repoName: vercelRepoName,
+          repoVisibility: vercelRepoVisibility
+        })
+      });
+
+      const deployData = await deployResponse.json();
+      if (!deployResponse.ok || !deployData.success) {
+        setError(`Deployment failed: ${deployData.error || 'Unknown error'}`);
+        setIsDeploying(false);
+        return;
+      }
+
+      setDeployResult({
+        provider: 'vercel',
+        siteUrl: deployData.data.deploymentUrl || deployData.data.repoUrl,
+        projectId: deployData.data.projectId,
+        projectName: deployData.data.projectName,
+        repoUrl: deployData.data.repoUrl,
+        repoName: deployData.data.repoFullName
+      });
+      setIsDeploying(false);
+
+    } catch (error: any) {
+      setError(`Failed to deploy: ${error.message}`);
+      setIsDeploying(false);
+    }
+  };
+
+  const handleGithubDeploy = async () => {
+    if (!githubToken) {
+      setError('Please enter your GitHub access token');
+      return;
+    }
+    if (!repoName) {
+      setError('Please enter a repository name');
+      return;
+    }
+
+    setIsDeploying(true);
+    setError(null);
+
+    try {
+      // Validate token
+      const validateResponse = await fetch('/api/github/validate-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, token: githubToken })
+      });
+
+      const validateData = await validateResponse.json();
+      if (!validateResponse.ok || !validateData.success) {
+        setError(`Token validation failed: ${validateData.error || 'Invalid token'}`);
+        setIsDeploying(false);
+        return;
+      }
+
+      // Create GitHub repo and push code
+      const deployResponse = await fetch('/api/github/create-repo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appId,
+          userId,
+          sessionId,
+          repoName,
+          isPrivate: repoVisibility === 'private',
+          description: `EitherWay App - ${repoName}`,
+          enablePages: true
+        })
+      });
+
+      const deployData = await deployResponse.json();
+      if (!deployResponse.ok || !deployData.success) {
+        setError(`Repository creation failed: ${deployData.error || 'Unknown error'}`);
+        setIsDeploying(false);
+        return;
+      }
+
+      setDeployResult({
+        provider: 'github',
+        siteUrl: deployData.data.htmlUrl,
+        repoUrl: deployData.data.htmlUrl,
+        repoName: deployData.data.fullName
+      });
+      setIsDeploying(false);
+
+    } catch (error: any) {
+      setError(`Failed to create repository: ${error.message}`);
+      setIsDeploying(false);
+    }
+  };
+
+  const handleDeploy = () => {
+    if (provider === 'netlify') handleNetlifyDeploy();
+    else if (provider === 'vercel') handleVercelDeploy();
+    else if (provider === 'github') handleGithubDeploy();
+  };
+
+  const canDeploy = () => {
+    if (provider === 'netlify') return !!netlifyToken;
+    if (provider === 'vercel') return !!vercelGithubToken && !!vercelToken && !!vercelRepoName;
+    if (provider === 'github') return !!githubToken && !!repoName;
+    return false;
   };
 
   // Show success view if deployment completed
@@ -135,8 +279,14 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
                 </svg>
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-white">Deployment Successful!</h2>
-                <p className="text-sm text-gray-400 mt-0.5">Your site is now live on Netlify</p>
+                <h2 className="text-xl font-semibold text-white">
+                  {deployResult.provider === 'github' ? 'Repository Created!' : 'Deployment Successful!'}
+                </h2>
+                <p className="text-sm text-gray-400 mt-0.5">
+                  {deployResult.provider === 'netlify' && 'Your site is now live on Netlify'}
+                  {deployResult.provider === 'vercel' && 'Your site is now live on Vercel'}
+                  {deployResult.provider === 'github' && 'Your code is now on GitHub'}
+                </p>
               </div>
             </div>
             <button
@@ -151,7 +301,6 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
 
           {/* Success Content */}
           <div className="p-6">
-            {/* URLs Section */}
             <div className="space-y-3 mb-6">
               <div className="bg-[#0e0e0e] border border-gray-800 rounded-xl p-4">
                 <div className="flex items-start gap-3">
@@ -159,7 +308,9 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
                   </svg>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-400 mb-1">Production URL</p>
+                    <p className="text-xs font-medium text-gray-400 mb-1">
+                      {deployResult.provider === 'github' ? 'Repository URL' : 'Production URL'}
+                    </p>
                     <a
                       href={deployResult.siteUrl}
                       target="_blank"
@@ -172,25 +323,29 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
                 </div>
               </div>
 
-              <div className="bg-[#0e0e0e] border border-gray-800 rounded-xl p-4">
-                <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-400 mb-1">Netlify Admin</p>
-                    <a
-                      href={deployResult.adminUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-blue-400 hover:text-blue-300 break-all transition-colors"
-                    >
-                      {deployResult.adminUrl}
-                    </a>
+              {deployResult.adminUrl && (
+                <div className="bg-[#0e0e0e] border border-gray-800 rounded-xl p-4">
+                  <div className="flex items-start gap-3">
+                    <svg className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-400 mb-1">
+                        {deployResult.provider === 'netlify' ? 'Netlify Admin' : 'Dashboard'}
+                      </p>
+                      <a
+                        href={deployResult.adminUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-400 hover:text-blue-300 break-all transition-colors"
+                      >
+                        {deployResult.adminUrl}
+                      </a>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Action Buttons */}
@@ -202,7 +357,7 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
-                Open Site
+                {deployResult.provider === 'github' ? 'Open Repository' : 'Open Site'}
               </button>
               <button
                 onClick={onClose}
@@ -215,8 +370,10 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
             {/* Deploy Info */}
             <div className="mt-4 pt-4 border-t border-gray-800">
               <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>Deploy ID: {deployResult.deployId}</span>
-                <span>Site ID: {deployResult.siteId.slice(0, 8)}...</span>
+                <span className="capitalize">{deployResult.provider}</span>
+                {deployResult.deployId && <span>Deploy ID: {deployResult.deployId}</span>}
+                {deployResult.projectId && <span>Project ID: {deployResult.projectId.slice(0, 12)}...</span>}
+                {deployResult.repoName && <span>Repository: {deployResult.repoName}</span>}
               </div>
             </div>
           </div>
@@ -239,7 +396,7 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
         <div className="px-6 py-5 border-b border-gray-800 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold text-white">Deploy</h2>
-            <p className="text-sm text-gray-400 mt-1">Choose where to deploy your application</p>
+            <p className="text-sm text-gray-400 mt-1">Choose your deployment platform</p>
           </div>
           <button
             onClick={onClose}
@@ -251,119 +408,304 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
           </button>
         </div>
 
+        {/* Provider Tabs */}
+        <div className="px-6 pt-4 flex gap-2 border-b border-gray-800">
+          <button
+            onClick={() => setProvider('netlify')}
+            className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors ${
+              provider === 'netlify'
+                ? 'bg-[#0e0e0e] text-[#00c7b7] border border-b-0 border-gray-800'
+                : 'text-black hover:text-[#00c7b7]'
+            }`}
+          >
+            Netlify
+          </button>
+          <button
+            onClick={() => setProvider('vercel')}
+            className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors ${
+              provider === 'vercel'
+                ? 'bg-[#0e0e0e] text-white border border-b-0 border-gray-800'
+                : 'text-black hover:text-gray-300'
+            }`}
+          >
+            Vercel
+          </button>
+          <button
+            onClick={() => setProvider('github')}
+            className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors ${
+              provider === 'github'
+                ? 'bg-[#0e0e0e] text-purple-400 border border-b-0 border-gray-800'
+                : 'text-black hover:text-purple-400'
+            }`}
+          >
+            GitHub
+          </button>
+        </div>
+
         {/* Content */}
-        <div className="p-6">
-          {/* Web Section */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">Web</h3>
-
-            {/* Netlify Card */}
-            <div className="bg-[#0e0e0e] border border-gray-800 rounded-xl p-5 hover:border-gray-700 transition-colors">
-              <div className="flex items-start gap-4">
-                {/* Netlify Icon */}
-                <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center flex-shrink-0 p-2">
-                  <img
-                    src="https://uxwing.com/wp-content/themes/uxwing/download/brands-and-social-media/netlify-icon.png"
-                    alt="Netlify"
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-lg font-semibold text-white">Netlify</h4>
-                  </div>
-
-                  <p className="text-sm text-gray-400 mb-4">
-                    Deploy your application to Netlify's global edge network with automatic SSL and CDN.
-                  </p>
-
-                  {/* Form Fields */}
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Access Token *
-                      </label>
-                      <input
-                        type="password"
-                        value={netlifyToken}
-                        onChange={(e) => setNetlifyToken(e.target.value)}
-                        placeholder="Enter your Netlify access token"
-                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#00c7b7] focus:border-transparent"
-                      />
-                      <p className="mt-1.5 text-xs text-gray-500">
-                        Generate a token{' '}
-                        <a
-                          href="https://docs.netlify.com/api-and-cli-guides/api-guides/get-started-with-api/#authentication"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[#00c7b7] hover:underline"
-                        >
-                          here
-                        </a>
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Site Name (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        value={siteName}
-                        onChange={(e) => setSiteName(e.target.value)}
-                        placeholder="my-awesome-site"
-                        className="w-full px-3 py-2 bg-[#1a1a1a] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#00c7b7] focus:border-transparent"
-                      />
-                      <p className="mt-1.5 text-xs text-gray-500">
-                        Leave empty for auto-generated name
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Error Message */}
-                  {error && (
-                    <div className="mt-3 bg-red-500/10 border border-red-500/30 rounded-lg p-3">
-                      <div className="flex gap-2">
-                        <svg className="w-5 h-5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <p className="text-sm text-red-300">{error}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Deploy Button */}
-                  <button
-                    onClick={handleDeploy}
-                    disabled={isDeploying || !netlifyToken}
-                    className="mt-4 w-full py-2.5 bg-gradient-to-r from-[#00c7b7] to-[#00a896] hover:from-[#00b3a6] hover:to-[#009688] disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all text-sm flex items-center justify-center gap-2"
+        <div className="p-6 min-h-[340px]">
+          {/* Netlify Form */}
+          {provider === 'netlify' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Access Token *
+                </label>
+                <input
+                  type="password"
+                  value={netlifyToken}
+                  onChange={(e) => setNetlifyToken(e.target.value)}
+                  placeholder="Enter your Netlify access token"
+                  className="w-full px-3 py-2 bg-[#0e0e0e] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#00c7b7] focus:border-transparent"
+                />
+                <p className="mt-1.5 text-xs text-gray-500">
+                  Generate a token{' '}
+                  <a
+                    href="https://app.netlify.com/user/applications/personal"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#00c7b7] hover:underline"
                   >
-                    {isDeploying ? (
-                      <>
-                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                        <span>Deploying...</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                        </svg>
-                        <span>Deploy to Netlify</span>
-                      </>
-                    )}
+                    here
+                  </a>
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Site Name (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={siteName}
+                  onChange={(e) => setSiteName(e.target.value)}
+                  placeholder="my-awesome-site"
+                  className="w-full px-3 py-2 bg-[#0e0e0e] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#00c7b7] focus:border-transparent"
+                />
+                <p className="mt-1.5 text-xs text-gray-500">
+                  Leave empty for auto-generated name
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Vercel Form */}
+          {provider === 'vercel' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  GitHub Token *
+                </label>
+                <input
+                  type="password"
+                  value={vercelGithubToken}
+                  onChange={(e) => setVercelGithubToken(e.target.value)}
+                  placeholder="Enter your GitHub personal access token"
+                  className="w-full px-3 py-2 bg-[#0e0e0e] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent"
+                />
+                <p className="mt-1.5 text-xs text-gray-500">
+                  Generate a token with repo scope{' '}
+                  <a
+                    href="https://github.com/settings/tokens/new"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-white hover:underline"
+                  >
+                    here
+                  </a>
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Vercel Token *
+                </label>
+                <input
+                  type="password"
+                  value={vercelToken}
+                  onChange={(e) => setVercelToken(e.target.value)}
+                  placeholder="Enter your Vercel access token"
+                  className="w-full px-3 py-2 bg-[#0e0e0e] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent"
+                />
+                <p className="mt-1.5 text-xs text-gray-500">
+                  Generate a token{' '}
+                  <a
+                    href="https://vercel.com/account/tokens"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-white hover:underline"
+                  >
+                    here
+                  </a>
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Repository Name *
+                </label>
+                <input
+                  type="text"
+                  value={vercelRepoName}
+                  onChange={(e) => setVercelRepoName(e.target.value)}
+                  placeholder="my-vercel-app"
+                  className="w-full px-3 py-2 bg-[#0e0e0e] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent"
+                />
+                <p className="mt-1.5 text-xs text-gray-500">
+                  Name for the GitHub repository
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Repository Visibility *
+                </label>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setVercelRepoVisibility('public')}
+                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      vercelRepoVisibility === 'public'
+                        ? 'bg-white text-black'
+                        : 'bg-[#0e0e0e] text-gray-400 border border-gray-700 hover:border-gray-600'
+                    }`}
+                  >
+                    Public
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVercelRepoVisibility('private')}
+                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      vercelRepoVisibility === 'private'
+                        ? 'bg-white text-black'
+                        : 'bg-[#0e0e0e] text-gray-400 border border-gray-700 hover:border-gray-600'
+                    }`}
+                  >
+                    Private
                   </button>
                 </div>
               </div>
             </div>
-          </div>
+          )}
+
+          {/* GitHub Form */}
+          {provider === 'github' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Access Token *
+                </label>
+                <input
+                  type="password"
+                  value={githubToken}
+                  onChange={(e) => setGithubToken(e.target.value)}
+                  placeholder="Enter your GitHub personal access token"
+                  className="w-full px-3 py-2 bg-[#0e0e0e] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+                <p className="mt-1.5 text-xs text-gray-500">
+                  Generate a token with repo scope{' '}
+                  <a
+                    href="https://github.com/settings/tokens/new"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-purple-400 hover:underline"
+                  >
+                    here
+                  </a>
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Repository Name *
+                </label>
+                <input
+                  type="text"
+                  value={repoName}
+                  onChange={(e) => setRepoName(e.target.value)}
+                  placeholder="my-awesome-repo"
+                  className="w-full px-3 py-2 bg-[#0e0e0e] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Visibility
+                </label>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setRepoVisibility('public')}
+                    className={`flex-1 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      repoVisibility === 'public'
+                        ? 'bg-purple-600 border-purple-600 text-white'
+                        : 'bg-[#0e0e0e] border-gray-700 text-gray-400 hover:border-gray-600'
+                    }`}
+                  >
+                    Public
+                  </button>
+                  <button
+                    onClick={() => setRepoVisibility('private')}
+                    className={`flex-1 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      repoVisibility === 'private'
+                        ? 'bg-purple-600 border-purple-600 text-white'
+                        : 'bg-[#0e0e0e] border-gray-700 text-gray-400 hover:border-gray-600'
+                    }`}
+                  >
+                    Private
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {error && (
+            <div className="mt-4 bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+              <div className="flex gap-2">
+                <svg className="w-5 h-5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-sm text-red-300">{error}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Deploy Button */}
+          <button
+            onClick={handleDeploy}
+            disabled={isDeploying || !canDeploy()}
+            className={`mt-6 w-full py-3 rounded-xl font-medium transition-all text-sm flex items-center justify-center gap-2 ${
+              provider === 'netlify'
+                ? 'bg-gradient-to-r from-[#00c7b7] to-[#00a896] hover:from-[#00b3a6] hover:to-[#009688] text-white shadow-lg shadow-[#00c7b7]/20'
+                : provider === 'vercel'
+                ? 'bg-black hover:bg-gray-900 text-white'
+                : 'bg-purple-600 hover:bg-purple-700 text-white'
+            } disabled:from-gray-700 disabled:to-gray-700 disabled:bg-gray-700 disabled:cursor-not-allowed disabled:shadow-none`}
+          >
+            {isDeploying ? (
+              <>
+                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                <span>{provider === 'github' ? 'Creating repository...' : 'Deploying...'}</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <span>
+                  {provider === 'netlify' && 'Deploy to Netlify'}
+                  {provider === 'vercel' && 'Deploy to Vercel'}
+                  {provider === 'github' && 'Create Repository'}
+                </span>
+              </>
+            )}
+          </button>
 
           {/* Info Box */}
-          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+          <div className="mt-4 bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
             <div className="flex gap-3">
               <svg className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -372,8 +714,8 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
                 <h4 className="text-sm font-semibold text-blue-300 mb-1">Before deploying</h4>
                 <ul className="text-xs text-blue-200/80 space-y-1">
                   <li>• Ensure your application is production-ready</li>
-                  <li>• Your Netlify token needs deploy permissions</li>
-                  <li>• Build process will run automatically</li>
+                  <li>• {provider === 'github' ? 'Token needs repo creation permissions' : 'Your token needs deployment permissions'}</li>
+                  <li>• {provider === 'github' ? 'Files will be committed to the repository' : 'Build process will run automatically'}</li>
                 </ul>
               </div>
             </div>
@@ -405,7 +747,6 @@ function DownloadModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPan
       });
 
       if (response.ok) {
-        // Download ZIP file
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');

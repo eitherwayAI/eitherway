@@ -19,6 +19,8 @@ import { registerSessionRoutes } from './routes/sessions.js';
 import { registerSessionFileRoutes } from './routes/session-files.js';
 import { registerImageRoutes } from './routes/images.js';
 import { registerNetlifyRoutes } from './routes/netlify.js';
+import { registerVercelRoutes } from './routes/vercel.js';
+import { registerGithubRoutes } from './routes/github.js';
 import { registerDeploymentRoutes } from './routes/deployments.js';
 import { registerAppRoutes } from './routes/apps.js';
 import { registerBrandKitRoutes } from './routes/brand-kits.js';
@@ -100,6 +102,8 @@ try {
     await registerImageRoutes(fastify, db);
     await registerAppRoutes(fastify, db);
     await registerNetlifyRoutes(fastify, db, WORKSPACE_DIR);
+    await registerVercelRoutes(fastify, db, WORKSPACE_DIR);
+    await registerGithubRoutes(fastify, db, WORKSPACE_DIR);
     await registerDeploymentRoutes(fastify, db, WORKSPACE_DIR);
     await registerBrandKitRoutes(fastify, db);
     await registerUploadRoutes(fastify, db);

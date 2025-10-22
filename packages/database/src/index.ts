@@ -11,6 +11,7 @@ export { ImageJobsRepository, ImageAssetsRepository } from './repositories/image
 export { EventsRepository } from './repositories/events.js';
 export { UserIntegrationsRepository, NetlifySitesRepository } from './repositories/netlify.js';
 export { DeploymentsRepository, ExportsRepository } from './repositories/deployments.js';
+export { VercelProjectsRepository } from './repositories/vercel.js';
 export { BrandKitsRepository, BrandAssetsRepository, BrandColorsRepository } from './repositories/brand-kits.js';
 export type { BrandKit, BrandAsset, BrandColor } from './repositories/brand-kits.js';
 
@@ -42,6 +43,12 @@ export type { RateLimitResult } from './services/rate-limiter.js';
 
 export { NetlifyService } from './services/netlify-service.js';
 export type { NetlifyDeployConfig, NetlifyDeployResult, NetlifyTokenValidationResult } from './services/netlify-service.js';
+
+export { VercelService } from './services/vercel-service.js';
+export type { VercelDeployConfig, VercelDeployResult, VercelTokenValidationResult, VercelGitHubDeployConfig, VercelGitHubDeployResult } from './services/vercel-service.js';
+
+export { GitHubService } from './services/github-service.js';
+export type { GitHubRepoConfig, GitHubRepoResult, GitHubTokenValidationResult } from './services/github-service.js';
 
 export { ExportService } from './services/export-service.js';
 export type { ExportConfig, ExportResult, ExportStats } from './services/export-service.js';
