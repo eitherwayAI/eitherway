@@ -14,6 +14,8 @@ export { DeploymentsRepository, ExportsRepository } from './repositories/deploym
 export { VercelProjectsRepository } from './repositories/vercel.js';
 export { BrandKitsRepository, BrandAssetsRepository, BrandColorsRepository } from './repositories/brand-kits.js';
 export type { BrandKit, BrandAsset, BrandColor } from './repositories/brand-kits.js';
+export { ContractsRepository } from './repositories/contracts.js';
+export type { SmartContract, ContractDeployment, CreateContractParams, UpdateCompilationParams, UpdateDeploymentParams, CreateDeploymentParams } from './repositories/contracts.js';
 
 export { ImageGenerationService } from './services/image-generator.js';
 export type { ImageGenerationOptions } from './services/image-generator.js';
@@ -58,5 +60,8 @@ export type { DeploymentConfig, DeploymentResult } from './services/deployment-s
 
 export { PaletteExtractor } from './services/palette-extractor.js';
 export type { ExtractedColor, PaletteExtractionOptions } from './services/palette-extractor.js';
+
+export { ContractService, SUPPORTED_CHAINS } from './services/contract-service.js';
+export type { CompileContractParams, CompileResult, DeployContractParams, DeployResult, ChainConfig } from './services/contract-service.js';
 
 export type * from './types.js';

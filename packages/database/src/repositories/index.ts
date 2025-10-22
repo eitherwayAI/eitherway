@@ -10,3 +10,4 @@ export { EmbeddingsRepository } from './embeddings.js';
 export { DeploymentsRepository, ExportsRepository } from './deployments.js';
 export { UserIntegrationsRepository, NetlifySitesRepository } from './netlify.js';
 export { VercelProjectsRepository } from './vercel.js';
+export { ContractsRepository } from './contracts.js';

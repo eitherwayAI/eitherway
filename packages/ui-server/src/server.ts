@@ -21,6 +21,7 @@ import { registerImageRoutes } from './routes/images.js';
 import { registerNetlifyRoutes } from './routes/netlify.js';
 import { registerVercelRoutes } from './routes/vercel.js';
 import { registerGithubRoutes } from './routes/github.js';
+import { registerContractRoutes } from './routes/contracts.js';
 import { registerDeploymentRoutes } from './routes/deployments.js';
 import { registerAppRoutes } from './routes/apps.js';
 import { registerBrandKitRoutes } from './routes/brand-kits.js';
@@ -104,6 +105,7 @@ try {
     await registerNetlifyRoutes(fastify, db, WORKSPACE_DIR);
     await registerVercelRoutes(fastify, db, WORKSPACE_DIR);
     await registerGithubRoutes(fastify, db, WORKSPACE_DIR);
+    await registerContractRoutes(fastify, db);
     await registerDeploymentRoutes(fastify, db, WORKSPACE_DIR);
     await registerBrandKitRoutes(fastify, db);
     await registerUploadRoutes(fastify, db);
