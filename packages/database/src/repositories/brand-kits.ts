@@ -26,7 +26,7 @@ export interface BrandAsset {
   id: string;
   brand_kit_id: string;
   user_id: string;
-  asset_type: 'logo' | 'image' | 'icon' | 'pattern';
+  asset_type: 'logo' | 'image' | 'icon' | 'pattern' | 'font' | 'video';
   file_name: string;
   storage_key: string;
   storage_provider: 's3' | 'gcs' | 'local';

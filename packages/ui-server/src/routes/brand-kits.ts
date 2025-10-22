@@ -309,7 +309,7 @@ export async function registerBrandKitRoutes(
               : null,
             processingStatus: asset.processing_status,
             uploadedAt: asset.uploaded_at,
-            metadata: { kind: (asset.metadata as any)?.kind }
+            metadata: asset.metadata
           })),
           colors: colors.map(color => ({
             id: color.id,
@@ -405,7 +405,8 @@ export async function registerBrandKitRoutes(
               ? { width: asset.width_px, height: asset.height_px }
               : null,
             processingStatus: asset.processing_status,
-            uploadedAt: asset.uploaded_at
+            uploadedAt: asset.uploaded_at,
+            metadata: asset.metadata
           })),
           colors: colors.map(color => ({
             id: color.id,
@@ -530,78 +531,148 @@ export async function registerBrandKitRoutes(
         return reply.code(404).send({ error: 'Brand kit not found' });
       }
 
-      console.log('[Brand Kits API] Brand kit found, fetching file...');
+      console.log('[Brand Kits API] Brand kit found, fetching multipart data...');
 
-      const data = await (request as any).file();
+      // Use parts() to read both file and form fields
+      const parts = (request as any).parts();
+      let buffer: Buffer | null = null;
+      let fileName: string | null = null;
+      let mimeType: string | null = null;
+      let categoryField: string | null = null;
 
-      if (!data) {
+      // Iterate through all parts (files and fields)
+      for await (const part of parts) {
+        if (part.type === 'file') {
+          // This is the file upload - consume it immediately
+          console.log('[Brand Kits API] File part received:', part.filename, 'MIME:', part.mimetype);
+          fileName = part.filename;
+          mimeType = part.mimetype;
+          buffer = await part.toBuffer();
+          console.log('[Brand Kits API] File buffered, size:', buffer.length, 'bytes');
+        } else if (part.type === 'field' && part.fieldname === 'category') {
+          // This is the category field
+          categoryField = part.value as string;
+          console.log('[Brand Kits API] Category field received:', categoryField);
+        }
+      }
+
+      if (!buffer || !fileName || !mimeType) {
         console.error('[Brand Kits API] No file data received');
         return reply.code(400).send({ error: 'No file uploaded' });
       }
 
-      console.log('[Brand Kits API] File received:', data.filename, 'MIME:', data.mimetype);
-
-      const buffer = await data.toBuffer();
-      const fileName = data.filename;
-      const mimeType = data.mimetype;
-
-      console.log('[Brand Kits API] File buffered, size:', buffer.length, 'bytes');
+      console.log('[Brand Kits API] User selected category:', categoryField);
       console.log('[Brand Kits API] Starting intelligent asset processing...');
 
-      // Strict file type validation - only allow specified types
-      const mimeToKind: Record<string, { kind: string; maxSize: number }> = {
-        // Images: PNG, JPEG, SVG, ICO (20MB max)
-        // PNG/JPEG default to 'logo' - will be refined by AI analysis
-        'image/png': { kind: 'logo', maxSize: 20 * 1024 * 1024 },
-        'image/jpeg': { kind: 'logo', maxSize: 20 * 1024 * 1024 },
-        'image/jpg': { kind: 'logo', maxSize: 20 * 1024 * 1024 },
-        'image/svg+xml': { kind: 'logo', maxSize: 20 * 1024 * 1024 },
-        'image/x-icon': { kind: 'icon', maxSize: 20 * 1024 * 1024 },
-        'image/vnd.microsoft.icon': { kind: 'icon', maxSize: 20 * 1024 * 1024 },
+      // Determine asset kind based on user's category selection and file validation
+      // This respects user intent while validating file compatibility
+      const fileExtension = fileName.split('.').pop()?.toLowerCase() || '';
 
-        // Fonts: TTF, OTF, WOFF, WOFF2 (10MB max)
-        'font/ttf': { kind: 'font', maxSize: 10 * 1024 * 1024 },
-        'font/otf': { kind: 'font', maxSize: 10 * 1024 * 1024 },
-        'font/woff': { kind: 'font', maxSize: 10 * 1024 * 1024 },
-        'font/woff2': { kind: 'font', maxSize: 10 * 1024 * 1024 },
-        'application/x-font-ttf': { kind: 'font', maxSize: 10 * 1024 * 1024 },
-        'application/x-font-otf': { kind: 'font', maxSize: 10 * 1024 * 1024 },
-        'application/font-woff': { kind: 'font', maxSize: 10 * 1024 * 1024 },
-        'application/font-woff2': { kind: 'font', maxSize: 10 * 1024 * 1024 },
-
-        // Archives: ZIP brand packages (200MB max)
-        'application/zip': { kind: 'brand_zip', maxSize: 200 * 1024 * 1024 },
-        'application/x-zip-compressed': { kind: 'brand_zip', maxSize: 200 * 1024 * 1024 },
-
-        // Videos: MP4 promo clips (100MB max)
-        'video/mp4': { kind: 'video', maxSize: 100 * 1024 * 1024 },
+      // Map user category to asset kind
+      const categoryToKind: Record<string, string> = {
+        'icons': 'icon',
+        'logos': 'logo',
+        'images': 'image',
+        'fonts': 'font',
+        'videos': 'video'
       };
 
-      const fileTypeInfo = mimeToKind[mimeType];
-      if (!fileTypeInfo) {
+      // Determine intended kind from category
+      let assetKind = categoryField && categoryToKind[categoryField]
+        ? categoryToKind[categoryField]
+        : 'logo'; // default fallback
+
+      console.log('[Brand Kits API] Determined asset kind:', assetKind, 'from category:', categoryField);
+
+      // Validate file type compatibility with category
+      const validExtensionsByKind: Record<string, { extensions: string[]; mimeTypes: string[]; maxSize: number }> = {
+        'icon': {
+          extensions: ['png', 'jpg', 'jpeg', 'svg', 'ico'],
+          mimeTypes: ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon'],
+          maxSize: 20 * 1024 * 1024
+        },
+        'logo': {
+          extensions: ['png', 'jpg', 'jpeg', 'svg', 'ico'],
+          mimeTypes: ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon'],
+          maxSize: 20 * 1024 * 1024
+        },
+        'image': {
+          extensions: ['png', 'jpg', 'jpeg', 'svg'],
+          mimeTypes: ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml'],
+          maxSize: 20 * 1024 * 1024
+        },
+        'font': {
+          extensions: ['ttf', 'otf', 'woff', 'woff2'],
+          mimeTypes: [
+            'font/ttf', 'font/otf', 'font/woff', 'font/woff2',
+            'application/x-font-ttf', 'application/x-font-otf',
+            'application/font-woff', 'application/font-woff2',
+            'application/octet-stream' // Fallback for fonts
+          ],
+          maxSize: 10 * 1024 * 1024
+        },
+        'video': {
+          extensions: ['mp4'],
+          mimeTypes: ['video/mp4', 'application/octet-stream'], // Fallback for videos
+          maxSize: 100 * 1024 * 1024
+        },
+        'brand_zip': {
+          extensions: ['zip'],
+          mimeTypes: ['application/zip', 'application/x-zip-compressed'],
+          maxSize: 200 * 1024 * 1024
+        }
+      };
+
+      const validationRules = validExtensionsByKind[assetKind];
+      if (!validationRules) {
+        return reply.code(400).send({
+          error: 'Invalid asset category',
+          details: [`Category '${categoryField}' is not supported`]
+        });
+      }
+
+      // Check file extension first (more reliable than MIME type)
+      const isValidExtension = validationRules.extensions.includes(fileExtension);
+      const isValidMimeType = validationRules.mimeTypes.includes(mimeType);
+
+      if (!isValidExtension && !isValidMimeType) {
         return reply.code(400).send({
           error: 'Unsupported file type',
           details: [
-            'Allowed file types:',
-            '• Images: PNG, JPEG, SVG, ICO (up to 20MB)',
-            '• Fonts: TTF, OTF, WOFF, WOFF2 (up to 10MB)',
-            '• Archives: ZIP brand packages (up to 200MB)',
-            '• Videos: MP4 promo clips (up to 100MB)',
-            '',
-            `Received: ${mimeType}`
+            `File type not compatible with ${assetKind} category`,
+            `Allowed extensions: ${validationRules.extensions.join(', ')}`,
+            `Received: ${fileName} (${mimeType})`
           ]
         });
       }
 
-      if (buffer.length > fileTypeInfo.maxSize) {
-        const maxSizeMB = Math.round(fileTypeInfo.maxSize / (1024 * 1024));
-        return reply.code(400).send({
-          error: 'File too large',
-          details: [`Maximum file size for ${fileTypeInfo.kind} files is ${maxSizeMB}MB`]
-        });
+      // For fonts and videos with generic MIME types, validate by extension
+      if (assetKind === 'font' && mimeType === 'application/octet-stream') {
+        if (!['ttf', 'otf', 'woff', 'woff2'].includes(fileExtension)) {
+          return reply.code(400).send({
+            error: 'Invalid font file',
+            details: [`Font files must have .ttf, .otf, .woff, or .woff2 extension`]
+          });
+        }
       }
 
-      const assetKind = fileTypeInfo.kind;
+      if (assetKind === 'video' && mimeType === 'application/octet-stream') {
+        if (fileExtension !== 'mp4') {
+          return reply.code(400).send({
+            error: 'Invalid video file',
+            details: [`Video files must have .mp4 extension`]
+          });
+        }
+      }
+
+      // Check file size
+      if (buffer.length > validationRules.maxSize) {
+        const maxSizeMB = Math.round(validationRules.maxSize / (1024 * 1024));
+        return reply.code(400).send({
+          error: 'File too large',
+          details: [`Maximum file size for ${assetKind} files is ${maxSizeMB}MB`]
+        });
+      }
 
       console.log(`[Brand Kits API] Processing ${assetKind} asset: ${fileName}`);
 
@@ -731,7 +802,7 @@ export async function registerBrandKitRoutes(
       const asset = await assetsRepo.create({
         brandKitId,
         userId: brandKit.user_id,
-        assetType: assetKind as 'logo' | 'image' | 'icon' | 'pattern',
+        assetType: assetKind as 'logo' | 'image' | 'icon' | 'pattern' | 'font' | 'video',
         fileName,
         storageKey: originalVariant?.storageKey || `brand-kits/${brandKit.user_id}/${brandKitId}/${fileName}`,
         storageProvider: 'local',

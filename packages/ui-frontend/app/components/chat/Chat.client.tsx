@@ -307,24 +307,48 @@ async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: st
       toast.error(`Some brand assets failed to sync: ${serverFailed[0]}`);
     }
 
-    // 4) Create brand kit manifest with color palette for the agent
-    // IMPORTANT: Only write manifest if at least some assets synced successfully
-    // This prevents creating a manifest that references non-existent files
+    // 4) Create brand kit manifest with FULL METADATA for the agent
+    // CRITICAL: The agent's buildBrandKitContext() filters assets by metadata.kind
+    // Without this field, ALL assets are ignored and filtered out!
+    // IMPORTANT: Write manifest if ANY assets synced successfully (colors are optional)
     const colors = data?.brandKit?.colors ?? [];
-    if (colors.length > 0 && serverSynced > 0) {
+    const brandKitName = data?.brandKit?.name || 'Brand Kit';
+
+    logger.info(`📝 Preparing brand kit manifest: ${assets.length} assets, ${colors.length} colors`);
+
+    if (serverSynced > 0 || assets.length > 0) {
       const manifest = {
         brandKit: {
           id: pendingBrandKitId,
+          name: brandKitName,
+          // Map full color palette with all metadata
           colors: colors.map((c: any) => ({
+            id: c.id,
             hex: c.hex,
+            rgb: c.rgb,
+            hsl: c.hsl,
             name: c.name,
             role: c.role,
             prominence: c.prominence,
+            pixelPercentage: c.pixelPercentage,
           })),
+          // Map assets with COMPLETE metadata including kind, variants, AI analysis
           assets: assets.map((a: any) => ({
-            fileName: sanitizeFilename(a.fileName),
-            type: a.assetType,
-            path: getAssetDestinationPath(a),
+            id: a.id,
+            fileName: a.fileName,
+            assetType: a.assetType,
+            mimeType: a.mimeType,
+            // CRITICAL: metadata.kind is required for buildBrandKitContext() filtering!
+            metadata: {
+              kind: a.metadata?.kind || a.assetType, // Ensure kind is always present
+              aspectRatio: a.metadata?.aspectRatio,
+              hasAlpha: a.metadata?.hasAlpha,
+              familyName: a.metadata?.familyName,
+              weight: a.metadata?.weight,
+              style: a.metadata?.style,
+              variants: a.metadata?.variants || [],
+              aiAnalysis: a.metadata?.aiAnalysis || undefined,
+            },
           })),
         },
       };
@@ -332,6 +356,7 @@ async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: st
       const manifestJson = JSON.stringify(manifest, null, 2);
 
       try {
+        // Write manifest to SERVER workspace (required for agent context injection)
         const manifestRes = await fetch(`/api/sessions/${sessionId}/files/write`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -343,12 +368,21 @@ async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: st
         });
 
         if (manifestRes.ok) {
-          logger.info('✓ Brand kit manifest created with color palette');
+          logger.info(`✓ Server: Brand kit manifest created with ${assets.length} assets and ${colors.length} colors`);
+          logger.info('✓ Server: Manifest includes full metadata: kind, variants, AI analysis');
+        } else {
+          logger.error(`Failed to write server manifest: ${manifestRes.status} ${manifestRes.statusText}`);
         }
+
+        // Also write manifest to CLIENT WebContainer (for potential client-side access)
+        const wc = await webcontainer;
+        await wc.fs.writeFile('brand-kit.json', manifestJson);
+        logger.info('✓ Client: Brand kit manifest written to WebContainer');
+
       } catch (error) {
         logger.error('Failed to write brand kit manifest:', error);
       }
-    } else if (colors.length > 0 && serverSynced === 0) {
+    } else if (serverSynced === 0 && assets.length > 0) {
       logger.warn('⚠️  Skipping brand kit manifest creation - no assets synced successfully');
     }
 

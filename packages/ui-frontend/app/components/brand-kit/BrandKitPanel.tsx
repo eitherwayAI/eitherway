@@ -192,6 +192,8 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
       for (const file of fileArray) {
         const formData = new FormData();
         formData.append('file', file);
+        // Pass the intended category to the backend
+        formData.append('category', category || activeCategory);
 
         const uploadResponse = await fetch(`/api/brand-kits/${brandKitId}/assets`, {
           method: 'POST',
@@ -295,6 +297,7 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
           <AnimatePresence>
             {globalMessage && (
               <motion.div
+                key="global-message"
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
@@ -305,6 +308,7 @@ export function BrandKitPanel({ onClose }: BrandKitPanelProps) {
             )}
             {error && (
               <motion.div
+                key="error-message"
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-red-900/20 border border-red-700 rounded-lg p-3 mb-2"

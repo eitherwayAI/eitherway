@@ -3,7 +3,7 @@
  * Displays a single brand asset in the gallery with preview and actions
  */
 
-import { useState } from 'react';
+import { useState, forwardRef } from 'react';
 import { motion } from 'framer-motion';
 
 interface AssetCardProps {
@@ -35,7 +35,8 @@ interface AssetCardProps {
   isDeleting?: boolean;
 }
 
-export function AssetCard({ asset, onDelete, isDeleting }: AssetCardProps) {
+export const AssetCard = forwardRef<HTMLDivElement, AssetCardProps>(
+  function AssetCard({ asset, onDelete, isDeleting }, ref) {
   const [showTooltip, setShowTooltip] = useState(false);
   const kind = asset.metadata?.kind || 'asset';
 
@@ -49,6 +50,7 @@ export function AssetCard({ asset, onDelete, isDeleting }: AssetCardProps) {
 
   return (
     <motion.div
+      ref={ref}
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
@@ -134,4 +136,4 @@ export function AssetCard({ asset, onDelete, isDeleting }: AssetCardProps) {
       )}
     </motion.div>
   );
-}
+});
