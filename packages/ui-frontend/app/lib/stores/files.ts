@@ -18,6 +18,7 @@ import { computeFileModifications } from '~/utils/diff';
 import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
 import { BACKEND_URL } from '~/config/api';
+import { sessionContext } from './sessionContext';
 
 const logger = createScopedLogger('FilesStore');
 
@@ -163,19 +164,29 @@ export class FilesStore {
   }
 
   async #syncToBackend(filePath: string, content: string, retries = 3) {
-    const sessionId = localStorage.getItem('currentSessionId');
-    console.log('[FilesStore] Session ID:', sessionId);
+    // CRITICAL FIX: Use sessionContext instead of localStorage to avoid session mixing
+    const { currentSessionId } = sessionContext.get();
+    console.log('[FilesStore] Session ID:', currentSessionId);
 
-    if (!sessionId) {
+    if (!currentSessionId) {
       const error = 'No active session found - cannot sync to backend. Please refresh the page.';
       console.error('[FilesStore]', error);
       throw new Error(error);
     }
 
+    const sessionId = currentSessionId;
+
+    // Strip session prefix from path before sending to backend
+    // Backend expects relative paths like 'src/App.jsx', not '__session_xxx__/src/App.jsx'
+    const sessionPrefix = `__session_${sessionId}__/`;
+    const relativePath = filePath.startsWith(sessionPrefix)
+      ? filePath.substring(sessionPrefix.length)
+      : filePath;
+
     const url = `${BACKEND_URL}/api/sessions/${sessionId}/files/write`;
 
     console.log('[FilesStore] 📡 POST', url);
-    console.log('[FilesStore] 📄 File:', filePath, '| Size:', content.length, 'chars');
+    console.log('[FilesStore] 📄 File:', relativePath, '(full path:', filePath, ') | Size:', content.length, 'chars');
 
     // Retry logic for transient network failures
     for (let attempt = 1; attempt <= retries; attempt++) {
@@ -186,7 +197,7 @@ export class FilesStore {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            path: filePath,
+            path: relativePath,
             content: content,
           }),
         });
@@ -216,7 +227,7 @@ export class FilesStore {
 
         const result = await response.json();
         console.log('[FilesStore] ✅ Success:', result.message);
-        logger.info(`File ${filePath} synced to backend successfully`);
+        logger.info(`File ${relativePath} synced to backend successfully`);
         return result;
       } catch (error: any) {
         console.error(`[FilesStore] ❌ Attempt ${attempt}/${retries} failed:`, error.message);

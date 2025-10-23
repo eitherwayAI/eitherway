@@ -1,4 +1,4 @@
-import { atom, map, type MapStore, type ReadableAtom, type WritableAtom } from 'nanostores';
+import { atom, map, type MapStore, type ReadableAtom, type WritableAtom, computed } from 'nanostores';
 import type { EditorDocument, ScrollPosition } from '~/components/editor/codemirror/CodeMirrorEditor';
 import { ActionRunner } from '~/lib/runtime/action-runner';
 import type { ActionCallbackData, ArtifactCallbackData } from '~/lib/runtime/message-parser';
@@ -9,6 +9,7 @@ import { EditorStore } from './editor';
 import { FilesStore, type FileMap } from './files';
 import { PreviewsStore } from './previews';
 import { TerminalStore } from './terminal';
+import { sessionContext } from './sessionContext';
 
 export interface ArtifactState {
   id: string;
@@ -54,8 +55,36 @@ export class WorkbenchStore {
     return this.#previewsStore.previews;
   }
 
+  /**
+   * Get files filtered to current session only, with session prefix stripped
+   *
+   * This ensures the file viewer shows:
+   * - Only files from the current session (not all __session_xxx__ directories)
+   * - Paths without the session prefix (src/App.jsx instead of __session_abc123__/src/App.jsx)
+   */
   get files() {
-    return this.#filesStore.files;
+    return computed([this.#filesStore.files, sessionContext], (allFiles, session) => {
+      const { currentSessionId } = session;
+
+      // If no active session, return empty file map
+      if (!currentSessionId) {
+        return {};
+      }
+
+      const sessionPrefix = `__session_${currentSessionId}__/`;
+      const filteredFiles: FileMap = {};
+
+      for (const [filePath, dirent] of Object.entries(allFiles)) {
+        // Only include files from the current session
+        if (filePath.startsWith(sessionPrefix)) {
+          // Strip the session prefix from the path
+          const strippedPath = filePath.substring(sessionPrefix.length);
+          filteredFiles[strippedPath] = dirent;
+        }
+      }
+
+      return filteredFiles;
+    });
   }
 
   get currentDocument(): ReadableAtom<EditorDocument | undefined> {
@@ -72,6 +101,33 @@ export class WorkbenchStore {
 
   get filesCount(): number {
     return this.#filesStore.filesCount;
+  }
+
+  /**
+   * Convert a stripped path (src/App.jsx) to full session path (__session_xxx__/src/App.jsx)
+   */
+  #toSessionPath(strippedPath: string): string {
+    const { currentSessionId } = sessionContext.get();
+    if (!currentSessionId) {
+      // Fallback: return path as-is if no session (shouldn't happen)
+      return strippedPath;
+    }
+    return `__session_${currentSessionId}__/${strippedPath}`;
+  }
+
+  /**
+   * Convert a full session path (__session_xxx__/src/App.jsx) to stripped path (src/App.jsx)
+   */
+  #fromSessionPath(fullPath: string): string {
+    const { currentSessionId } = sessionContext.get();
+    if (!currentSessionId) {
+      return fullPath;
+    }
+    const prefix = `__session_${currentSessionId}__/`;
+    if (fullPath.startsWith(prefix)) {
+      return fullPath.substring(prefix.length);
+    }
+    return fullPath;
   }
 
   get showTerminal() {
@@ -115,7 +171,9 @@ export class WorkbenchStore {
       return;
     }
 
-    const originalContent = this.#filesStore.getFile(filePath)?.content;
+    // Convert stripped path to full session path for filesStore
+    const fullPath = this.#toSessionPath(filePath);
+    const originalContent = this.#filesStore.getFile(fullPath)?.content;
     const unsavedChanges = originalContent !== undefined && originalContent !== newContent;
 
     this.#editorStore.updateFile(filePath, newContent);
@@ -165,7 +223,9 @@ export class WorkbenchStore {
       return;
     }
 
-    await this.#filesStore.saveFile(filePath, document.value);
+    // Convert stripped path to full session path for filesStore
+    const fullPath = this.#toSessionPath(filePath);
+    await this.#filesStore.saveFile(fullPath, document.value);
 
     const newUnsavedFiles = new Set(this.unsavedFiles.get());
     newUnsavedFiles.delete(filePath);
@@ -191,7 +251,9 @@ export class WorkbenchStore {
     }
 
     const { filePath } = currentDocument;
-    const file = this.#filesStore.getFile(filePath);
+    // Convert stripped path to full session path for filesStore
+    const fullPath = this.#toSessionPath(filePath);
+    const file = this.#filesStore.getFile(fullPath);
 
     if (!file) {
       return;

@@ -3,6 +3,7 @@ import type { Message } from 'ai';
 import { useAnimate } from 'framer-motion';
 import { memo, useEffect, useRef, useState } from 'react';
 import { cssTransition, toast, ToastContainer } from 'react-toastify';
+import { useNavigate } from '@remix-run/react';
 import { useShortcuts, useSnapScroll } from '~/lib/hooks';
 import { useBackendHistory } from '~/lib/persistence/useBackendHistory';
 import { chatStore } from '~/lib/stores/chat';
@@ -13,7 +14,7 @@ import { useWalletConnection } from '~/lib/web3/hooks';
 import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger } from '~/utils/logger';
 import { streamFromWebSocket, type StreamController } from '~/utils/websocketClient';
-import { getOrCreateSession, clearSession } from '~/utils/sessionManager';
+import { createSession, clearSession } from '~/utils/sessionManager';
 import { syncFilesToWebContainer } from '~/utils/fileSync';
 import { syncBrandAssetsToWebContainer } from '~/utils/brandAssetSync';
 import { webcontainer } from '~/lib/webcontainer/index';
@@ -126,13 +127,12 @@ async function arrayBufferToBase64(buffer: ArrayBuffer): Promise<string> {
 }
 
 /**
- * Helper: Navigate to a session URL without triggering React re-render
- * Uses History API directly to avoid Remix loader re-run that would break the Chat component
+ * Navigate to a session URL using Remix navigation
+ * CRITICAL: Use Remix's navigate() to trigger loader re-run
+ * Using window.history.replaceState() would NOT update useLoaderData()
  */
-function navigateToSession(sessionId: string) {
-  const url = new URL(window.location.href);
-  url.pathname = `/chat/${sessionId}`;
-  window.history.replaceState({}, '', url);
+function navigateToSession(sessionId: string, navigate: ReturnType<typeof useNavigate>) {
+  navigate(`/chat/${sessionId}`, { replace: true });
 }
 
 /**
@@ -480,6 +480,7 @@ interface ChatProps {
 export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId, storeMessageHistory }: ChatProps) => {
   useShortcuts();
 
+  const navigate = useNavigate();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [chatStarted, setChatStarted] = useState(initialMessages.length > 0);
@@ -754,38 +755,43 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
         return;
       }
 
-      const session = await getOrCreateSession(userId, 'EitherWay Chat');
+      // CRITICAL FIX: Use sessionId from URL/props, NOT localStorage
+      // localStorage is shared across tabs and causes session mixing!
+      let session: any;
+
+      if (sessionId) {
+        // Existing session - fetch from backend using the URL sessionId
+        logger.info(`Using existing session from URL: ${sessionId}`);
+        const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}`);
+        if (response.ok) {
+          const data = await response.json();
+          session = data.session;
+          logger.info(`✅ Loaded session: ${session.id} - Title: ${session.title}`);
+        } else {
+          throw new Error(`Failed to load session ${sessionId}: ${response.statusText}`);
+        }
+      } else {
+        // New conversation - create new session
+        if (messages.length === 0 || !chatStarted) {
+          clearSession();
+          logger.info('🆕 Starting fresh session for new conversation');
+        }
+
+        const title = generateTitleFromPrompt(_input);
+        session = await createSession(userId, title);
+        logger.info(`✅ Created new session: ${session.id} - Title: ${title}`);
+
+        // Update URL to reflect the new session (triggers loader re-run)
+        navigateToSession(session.id, navigate);
+      }
+
       logger.debug('Using session:', session.id);
       console.log('💬 [Chat Message] Session ID for this message:', session.id);
-      console.log('💬 [Chat Message] localStorage currentSessionId:', localStorage.getItem('currentSessionId'));
+      console.log('💬 [Chat Message] URL sessionId param:', sessionId);
       console.log('💬 [Chat Message] User ID:', userId);
 
       // Store session ID in chat store for export/deployment
       chatStore.setKey('sessionId', session.id);
-
-      // Update URL to reflect the session ID (only for first message)
-      if (messages.length === 0) {
-        navigateToSession(session.id);
-        logger.debug('📍 URL updated to:', `/chat/${session.id}`);
-      }
-
-      // Generate and update session title from first user message
-      if (messages.length === 0) {
-        const generatedTitle = generateTitleFromPrompt(_input);
-        logger.info(`📝 Generated session title: "${generatedTitle}"`);
-
-        try {
-          await fetch(`/api/sessions/${session.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: generatedTitle }),
-          });
-          logger.info('✅ Session title updated');
-        } catch (error) {
-          logger.warn('Failed to update session title:', error);
-          // Non-critical, continue with streaming
-        }
-      }
 
       // CRITICAL: Ensure brand assets are synced to THIS session (the one we're about to use)
       // This must happen AFTER session is determined, not during upload

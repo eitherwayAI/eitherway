@@ -89,8 +89,6 @@ export function useBackendHistory() {
         setFiles(filesData.files || []);
         setSessionTitle(session.title || 'Untitled Chat');
 
-        // Store session ID in localStorage for continuity
-        localStorage.setItem('currentSessionId', sessionId);
         console.log('📂 [Backend History] Loaded session:', sessionId);
         console.log('   Messages:', transformedMessages.length);
         console.log('   Files:', filesData.files?.length || 0);
