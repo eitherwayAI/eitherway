@@ -1,6 +1,7 @@
 import type { WebContainer } from '@webcontainer/api';
 import { atom } from 'nanostores';
 import { createScopedLogger } from '~/utils/logger';
+import { sessionContext } from './sessionContext';
 
 const logger = createScopedLogger('PreviewsStore');
 
@@ -8,6 +9,7 @@ export interface PreviewInfo {
   port: number;
   ready: boolean;
   baseUrl: string;
+  sessionId: string;
 }
 
 export class PreviewsStore {
@@ -37,18 +39,26 @@ export class PreviewsStore {
         return;
       }
 
+      const { currentSessionId } = sessionContext.get();
+
+      if (!currentSessionId) {
+        logger.warn(`Cannot register preview for port ${port} - no active session`);
+        return;
+      }
+
       const previews = this.previews.get();
 
       if (!previewInfo) {
         // Use the URL provided by WebContainer as-is
         // WebContainer provides the correct URL for the environment
-        previewInfo = { port, ready: type === 'open', baseUrl: url };
+        previewInfo = { port, ready: type === 'open', baseUrl: url, sessionId: currentSessionId };
         this.#availablePreviews.set(port, previewInfo);
         previews.push(previewInfo);
-        logger.info(`Preview registered - Port: ${port}, URL: ${url}`);
+        logger.info(`Preview registered - Port: ${port}, URL: ${url}, Session: ${currentSessionId}`);
       } else {
         previewInfo.ready = type === 'open';
         previewInfo.baseUrl = url;
+        previewInfo.sessionId = currentSessionId;
       }
 
       if (type === 'open') {
@@ -63,17 +73,63 @@ export class PreviewsStore {
    * Manually register a preview (fallback for when port event doesn't fire)
    */
   registerPreview(port: number, url: string) {
+    const { currentSessionId } = sessionContext.get();
+
+    if (!currentSessionId) {
+      logger.warn(`Cannot register preview for port ${port} - no active session`);
+      return;
+    }
+
     const previews = this.previews.get();
     let previewInfo = this.#availablePreviews.get(port);
 
     if (!previewInfo) {
-      previewInfo = { port, ready: true, baseUrl: url };
+      previewInfo = { port, ready: true, baseUrl: url, sessionId: currentSessionId };
       this.#availablePreviews.set(port, previewInfo);
       previews.push(previewInfo);
       this.previews.set([...previews]);
-      logger.info(`📌 Manually registered preview - Port: ${port}, URL: ${url}`);
+      logger.info(`📌 Manually registered preview - Port: ${port}, URL: ${url}, Session: ${currentSessionId}`);
     } else {
       logger.debug(`Preview already registered for port ${port}`);
     }
+  }
+
+  /**
+   * Get all previews for current session only
+   */
+  getSessionPreviews(): PreviewInfo[] {
+    const { currentSessionId } = sessionContext.get();
+
+    if (!currentSessionId) {
+      return [];
+    }
+
+    return Array.from(this.#availablePreviews.values()).filter(
+      (preview) => preview.sessionId === currentSessionId,
+    );
+  }
+
+  /**
+   * Clear previews for a specific session
+   */
+  clearSessionPreviews(sessionId: string) {
+    for (const [port, preview] of this.#availablePreviews.entries()) {
+      if (preview.sessionId === sessionId) {
+        this.#availablePreviews.delete(port);
+        logger.info(`Cleared preview port ${port} for session ${sessionId}`);
+      }
+    }
+
+    // Update the reactive store
+    this.previews.set(Array.from(this.#availablePreviews.values()));
+  }
+
+  /**
+   * Clear all previews (on logout)
+   */
+  clearAll() {
+    this.#availablePreviews.clear();
+    this.previews.set([]);
+    logger.info('Cleared all previews');
   }
 }

@@ -1,6 +1,7 @@
 import { WebContainer } from '@webcontainer/api';
 import { WORK_DIR_NAME } from '~/utils/constants';
 import { createScopedLogger } from '~/utils/logger';
+import { validateSessionOperation } from '~/lib/stores/sessionContext';
 
 const logger = createScopedLogger('WebContainer');
 
@@ -82,4 +83,21 @@ export async function rebootWebContainer(): Promise<WebContainer> {
     return wc;
   }
   throw new Error('Cannot reboot WebContainer in SSR mode');
+}
+
+/**
+ * Get the WebContainer instance with session validation
+ * Use this for operations that require an active session
+ */
+export async function getWebContainer(): Promise<WebContainer> {
+  validateSessionOperation('access WebContainer');
+  return await webcontainer;
+}
+
+/**
+ * Get the WebContainer instance without validation (for internal use)
+ * Use this for system-level operations that don't require session context
+ */
+export async function getWebContainerUnsafe(): Promise<WebContainer> {
+  return await webcontainer;
 }

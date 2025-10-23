@@ -1,11 +1,14 @@
 /**
  * Brand Asset Synchronization to WebContainer
  * Mirrors uploaded brand assets (logos, fonts, etc.) into WebContainer filesystem
+ * Now with session namespacing for isolation
  */
 
 import type { WebContainer } from '@webcontainer/api';
 import { createScopedLogger } from './logger';
 import { BACKEND_URL } from '~/config/api';
+import { getSessionPath, validateSessionOperation } from '~/lib/stores/sessionContext';
+import { getWebContainerUnsafe } from '~/lib/webcontainer';
 
 const logger = createScopedLogger('BrandAssetSync');
 
@@ -111,95 +114,109 @@ export async function syncBrandAssetsToWebContainer(
   webcontainer: WebContainer,
   assets: BrandAsset[],
 ): Promise<{ synced: number; skipped: number; failed: number }> {
-  logger.info('Syncing brand assets to WebContainer', assets.length, 'assets');
+  try {
+    validateSessionOperation('sync brand assets');
 
-  let synced = 0;
-  let skipped = 0;
-  let failed = 0;
+    logger.info('Syncing brand assets to WebContainer', assets.length, 'assets');
 
-  for (const asset of assets) {
-    try {
-      const hasVariants = asset.metadata?.variants && asset.metadata.variants.length > 0;
+    const wc = await getWebContainerUnsafe();
+    let synced = 0;
+    let skipped = 0;
+    let failed = 0;
 
-      if (hasVariants) {
-        // Sync all variants with intelligent routing
-        logger.info(`Syncing ${asset.metadata!.variants!.length} variants for ${asset.fileName}`);
+    for (const asset of assets) {
+      try {
+        const hasVariants = asset.metadata?.variants && asset.metadata.variants.length > 0;
 
-        for (const variant of asset.metadata!.variants!) {
-          try {
-            const destPath = getVariantDestinationPath(variant, asset);
+        if (hasVariants) {
+          // Sync all variants with intelligent routing
+          logger.info(`Syncing ${asset.metadata!.variants!.length} variants for ${asset.fileName}`);
 
-            if (!destPath) {
-              logger.debug(`Skipping variant: ${variant.fileName} (no destination)`);
-              continue;
+          for (const variant of asset.metadata!.variants!) {
+            try {
+              const destPath = getVariantDestinationPath(variant, asset);
+
+              if (!destPath) {
+                logger.debug(`Skipping variant: ${variant.fileName} (no destination)`);
+                continue;
+              }
+
+              // Get session-namespaced path
+              const sessionPath = getSessionPath(destPath);
+
+              // Ensure parent directory exists
+              const dirPath = sessionPath.split('/').slice(0, -1).join('/');
+              if (dirPath) {
+                await wc.fs.mkdir(dirPath, { recursive: true });
+              }
+
+              // Fetch variant file
+              const fileBuffer = await fetchBrandAssetFile(variant.storageKey);
+
+              // Determine if file should be stored as text or binary
+              const isTextFile = variant.mimeType.includes('svg') || variant.mimeType.includes('text');
+
+              if (isTextFile) {
+                const textContents = arrayBufferToString(fileBuffer);
+                await wc.fs.writeFile(sessionPath, textContents);
+                logger.debug(`Text variant ${variant.fileName}: stored as UTF-8`);
+              } else {
+                const binaryContents = new Uint8Array(fileBuffer);
+                await wc.fs.writeFile(sessionPath, binaryContents);
+                logger.debug(`Binary variant ${variant.fileName}: ${binaryContents.length} bytes`);
+              }
+
+              logger.info(`✓ Synced variant: ${variant.purpose} → ${sessionPath}`);
+              synced++;
+            } catch (error) {
+              logger.error(`Failed to sync variant ${variant.fileName}:`, error);
+              failed++;
             }
-
-            // Ensure parent directory exists
-            const dirPath = destPath.split('/').slice(0, -1).join('/');
-            if (dirPath) {
-              await ensureDirectory(webcontainer, dirPath);
-            }
-
-            // Fetch variant file
-            const fileBuffer = await fetchBrandAssetFile(variant.storageKey);
-
-            // Determine if file should be stored as text or binary
-            const isTextFile = variant.mimeType.includes('svg') || variant.mimeType.includes('text');
-
-            if (isTextFile) {
-              const textContents = arrayBufferToString(fileBuffer);
-              await webcontainer.fs.writeFile(destPath, textContents);
-              logger.debug(`Text variant ${variant.fileName}: stored as UTF-8`);
-            } else {
-              const binaryContents = new Uint8Array(fileBuffer);
-              await webcontainer.fs.writeFile(destPath, binaryContents);
-              logger.debug(`Binary variant ${variant.fileName}: ${binaryContents.length} bytes`);
-            }
-
-            logger.info(`✓ Synced variant: ${variant.purpose} → ${destPath}`);
-            synced++;
-          } catch (error) {
-            logger.error(`Failed to sync variant ${variant.fileName}:`, error);
-            failed++;
           }
-        }
-      } else {
-        // Legacy: No variants, sync original file
-        const destPath = getAssetDestinationPath(asset);
-
-        if (!destPath) {
-          logger.debug(`Skipping asset: ${asset.fileName} (no destination)`);
-          skipped++;
-          continue;
-        }
-
-        const dirPath = destPath.split('/').slice(0, -1).join('/');
-        if (dirPath) {
-          await ensureDirectory(webcontainer, dirPath);
-        }
-
-        const fileBuffer = await fetchBrandAssetFile(asset.storageKey);
-        const isTextFile = asset.mimeType.includes('svg') || asset.mimeType.includes('text');
-
-        if (isTextFile) {
-          const textContents = arrayBufferToString(fileBuffer);
-          await webcontainer.fs.writeFile(destPath, textContents);
         } else {
-          const binaryContents = new Uint8Array(fileBuffer);
-          await webcontainer.fs.writeFile(destPath, binaryContents);
+          // Legacy: No variants, sync original file
+          const destPath = getAssetDestinationPath(asset);
+
+          if (!destPath) {
+            logger.debug(`Skipping asset: ${asset.fileName} (no destination)`);
+            skipped++;
+            continue;
+          }
+
+          // Get session-namespaced path
+          const sessionPath = getSessionPath(destPath);
+
+          const dirPath = sessionPath.split('/').slice(0, -1).join('/');
+          if (dirPath) {
+            await wc.fs.mkdir(dirPath, { recursive: true });
+          }
+
+          const fileBuffer = await fetchBrandAssetFile(asset.storageKey);
+          const isTextFile = asset.mimeType.includes('svg') || asset.mimeType.includes('text');
+
+          if (isTextFile) {
+            const textContents = arrayBufferToString(fileBuffer);
+            await wc.fs.writeFile(sessionPath, textContents);
+          } else {
+            const binaryContents = new Uint8Array(fileBuffer);
+            await wc.fs.writeFile(sessionPath, binaryContents);
+          }
+
+          logger.info(`✓ Synced brand asset: ${sessionPath}`);
+          synced++;
         }
-
-        logger.info(`✓ Synced brand asset: ${destPath}`);
-        synced++;
+      } catch (error) {
+        logger.error(`Failed to sync asset ${asset.fileName}:`, error);
+        failed++;
       }
-    } catch (error) {
-      logger.error(`Failed to sync asset ${asset.fileName}:`, error);
-      failed++;
     }
-  }
 
-  logger.info(`Brand asset sync complete: ${synced} synced, ${skipped} skipped, ${failed} failed`);
-  return { synced, skipped, failed };
+    logger.info(`Brand asset sync complete: ${synced} synced, ${skipped} skipped, ${failed} failed`);
+    return { synced, skipped, failed };
+  } catch (error) {
+    logger.error('Brand asset sync failed:', error);
+    throw error;
+  }
 }
 
 /**

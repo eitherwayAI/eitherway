@@ -17,16 +17,19 @@ async function fileExists(webcontainer: WebContainer, path: string) {
   }
 }
 
-export async function ensureDevHeaders(webcontainer: WebContainer) {
-  console.log('[ensureDevHeaders] Starting header injection...');
+export async function ensureDevHeaders(webcontainer: WebContainer, sessionRoot: string = '.') {
+  console.log('[ensureDevHeaders] Starting header injection in session:', sessionRoot);
   const candidates = ['vite.config.ts', 'vite.config.js', 'vite.config.mjs', 'vite.config.cjs'];
 
   let configPath: string | undefined;
+  let sessionConfigPath: string | undefined;
 
   for (const path of candidates) {
-    if (await fileExists(webcontainer, path)) {
+    const fullPath = sessionRoot === '.' ? path : `${sessionRoot}/${path}`;
+    if (await fileExists(webcontainer, fullPath)) {
       configPath = path;
-      console.log('[ensureDevHeaders] Found config:', path);
+      sessionConfigPath = fullPath;
+      console.log('[ensureDevHeaders] Found config:', fullPath);
       break;
     }
   }
@@ -39,18 +42,19 @@ export async function ensureDevHeaders(webcontainer: WebContainer) {
     'Access-Control-Allow-Origin': '*'
   } },`;
 
-  if (!configPath) {
+  if (!configPath || !sessionConfigPath) {
     console.log('[ensureDevHeaders] No config found, creating vite.config.ts with headers');
     const content = `import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 export default defineConfig({ ${headerLines} plugins:[react()] })
 `;
-    await webcontainer.fs.writeFile('vite.config.ts', content);
-    console.log('[ensureDevHeaders] Created vite.config.ts successfully');
+    const newConfigPath = sessionRoot === '.' ? 'vite.config.ts' : `${sessionRoot}/vite.config.ts`;
+    await webcontainer.fs.writeFile(newConfigPath, content);
+    console.log('[ensureDevHeaders] Created vite.config.ts successfully at', newConfigPath);
     return;
   }
 
-  const original = await readText(webcontainer, configPath);
+  const original = await readText(webcontainer, sessionConfigPath);
 
   if (!original) {
     return;
@@ -71,7 +75,7 @@ export default defineConfig({ ${headerLines} plugins:[react()] })
       "'Cross-Origin-Embedder-Policy': 'credentialless'",
     );
 
-    await webcontainer.fs.writeFile(configPath, updated);
+    await webcontainer.fs.writeFile(sessionConfigPath, updated);
     console.log('[ensureDevHeaders] Updated config with credentialless');
     return;
   }
@@ -93,6 +97,6 @@ export default defineConfig({ ${headerLines} plugins:[react()] })
   }
 
   const updated = `${original.slice(0, braceIdx + 1)} ${headerLines} ${original.slice(braceIdx + 1)}`;
-  await webcontainer.fs.writeFile(configPath, updated);
-  console.log('[ensureDevHeaders] Injected headers successfully into', configPath);
+  await webcontainer.fs.writeFile(sessionConfigPath, updated);
+  console.log('[ensureDevHeaders] Injected headers successfully into', sessionConfigPath);
 }

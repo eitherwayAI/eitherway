@@ -5,6 +5,7 @@ import type { ActionCallbackData, ArtifactCallbackData } from '~/lib/runtime/mes
 import { webcontainer } from '~/lib/webcontainer/index';
 import type { ITerminal } from '~/types/terminal';
 import { unreachable } from '~/utils/unreachable';
+import { WORK_DIR } from '~/utils/constants';
 import { EditorStore } from './editor';
 import { FilesStore, type FileMap } from './files';
 import { PreviewsStore } from './previews';
@@ -29,6 +30,43 @@ export class WorkbenchStore {
   #filesStore = new FilesStore(webcontainer);
   #editorStore = new EditorStore(this.#filesStore);
   #terminalStore = new TerminalStore(webcontainer);
+
+  /**
+   * Computed store for session-filtered files
+   * Created once to prevent infinite re-renders
+   */
+  #filteredFiles = computed([this.#filesStore.files, sessionContext], (allFiles, session) => {
+    const { currentSessionId } = session;
+
+    console.log('[WorkbenchStore] Filtering files for session:', currentSessionId);
+    console.log('[WorkbenchStore] All files:', Object.keys(allFiles));
+
+    // If no active session, return empty file map
+    if (!currentSessionId) {
+      console.log('[WorkbenchStore] No active session, returning empty');
+      return {};
+    }
+
+    // FilesStore paths: /home/project/__session_xxx__/src/App.jsx
+    // We want to strip only the __session_xxx__ part: /home/project/src/App.jsx
+    const sessionInfix = `__session_${currentSessionId}__/`;
+    console.log('[WorkbenchStore] Looking for files with session infix:', sessionInfix);
+
+    const filteredFiles: FileMap = {};
+
+    for (const [filePath, dirent] of Object.entries(allFiles)) {
+      // Only include files from the current session
+      if (filePath.includes(sessionInfix)) {
+        // Strip only the session infix, keeping /home/project/ prefix
+        const normalizedPath = filePath.replace(sessionInfix, '');
+        filteredFiles[normalizedPath] = dirent;
+        console.log('[WorkbenchStore] Matched file:', filePath, '→', normalizedPath);
+      }
+    }
+
+    console.log('[WorkbenchStore] Filtered files:', Object.keys(filteredFiles));
+    return filteredFiles;
+  });
 
   artifacts: Artifacts = import.meta.hot?.data.artifacts ?? map({});
 
@@ -56,35 +94,14 @@ export class WorkbenchStore {
   }
 
   /**
-   * Get files filtered to current session only, with session prefix stripped
+   * Get files filtered to current session only, with session infix removed
    *
    * This ensures the file viewer shows:
    * - Only files from the current session (not all __session_xxx__ directories)
-   * - Paths without the session prefix (src/App.jsx instead of __session_abc123__/src/App.jsx)
+   * - Paths with normalized format (/home/project/src/App.jsx instead of /home/project/__session_xxx__/src/App.jsx)
    */
   get files() {
-    return computed([this.#filesStore.files, sessionContext], (allFiles, session) => {
-      const { currentSessionId } = session;
-
-      // If no active session, return empty file map
-      if (!currentSessionId) {
-        return {};
-      }
-
-      const sessionPrefix = `__session_${currentSessionId}__/`;
-      const filteredFiles: FileMap = {};
-
-      for (const [filePath, dirent] of Object.entries(allFiles)) {
-        // Only include files from the current session
-        if (filePath.startsWith(sessionPrefix)) {
-          // Strip the session prefix from the path
-          const strippedPath = filePath.substring(sessionPrefix.length);
-          filteredFiles[strippedPath] = dirent;
-        }
-      }
-
-      return filteredFiles;
-    });
+    return this.#filteredFiles;
   }
 
   get currentDocument(): ReadableAtom<EditorDocument | undefined> {
@@ -104,30 +121,28 @@ export class WorkbenchStore {
   }
 
   /**
-   * Convert a stripped path (src/App.jsx) to full session path (__session_xxx__/src/App.jsx)
+   * Convert a normalized path (/home/project/src/App.jsx) to full session path (/home/project/__session_xxx__/src/App.jsx)
    */
-  #toSessionPath(strippedPath: string): string {
+  #toSessionPath(normalizedPath: string): string {
     const { currentSessionId } = sessionContext.get();
     if (!currentSessionId) {
       // Fallback: return path as-is if no session (shouldn't happen)
-      return strippedPath;
+      return normalizedPath;
     }
-    return `__session_${currentSessionId}__/${strippedPath}`;
+    // Insert __session_xxx__ after /home/project/
+    return normalizedPath.replace(`${WORK_DIR}/`, `${WORK_DIR}/__session_${currentSessionId}__/`);
   }
 
   /**
-   * Convert a full session path (__session_xxx__/src/App.jsx) to stripped path (src/App.jsx)
+   * Convert a full session path (/home/project/__session_xxx__/src/App.jsx) to normalized path (/home/project/src/App.jsx)
    */
   #fromSessionPath(fullPath: string): string {
     const { currentSessionId } = sessionContext.get();
     if (!currentSessionId) {
       return fullPath;
     }
-    const prefix = `__session_${currentSessionId}__/`;
-    if (fullPath.startsWith(prefix)) {
-      return fullPath.substring(prefix.length);
-    }
-    return fullPath;
+    const sessionInfix = `__session_${currentSessionId}__/`;
+    return fullPath.replace(sessionInfix, '');
   }
 
   get showTerminal() {

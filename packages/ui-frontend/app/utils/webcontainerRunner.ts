@@ -1,6 +1,7 @@
 /**
  * WebContainer command runner
  * Executes npm install and dev server commands in WebContainer
+ * Now with session namespacing for isolation
  */
 
 import type { WebContainer } from '@webcontainer/api';
@@ -10,6 +11,8 @@ import { ensureDevHeaders } from '~/lib/webcontainer/ensure-dev-headers';
 import { PREVIEW_REGISTRATION_TIMEOUT_MS, WEBCONTAINER_DEFAULT_PORT } from './constants';
 import type { WebContainerProcess, ExtendedWebContainer } from '~/types/webcontainer';
 import serverTemplate from '~/templates/webcontainer-server.template.js?raw';
+import { getSessionRoot, validateSessionOperation } from '~/lib/stores/sessionContext';
+import { getWebContainerUnsafe } from '~/lib/webcontainer';
 
 const logger = createScopedLogger('WebContainerRunner');
 
@@ -25,9 +28,10 @@ const INSTALL_DEBOUNCE_MS = 1000; // 1 second debounce
 /**
  * Compute hash of package.json content for change detection
  */
-async function hashPackageJson(webcontainer: WebContainer): Promise<string | null> {
+async function hashPackageJson(webcontainer: WebContainer, sessionRoot: string): Promise<string | null> {
   try {
-    const content = await webcontainer.fs.readFile('package.json', 'utf8');
+    const packageJsonPath = `${sessionRoot}/package.json`;
+    const content = await webcontainer.fs.readFile(packageJsonPath, 'utf8');
     // Simple hash using crypto if available, otherwise use content length + first/last chars
     if (typeof crypto !== 'undefined' && crypto.subtle) {
       const encoder = new TextEncoder();
@@ -48,10 +52,10 @@ async function hashPackageJson(webcontainer: WebContainer): Promise<string | nul
  * Clear Vite's dependency optimization cache
  * This forces Vite to re-optimize dependencies on next request
  */
-async function clearViteCache(webcontainer: WebContainer): Promise<void> {
+async function clearViteCache(webcontainer: WebContainer, sessionRoot: string): Promise<void> {
   try {
     // Check if node_modules/.vite exists
-    const viteCache = 'node_modules/.vite';
+    const viteCache = `${sessionRoot}/node_modules/.vite`;
 
     try {
       const stats = await webcontainer.fs.readdir(viteCache, { withFileTypes: true });
@@ -63,7 +67,7 @@ async function clearViteCache(webcontainer: WebContainer): Promise<void> {
         try {
           if (entry.isDirectory()) {
             // For directories, remove recursively (this is a best effort)
-            await webcontainer.spawn('rm', ['-rf', entryPath]);
+            await webcontainer.spawn('rm', ['-rf', entryPath], { cwd: sessionRoot });
           } else {
             await webcontainer.fs.rm(entryPath);
           }
@@ -93,7 +97,7 @@ async function clearViteCache(webcontainer: WebContainer): Promise<void> {
 /**
  * Run npm install if package.json has changed (debounced)
  */
-async function checkAndRunInstall(webcontainer: WebContainer): Promise<void> {
+async function checkAndRunInstall(webcontainer: WebContainer, sessionRoot: string): Promise<void> {
   // Clear any pending install
   if (pendingInstall) {
     clearTimeout(pendingInstall);
@@ -107,7 +111,7 @@ async function checkAndRunInstall(webcontainer: WebContainer): Promise<void> {
       return;
     }
 
-    const currentHash = await hashPackageJson(webcontainer);
+    const currentHash = await hashPackageJson(webcontainer, sessionRoot);
 
     // No package.json or hash unchanged
     if (!currentHash || currentHash === lastPackageJsonHash) {
@@ -119,7 +123,7 @@ async function checkAndRunInstall(webcontainer: WebContainer): Promise<void> {
     installInProgress = true;
 
     try {
-      const installProcess = await webcontainer.spawn('npm', ['install']);
+      const installProcess = await webcontainer.spawn('npm', ['install'], { cwd: sessionRoot });
 
       installProcess.output.pipeTo(
         new WritableStream({
@@ -138,7 +142,7 @@ async function checkAndRunInstall(webcontainer: WebContainer): Promise<void> {
         // CRITICAL: Clear Vite cache to prevent "Outdated Optimize Dep" errors
         // When new dependencies are installed, Vite's pre-bundled cache becomes stale
         // Clearing it forces Vite to re-optimize deps on next request
-        await clearViteCache(webcontainer);
+        await clearViteCache(webcontainer, sessionRoot);
 
         // Give Vite a moment to detect the cache is gone
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -273,10 +277,11 @@ function findAnyHtmlFile(files: any[]): any | null {
  */
 async function startStaticServer(
   webcontainer: WebContainer,
+  sessionRoot: string,
   baseDir: string = '.',
   htmlFileName: string = 'index.html',
 ): Promise<void> {
-  logger.info('Starting static server for directory:', baseDir, 'HTML file:', htmlFileName);
+  logger.info('Starting static server in session:', sessionRoot, 'directory:', baseDir, 'HTML file:', htmlFileName);
 
   // Load server template and replace placeholders
   const serverScript = serverTemplate
@@ -438,8 +443,9 @@ server.listen(PORT, () => {
 `;
   */ // END OLD EMBEDDED SERVER
 
-  // Write the server script
-  await webcontainer.fs.writeFile('server.js', serverScript);
+  // Write the server script in session directory
+  const serverPath = `${sessionRoot}/server.js`;
+  await webcontainer.fs.writeFile(serverPath, serverScript);
 
   // Kill any existing dev server
   if (devServerProcess) {
@@ -451,8 +457,8 @@ server.listen(PORT, () => {
     devServerProcess = null;
   }
 
-  // Start the static server
-  devServerProcess = await webcontainer.spawn('node', ['server.js']);
+  // Start the static server with cwd set to session root
+  devServerProcess = await webcontainer.spawn('node', ['server.js'], { cwd: sessionRoot });
 
   devServerProcess.output.pipeTo(
     new WritableStream({
@@ -462,7 +468,7 @@ server.listen(PORT, () => {
     }),
   );
 
-  logger.info('Static server process started');
+  logger.info('Static server process started in session:', sessionRoot);
 
   // Ensure preview is registered (fallback if port event doesn't fire)
   ensurePreviewRegistered(webcontainer).catch((error) => {
@@ -474,29 +480,35 @@ server.listen(PORT, () => {
  * Run npm install and start dev server in WebContainer
  */
 export async function runDevServer(webcontainer: WebContainer, files: any[]): Promise<void> {
-  logger.info('Running dev server setup...');
+  try {
+    validateSessionOperation('run dev server');
 
-  const hasPackageJson = findPackageJson(files);
-  const isStaticServer = !hasPackageJson;
+    logger.info('Running dev server setup...');
 
-  // ALWAYS ensure dev headers are correct, even if server is running
-  // This fixes the issue where agent overwrites vite.config without headers
-  if (hasPackageJson) {
-    await ensureDevHeaders(webcontainer);
-  }
+    const sessionRoot = getSessionRoot();
+    const wc = await getWebContainerUnsafe();
 
-  // For npm-based apps with HMR, skip restart if already running
-  // But still check if package.json changed and run install if needed
-  if (serverRunning && !isStaticServer) {
-    logger.info('Server already running - skipping restart, files will hot-reload automatically');
+    const hasPackageJson = findPackageJson(files);
+    const isStaticServer = !hasPackageJson;
 
-    // Check if package.json changed and auto-install dependencies
+    // ALWAYS ensure dev headers are correct, even if server is running
+    // This fixes the issue where agent overwrites vite.config without headers
     if (hasPackageJson) {
-      await checkAndRunInstall(webcontainer);
+      await ensureDevHeaders(wc, sessionRoot);
     }
 
-    return;
-  }
+    // For npm-based apps with HMR, skip restart if already running
+    // But still check if package.json changed and run install if needed
+    if (serverRunning && !isStaticServer) {
+      logger.info('Server already running - skipping restart, files will hot-reload automatically');
+
+      // Check if package.json changed and auto-install dependencies
+      if (hasPackageJson) {
+        await checkAndRunInstall(wc, sessionRoot);
+      }
+
+      return;
+    }
 
   // For static servers, trigger preview reload after files sync
   if (serverRunning && isStaticServer) {
@@ -537,10 +549,10 @@ export async function runDevServer(webcontainer: WebContainer, files: any[]): Pr
       // to fix the issue where agent overwrites vite.config
       // No proxy setup needed - external resources load directly with COEP headers
 
-      logger.info('Installing dependencies...');
+      logger.info('Installing dependencies in session:', sessionRoot);
 
-      // Run npm install
-      const installProcess = await webcontainer.spawn('npm', ['install']);
+      // Run npm install with cwd set to session root
+      const installProcess = await wc.spawn('npm', ['install'], { cwd: sessionRoot });
 
       installProcess.output.pipeTo(
         new WritableStream({
@@ -559,15 +571,15 @@ export async function runDevServer(webcontainer: WebContainer, files: any[]): Pr
       }
 
       // Initialize package.json hash after successful first install
-      lastPackageJsonHash = await hashPackageJson(webcontainer);
+      lastPackageJsonHash = await hashPackageJson(wc, sessionRoot);
       logger.debug('Initialized package.json hash for change detection');
 
       // Clear Vite cache after initial install (ensures clean state)
-      await clearViteCache(webcontainer);
+      await clearViteCache(wc, sessionRoot);
 
-      // Start dev server
-      logger.info('Starting dev server...');
-      devServerProcess = await webcontainer.spawn('npm', ['run', 'dev']);
+      // Start dev server with cwd set to session root
+      logger.info('Starting dev server in session:', sessionRoot);
+      devServerProcess = await wc.spawn('npm', ['run', 'dev'], { cwd: sessionRoot });
 
       devServerProcess.output.pipeTo(
         new WritableStream({
@@ -581,7 +593,7 @@ export async function runDevServer(webcontainer: WebContainer, files: any[]): Pr
       logger.info('Dev server started successfully');
 
       // Ensure preview is registered (fallback if port event doesn't fire)
-      ensurePreviewRegistered(webcontainer).catch((error) => {
+      ensurePreviewRegistered(wc).catch((error) => {
         logger.error('Failed to ensure preview registration:', error);
       });
     } catch (error) {
@@ -608,6 +620,7 @@ export async function runDevServer(webcontainer: WebContainer, files: any[]): Pr
       : normalizedPath;
 
     logger.debug('Static server config:', {
+      sessionRoot,
       indexPath,
       normalizedPath,
       baseDir,
@@ -615,7 +628,7 @@ export async function runDevServer(webcontainer: WebContainer, files: any[]): Pr
     });
 
     try {
-      await startStaticServer(webcontainer, baseDir, htmlFileName);
+      await startStaticServer(wc, sessionRoot, baseDir, htmlFileName);
       serverRunning = true; // Mark server as running
     } catch (error) {
       logger.error('Failed to start static server:', error);
@@ -623,6 +636,10 @@ export async function runDevServer(webcontainer: WebContainer, files: any[]): Pr
     }
   } else {
     logger.warn('No package.json or HTML file found - cannot start preview');
+  }
+  } catch (error) {
+    logger.error('Failed to run dev server:', error);
+    throw error;
   }
 }
 

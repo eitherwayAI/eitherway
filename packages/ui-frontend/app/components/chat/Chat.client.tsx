@@ -3,7 +3,6 @@ import type { Message } from 'ai';
 import { useAnimate } from 'framer-motion';
 import { memo, useEffect, useRef, useState } from 'react';
 import { cssTransition, toast, ToastContainer } from 'react-toastify';
-import { useNavigate } from '@remix-run/react';
 import { useShortcuts, useSnapScroll } from '~/lib/hooks';
 import { useBackendHistory } from '~/lib/persistence/useBackendHistory';
 import { chatStore } from '~/lib/stores/chat';
@@ -21,6 +20,7 @@ import { webcontainer } from '~/lib/webcontainer/index';
 import { runDevServer } from '~/utils/webcontainerRunner';
 import { BaseChat } from './BaseChat';
 import { BACKEND_URL } from '~/config/api';
+import { setActiveSession } from '~/lib/stores/sessionContext';
 
 const toastAnimation = cssTransition({
   enter: 'animated fadeInRight',
@@ -127,12 +127,15 @@ async function arrayBufferToBase64(buffer: ArrayBuffer): Promise<string> {
 }
 
 /**
- * Navigate to a session URL using Remix navigation
- * CRITICAL: Use Remix's navigate() to trigger loader re-run
- * Using window.history.replaceState() would NOT update useLoaderData()
+ * Update URL to reflect session ID without triggering page reload
+ * Uses History API to avoid interrupting streaming
+ * Follow-up messages will read sessionId from URL pathname directly
  */
-function navigateToSession(sessionId: string, navigate: ReturnType<typeof useNavigate>) {
-  navigate(`/chat/${sessionId}`, { replace: true });
+function navigateToSession(sessionId: string) {
+  const url = new URL(window.location.href);
+  url.pathname = `/chat/${sessionId}`;
+  window.history.replaceState({}, '', url);
+  logger.debug('📍 URL updated to:', url.pathname);
 }
 
 /**
@@ -480,7 +483,6 @@ interface ChatProps {
 export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId, storeMessageHistory }: ChatProps) => {
   useShortcuts();
 
-  const navigate = useNavigate();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [chatStarted, setChatStarted] = useState(initialMessages.length > 0);
@@ -563,6 +565,19 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
       (async () => {
         try {
           const wc = await webcontainer;
+
+          // CRITICAL: Fetch session details to get appId and initialize session context
+          const sessionRes = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}`);
+          if (sessionRes.ok) {
+            const sessionData = await sessionRes.json();
+            const appId = sessionData.session.app_id;
+
+            // Initialize session context before syncing files
+            setActiveSession(sessionId, appId);
+            logger.info(`✅ Session context initialized for history: ${sessionId}, app: ${appId}`);
+          } else {
+            logger.warn('Failed to fetch session details for context initialization');
+          }
 
           // CRITICAL: Ensure brand assets are synced to both WC and server workspace
           // before loading files. This prevents 404 errors when the preview tries to
@@ -755,20 +770,26 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
         return;
       }
 
-      // CRITICAL FIX: Use sessionId from URL/props, NOT localStorage
-      // localStorage is shared across tabs and causes session mixing!
+      // CRITICAL FIX: Read sessionId from URL pathname for follow-up messages
+      // This ensures follow-up messages use the correct session even if prop is stale
+      const urlPath = window.location.pathname;
+      const urlSessionId = urlPath.startsWith('/chat/') ? urlPath.split('/chat/')[1] : null;
+      const activeSessionId = urlSessionId || sessionId;
+
+      logger.debug('Session resolution:', { urlSessionId, propSessionId: sessionId, activeSessionId });
+
       let session: any;
 
-      if (sessionId) {
-        // Existing session - fetch from backend using the URL sessionId
-        logger.info(`Using existing session from URL: ${sessionId}`);
-        const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}`);
+      if (activeSessionId) {
+        // Existing session - fetch from backend using the URL/prop sessionId
+        logger.info(`Using existing session: ${activeSessionId}`);
+        const response = await fetch(`${BACKEND_URL}/api/sessions/${activeSessionId}`);
         if (response.ok) {
           const data = await response.json();
           session = data.session;
           logger.info(`✅ Loaded session: ${session.id} - Title: ${session.title}`);
         } else {
-          throw new Error(`Failed to load session ${sessionId}: ${response.statusText}`);
+          throw new Error(`Failed to load session ${activeSessionId}: ${response.statusText}`);
         }
       } else {
         // New conversation - create new session
@@ -781,9 +802,13 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
         session = await createSession(userId, title);
         logger.info(`✅ Created new session: ${session.id} - Title: ${title}`);
 
-        // Update URL to reflect the new session (triggers loader re-run)
-        navigateToSession(session.id, navigate);
+        // Update URL to reflect the new session (no page reload)
+        navigateToSession(session.id);
       }
+
+      // CRITICAL: Initialize session context immediately for file operations
+      setActiveSession(session.id, session.app_id);
+      logger.info(`✅ Session context initialized: ${session.id}, app: ${session.app_id}`);
 
       logger.debug('Using session:', session.id);
       console.log('💬 [Chat Message] Session ID for this message:', session.id);
@@ -909,6 +934,10 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
         },
         onFilesUpdated: async (files, sessionIdFromEvent) => {
           logger.debug('Files updated:', files.length, 'files', sessionIdFromEvent);
+
+          // CRITICAL: Initialize session context before syncing files
+          setActiveSession(session.id, session.app_id);
+          logger.debug(`✅ Session context initialized for file sync: ${session.id}`);
 
           // Sync files to WebContainer
           try {

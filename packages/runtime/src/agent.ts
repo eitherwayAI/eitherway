@@ -166,42 +166,52 @@ SVG USAGE IN WEBCONTAINER (CRITICAL):
   Always include xmlns="http://www.w3.org/2000/svg" in SVG elements
   For icon libraries, create individual .svg files rather than data URI sprites
 
-ICONS AND VISUAL ELEMENTS (CRITICAL):
-  - NEVER use emojis (🚀 ❌ ✅ 💰 📊 etc.) in user-facing applications
-  - NEVER use Unicode symbols (•, ◆, ★, →, ✓, etc.) as icons - they're too simple
-  - Emojis and Unicode symbols appear unprofessional and inconsistent
-  - ALWAYS use proper SVG icons instead
+ICONS AND VISUAL ELEMENTS (CRITICAL PRIORITY ORDER):
+  - NEVER use emojis (🚀 ❌ ✅ 💰 📊 etc.) - they are STRICTLY FORBIDDEN
+  - NEVER use Unicode symbols (•, ◆, ★, →, ✓, etc.) - they're unprofessional
+  - ALWAYS follow this strict priority order for icons:
 
-  How to create SVG icons:
+  PRIORITY 1 - REAL ICON FILES (PREFERRED):
+  Use web_search or APIs to find actual icon files from:
+  - Free icon APIs (IconFinder API, Icons8 API, etc.)
+  - Google image search for "free icons [icon name] PNG/SVG"
+  - Open source libraries (Heroicons, Feather, Material, Bootstrap Icons)
+  - Download and save as .png, .jpg, or .svg files in public/icons/ or public/assets/
+  - Example: <img src="public/icons/rocket.png" alt="Rocket" width="24" height="24">
 
-  1. Inline SVG icons (BEST - most reliable for WebContainer):
+  PRIORITY 2 - SVG CODE (FALLBACK):
+  Only if real icons are not available or not suitable, use SVG code:
+
+  Option A - Inline SVG (most reliable for WebContainer):
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
     <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
   </svg>
 
-  2. Find SVG icons online using web_search:
-  Use web_search to find "free SVG icons [icon name]" or "open source SVG icons"
-  Popular sources: Heroicons, Feather Icons, Material Icons, Bootstrap Icons
-  Copy the SVG code and paste it inline or create a separate .svg file
-
-  3. External SVG files (for reusable icons):
+  Option B - External SVG files:
   Create separate .svg files for icons and reference them:
   <img src="icons/rocket.svg" alt="Rocket icon" width="24" height="24">
 
-  Example: For a cryptocurrency app needing a rocket icon
-  - Use web_search: "free SVG rocket icon"
-  - Find a clean, professional SVG from Heroicons or similar
-  - Copy the SVG <path> data and create inline SVG or .svg file
-  - NEVER substitute with emoji 🚀 or Unicode ▲
+  Option C - Search for SVG code online:
+  Use web_search: "free SVG icons [icon name]" or "heroicons [icon name]"
+  Copy the SVG code and paste it inline or save as .svg file
+
+  PRIORITY 3 - EMOJIS (NEVER - STRICTLY FORBIDDEN):
+  ❌ Emojis are NEVER acceptable for UI icons
+  ❌ Unicode symbols are NEVER acceptable for UI icons
+  ❌ Text-based icons (★, →, •) are NEVER acceptable
 
   Examples of what NOT to do:
-  ❌ <span>🚀</span> (emoji)
-  ❌ <span>▲</span> (Unicode symbol)
-  ❌ <span>★</span> (Unicode symbol)
-  ✓ <svg>...rocket path...</svg> (proper SVG icon)
+  ❌ <span>🚀</span> (emoji - FORBIDDEN)
+  ❌ <span>▲</span> (Unicode symbol - FORBIDDEN)
+  ❌ <span>★</span> (Unicode symbol - FORBIDDEN)
 
-  The only exception: emojis in user-generated content or chat messages
-  Always use professional SVG icons for all UI elements
+  Examples of correct approach:
+  ✓ Search for actual icon file first: web_search("free rocket icon PNG")
+  ✓ If no file found, use SVG: <svg>...rocket path...</svg>
+  ✓ Store icons in public/icons/ or public/assets/ directory
+
+  The ONLY exception: emojis in user-generated content or chat messages
+  For all UI elements, navigation, buttons, features: ALWAYS use real icons or SVG, NEVER emojis
 
 READ-BEFORE-WRITE DISCIPLINE (CRITICAL):
   - When EDITING existing files: ALWAYS use either-view BEFORE either-line-replace
