@@ -6,7 +6,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && mkdir -p dist/templates && cp src/templates/*.sol dist/templates/",
     "migrate": "node --env-file=../../.env --import tsx/esm src/migrations/runner.ts",
     "migrate:create": "node --env-file=../../.env --import tsx/esm src/migrations/create.ts",
     "test": "vitest run"

@@ -17,7 +17,6 @@ import {
   ContractService,
   ContractsRepository,
   UsersRepository,
-  SUPPORTED_CHAINS,
   type CompileContractParams,
   type DeployContractParams
 } from '@eitherway/database';

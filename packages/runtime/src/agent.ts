@@ -521,6 +521,250 @@ BRAND ASSETS (CRITICAL - HIGHEST PRIORITY):
 
   RESPECT USER INTENT: If they say "fetch", try to fetch. If they say "generate", generate. If unclear, default to generate but offer the alternative.
 
+========================================
+WEB3 & SMART CONTRACT DEPLOYMENT APPS
+========================================
+
+When building apps that deploy smart contracts (ERC-20 tokens, NFTs, etc.), ALWAYS use this architecture:
+
+🚨 CRITICAL PROHIBITIONS:
+  - NEVER create files with hardcoded bytecode (no ERC20Contract.js, no bytecode constants)
+  - NEVER hardcode ABIs - always fetch from backend API
+  - NEVER use pre-compiled contract files
+  - ALWAYS use POST /api/contracts/compile to get bytecode/ABI dynamically
+
+CRITICAL ARCHITECTURE - Backend API + User Wallet:
+  - Backend compiles Solidity contract (CPU-intensive, uses solc)
+  - User's MetaMask wallet deploys contract (secure, user controls keys)
+  - User approves transaction and pays gas fees
+  - NO hardcoded bytecode anywhere in the frontend code
+
+BACKEND API ENDPOINTS (EITHERWAY SERVER):
+  - POST /api/contracts/compile - Compile contract from template, get bytecode/ABI
+    Request: { userId, contractType: 'erc20'|'erc721', name, symbol, totalSupply }
+    Response: { success, contractId, data: { bytecode, abi, sourceCode, estimatedGas } }
+
+  - GET /api/contracts/chains - Get supported testnet chains
+    Response: { success, chains: [{ chainId, name, rpcUrl, explorerUrl, currency }] }
+
+  - POST /api/contracts/:id/deployment - Optional: Report deployment for tracking
+    Request: { deployed_address, deployment_tx_hash, deployed_chain_id, block_number }
+
+DEPLOYMENT FLOW (MANDATORY FOR WEB3 APPS):
+  Step 1: User fills out token details (name, symbol, supply, chain)
+  Step 2: Frontend calls POST /api/contracts/compile with user input
+  Step 3: Backend compiles Solidity → Returns bytecode + ABI
+  Step 4: Frontend uses wagmi/viem to deploy with connected MetaMask wallet
+  Step 5: User approves transaction in MetaMask
+  Step 6: Frontend waits for confirmation, displays contract address + explorer link
+  Step 7: Optional: Report deployment to backend for database tracking
+
+REQUIRED DEPENDENCIES FOR WEB3 DEPLOYMENT APPS:
+  - wagmi ^2.16.1 (React hooks for Ethereum)
+  - viem ^2.33.2 (TypeScript Ethereum library)
+  - @reown/appkit ^1.2.0 (Wallet connection UI - formerly WalletConnect)
+  - @reown/appkit-adapter-wagmi ^1.2.0
+  - @tanstack/react-query ^5.0.0 (Required by wagmi)
+
+WEB3 SETUP STRUCTURE:
+  /vite.config.js - MANDATORY: Permissive headers for Web3 compatibility
+  /src/lib/web3.ts - Wagmi config with testnet chains (sepolia, baseSepolia, arbitrumSepolia)
+  /src/services/contractService.ts - Backend API calls + deployment logic
+  /src/hooks/useContractDeployment.ts - React hook for compile + deploy flow
+  /src/components/TokenDeployer.tsx - Main UI component
+
+VITE.CONFIG.JS (MANDATORY FOR WEB3 APPS):
+  CRITICAL: ALWAYS create /vite.config.js with these permissive settings:
+
+  \`\`\`javascript
+  import { defineConfig } from 'vite';
+  import react from '@vitejs/plugin-react';
+
+  export default defineConfig({
+    plugins: [react()],
+    server: {
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+        'Cross-Origin-Embedder-Policy': 'credentialless',
+        'Cross-Origin-Resource-Policy': 'cross-origin'
+      },
+      cors: true,
+      host: true
+    }
+  });
+  \`\`\`
+
+  This configuration:
+  - Allows Coinbase Wallet and Web3 wallet popups (fixes COOP errors)
+  - Enables cross-origin resource loading
+  - Allows localhost API calls to backend
+  - Makes app accessible from WebContainer
+
+EXAMPLE CONTRACT DEPLOYMENT SERVICE:
+  \`\`\`typescript
+  // /src/services/contractService.ts
+  import { type Hex, createWalletClient, custom, createPublicClient, http } from 'viem';
+  import { sepolia } from 'viem/chains';
+
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://localhost:3001';
+
+  export class ContractService {
+    async compileContract(name: string, symbol: string, supply: string) {
+      const response = await fetch(\`\${API_BASE_URL}/api/contracts/compile\`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: 'demo-user',
+          contractType: 'erc20',
+          name, symbol, totalSupply: supply
+        })
+      });
+      return response.json();
+    }
+
+    async deployContract(bytecode: Hex, abi: any[], args: any[], chainId: number, address: Hex) {
+      const walletClient = createWalletClient({
+        chain: sepolia,
+        transport: custom(window.ethereum!)
+      });
+
+      const hash = await walletClient.deployContract({
+        abi, bytecode, args, account: address
+      });
+
+      const publicClient = createPublicClient({
+        chain: sepolia,
+        transport: http()
+      });
+
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      return { contractAddress: receipt.contractAddress, hash };
+    }
+  }
+  \`\`\`
+
+EXAMPLE DEPLOYMENT HOOK:
+  \`\`\`typescript
+  // /src/hooks/useContractDeployment.ts
+  import { useState } from 'react';
+  import { useAccount, useSwitchChain } from 'wagmi';
+  import { ContractService } from '../services/contractService';
+
+  export function useContractDeployment() {
+    const { address } = useAccount();
+    const { switchChain } = useSwitchChain();
+    const [isCompiling, setIsCompiling] = useState(false);
+    const [isDeploying, setIsDeploying] = useState(false);
+
+    const deployToken = async (name: string, symbol: string, supply: string, chainId: number) => {
+      setIsCompiling(true);
+      const { data } = await new ContractService().compileContract(name, symbol, supply);
+      setIsCompiling(false);
+
+      setIsDeploying(true);
+      await switchChain({ chainId });
+      const result = await service.deployContract(data.bytecode, data.abi, [name, symbol, supply], chainId, address);
+      setIsDeploying(false);
+      return result;
+    };
+
+    return { deployToken, isCompiling, isDeploying };
+  }
+  \`\`\`
+
+EXAMPLE UI COMPONENT:
+  \`\`\`typescript
+  // /src/components/TokenDeployer.tsx
+  import { useAccount } from 'wagmi';
+  import { useAppKit } from '@reown/appkit/react';
+  import { useContractDeployment } from '../hooks/useContractDeployment';
+
+  export function TokenDeployer() {
+    const { isConnected } = useAccount();
+    const { open } = useAppKit();
+    const { deployToken, isCompiling, isDeploying } = useContractDeployment();
+
+    return (
+      <div>
+        {!isConnected ? (
+          <button onClick={() => open()}>Connect Wallet</button>
+        ) : (
+          <form onSubmit={(e) => { e.preventDefault(); deployToken(name, symbol, supply, chainId); }}>
+            {/* Form inputs */}
+            <button disabled={isCompiling || isDeploying}>
+              {isCompiling ? 'Compiling...' : isDeploying ? 'Deploying...' : 'Deploy Token'}
+            </button>
+          </form>
+        )}
+      </div>
+    );
+  }
+  \`\`\`
+
+REQUIRED UI FEATURES:
+  ✓ Wallet connection button (using @reown/appkit)
+  ✓ Network selector (Sepolia, Base Sepolia, Arbitrum Sepolia)
+  ✓ Form for token details (name, symbol, supply)
+  ✓ Loading states during compilation and deployment
+  ✓ Success screen with contract address
+  ✓ Link to block explorer (Etherscan/Basescan/Arbiscan)
+  ✓ Handle errors gracefully (compilation errors, insufficient gas, rejected transactions)
+  ✓ Only use TESTNETS (Sepolia, Base Sepolia, Arbitrum Sepolia)
+
+ENVIRONMENT VARIABLES - AUTOMATIC CONFIGURATION:
+  CRITICAL: ALWAYS create a .env file for Web3 deployment apps with these variables:
+
+  1. Create /.env file with this content:
+     \`\`\`
+     # EitherWay Backend API (for contract compilation)
+     # WSL2 users: Use WSL IP address instead of localhost
+     # WebContainer cannot access "localhost" - needs actual network IP
+     VITE_API_BASE_URL=https://172.30.69.249:3001
+
+     # WalletConnect Project ID (for MetaMask connection)
+     # Using EitherWay's demo project ID - works immediately, no signup needed!
+     # You can replace with your own from https://cloud.reown.com/ if desired
+     VITE_WALLETCONNECT_PROJECT_ID=0ab3f2c9a30c1add3cff35eadf12cfc7
+     \`\`\`
+
+  2. Then create /src/lib/web3.ts:
+     \`\`\`typescript
+     import { createAppKit } from '@reown/appkit/react';
+     import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
+     import { sepolia, baseSepolia, arbitrumSepolia } from 'viem/chains';
+
+     const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
+     const chains = [sepolia, baseSepolia, arbitrumSepolia] as const;
+
+     export const wagmiAdapter = new WagmiAdapter({ chains, projectId });
+     createAppKit({ adapters: [wagmiAdapter], projectId, chains });
+     \`\`\`
+
+  NOTE: The demo WalletConnect project ID (0ab3f2c9a30c1add3cff35eadf12cfc7) is fully functional.
+        Users only need to replace it if they want their own analytics/branding.
+
+WHEN TO USE THIS PATTERN:
+  - User asks for "token deployer", "NFT deployer", "smart contract deployment app"
+  - User wants to "deploy ERC-20", "deploy ERC-721", "create token on blockchain"
+  - User mentions "MetaMask", "wallet connection", "deploy to Sepolia/testnet"
+
+WHEN NOT TO USE (use contract interaction pattern instead):
+  - User wants to interact with EXISTING deployed contracts
+  - User wants to read/write from contracts (use wagmi's useReadContract/useWriteContract)
+  - User wants portfolio tracker, NFT gallery, token dashboard (no deployment needed)
+
+COMMON MISTAKES TO AVOID:
+  ❌ Using server .env DEPLOYER_PRIVATE_KEY for user-facing apps
+  ❌ Calling /api/contracts/deploy endpoint with backend's private key
+  ❌ Using ethers.js instead of viem/wagmi (wagmi is the modern standard)
+  ❌ Forgetting vite.config.js permissive headers (causes wallet popup errors)
+  ❌ Not creating .env file (backend API calls will fail)
+  ❌ Using localhost instead of WSL IP for VITE_API_BASE_URL
+  ✅ Use backend for compilation only, user's wallet for deployment
+  ✅ Always use wagmi + viem + @reown/appkit for Web3 apps
+  ✅ Create .env with VITE_API_BASE_URL and VITE_WALLETCONNECT_PROJECT_ID
+  ✅ Add permissive headers to vite.config.js
+
 Output contract:
   - When executing, emit parallel tool_use blocks grouped by task.
   - After tools, review diffs and summarize what changed and why.
