@@ -341,10 +341,16 @@ class UniversalErrorCapture { constructor() { this.capturedErrors = []; this.err
         logger.error('Preview error received:', event.data.error);
         setPreviewError(event.data.error);
       } else if (event.data.type === 'PREVIEW_LOADED') {
-        // Only clear runtime errors when preview loads
-        // Build errors persist until the code is actually fixed
+        // Clear errors when preview loads successfully
+        // Exception: Keep build errors visible UNLESS auto-fix has completed
         setPreviewError((prevError) => {
           if (prevError?.source === 'build') {
+            // Check if auto-fix just completed (phase is 'completed')
+            // If so, the build error is stale (from intermediate file sync states)
+            if (currentPhase === 'completed') {
+              logger.info('Auto-fix completed and preview loaded - clearing stale build error');
+              return null; // Clear the build error
+            }
             logger.info('Preview loaded but build error persists - keeping overlay visible');
             return prevError; // Keep the build error visible
           }
@@ -356,7 +362,7 @@ class UniversalErrorCapture { constructor() { this.capturedErrors = []; this.err
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [currentPhase]); // Re-create handler when phase changes to access latest value
 
   // Listen for build errors from WebContainer dev server output
   useEffect(() => {

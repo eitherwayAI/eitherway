@@ -34,18 +34,6 @@ export function useBackendHistory() {
   const [files, setFiles] = useState<FileNode[]>([]);
   const [ready, setReady] = useState<boolean>(false);
   const [sessionTitle, setSessionTitle] = useState<string>('');
-  const [refetchTrigger, setRefetchTrigger] = useState(0);
-
-  // Listen for refetch requests (e.g., after auto-fix completes)
-  useEffect(() => {
-    const handleRefetch = () => {
-      logger.info('🔄 Refetch requested - reloading messages');
-      setRefetchTrigger((prev) => prev + 1);
-    };
-
-    window.addEventListener('chat:refetch-messages', handleRefetch);
-    return () => window.removeEventListener('chat:refetch-messages', handleRefetch);
-  }, []);
 
   useEffect(() => {
     if (!sessionId) {
@@ -89,13 +77,16 @@ export function useBackendHistory() {
         );
 
         // Transform backend messages to AI SDK format
-        const transformedMessages: Message[] = messages.map((msg: BackendMessage) => ({
-          id: msg.id,
-          role: msg.role,
-          content: msg.content,
-          metadata: msg.metadata, // Preserve metadata for historical message reconstruction
-          createdAt: new Date(msg.created_at),
-        }));
+        // Filter out system messages (like auto-fix prompts) to keep UI clean
+        const transformedMessages: Message[] = messages
+          .filter((msg: BackendMessage) => msg.role !== 'system')
+          .map((msg: BackendMessage) => ({
+            id: msg.id,
+            role: msg.role,
+            content: msg.content,
+            metadata: msg.metadata, // Preserve metadata for historical message reconstruction
+            createdAt: new Date(msg.created_at),
+          }));
 
         setInitialMessages(transformedMessages);
         setFiles(filesData.files || []);
@@ -120,7 +111,7 @@ export function useBackendHistory() {
         navigate('/chat', { replace: true });
         setReady(true);
       });
-  }, [sessionId, navigate, refetchTrigger]);
+  }, [sessionId, navigate]);
 
   // Simplified storeMessageHistory - backend storage happens via WebSocket streaming
   const storeMessageHistory = async (messages: Message[]) => {

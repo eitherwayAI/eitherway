@@ -31,15 +31,12 @@ export async function injectErrorCapture(webcontainer: WebContainer, sessionRoot
   try {
     let html = await webcontainer.fs.readFile(htmlPath, 'utf-8');
 
-    // Remove broken/old error capture scripts first
-    if (html.includes('ERROR_CAPTURE_SCRIPT')) {
-      console.log('[injectErrorCapture] Removing old error capture script');
+    // ALWAYS remove any existing error capture scripts to ensure we have the latest version
+    if (html.includes('ERROR_CAPTURE_SCRIPT') || html.includes('UniversalErrorCapture')) {
+      console.log('[injectErrorCapture] Removing old/existing error capture script');
       // Remove the entire script block (from ERROR_CAPTURE_SCRIPT comment to closing </script>)
       html = html.replace(/<!-- ERROR_CAPTURE_SCRIPT -->[\s\S]*?<\/script>\s*/g, '');
-      console.log('[injectErrorCapture] Old script removed, will re-inject fixed version');
-    } else if (html.includes('UniversalErrorCapture')) {
-      console.log('[injectErrorCapture] Error capture already present and valid, skipping');
-      return;
+      console.log('[injectErrorCapture] Old script removed, will re-inject latest version');
     }
 
     // Error capture script (inline to avoid file path issues)

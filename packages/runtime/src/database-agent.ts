@@ -51,7 +51,14 @@ export class DatabaseAgent {
     });
   }
 
-  async processRequest(prompt: string, callbacks?: StreamingCallbacks): Promise<string> {
+  async processRequest(prompt: string, callbacks?: StreamingCallbacks, messageRole: 'user' | 'system' = 'user', skipConversationHistory: boolean = false): Promise<string> {
+    // Debug: Log parameters
+    console.log('[DatabaseAgent] processRequest called with:', {
+      messageRole,
+      skipConversationHistory,
+      promptLength: prompt.length
+    });
+
     await this.eventsRepo.log(
       'request.started',
       { prompt },
@@ -62,105 +69,118 @@ export class DatabaseAgent {
     );
 
     // P1.5: Build Memory Prelude for dynamic context
+    // Skip memory prelude for auto-fix to minimize tokens
     let memoryPreludeText = '';
-    try {
-      const prelude = await this.memoryPreludeService.buildPrelude(this.sessionId);
-      memoryPreludeText = this.memoryPreludeService.formatAsSystemMessage(prelude);
+    if (!skipConversationHistory) {
+      try {
+        const prelude = await this.memoryPreludeService.buildPrelude(this.sessionId);
+        memoryPreludeText = this.memoryPreludeService.formatAsSystemMessage(prelude);
 
-      // Set the dynamic system prompt prefix on the agent
-      this.agent.setSystemPromptPrefix(memoryPreludeText);
-    } catch (error) {
-      // Gracefully degrade if memory prelude fails (e.g., missing session data)
-      console.warn('[DatabaseAgent] Failed to build memory prelude:', error);
+        // Set the dynamic system prompt prefix on the agent
+        this.agent.setSystemPromptPrefix(memoryPreludeText);
+      } catch (error) {
+        // Gracefully degrade if memory prelude fails (e.g., missing session data)
+        console.warn('[DatabaseAgent] Failed to build memory prelude:', error);
+        this.agent.setSystemPromptPrefix('');
+      }
+    } else {
+      // Auto-fix mode: no memory prelude needed
       this.agent.setSystemPromptPrefix('');
     }
 
     // P1: Load previous conversation history with smart bounded history
-    // Check if we have a compaction point; if so, load only messages after that point
-    const memory = await this.memoryRepo.findBySession(this.sessionId);
-    let previousMessages: any[];
+    // Skip conversation history for auto-fix to minimize tokens
+    let conversationHistory: any[] = [];
 
-    if (memory?.last_compacted_message_id) {
-      // Load messages after last compaction (with a safety cap of 10)
-      previousMessages = await this.messagesRepo.findAfterMessageId(
-        this.sessionId,
-        memory.last_compacted_message_id,
-        10
-      );
+    if (!skipConversationHistory) {
+      const memory = await this.memoryRepo.findBySession(this.sessionId);
+      let previousMessages: any[];
+
+      if (memory?.last_compacted_message_id) {
+        // Load messages after last compaction (with a safety cap of 10)
+        previousMessages = await this.messagesRepo.findAfterMessageId(
+          this.sessionId,
+          memory.last_compacted_message_id,
+          10
+        );
+      } else {
+        // No compaction yet, load last 10 messages
+        previousMessages = await this.messagesRepo.findRecentBySession(this.sessionId, 10);
+      }
+
+      // Convert database messages to Agent message format (filter out system/tool messages)
+      // P1: Sanitize old tool results to prevent context bloat
+      conversationHistory = previousMessages
+        .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
+        .map((msg, index) => {
+          let content = msg.content;
+
+          // P1: Determine if this is a recent message (last 5 messages keep full tool results)
+          const isRecent = index >= previousMessages.length - 5;
+
+          // Ensure content is always an array (Claude API requirement)
+          if (typeof content === 'string') {
+            // Plain string - wrap in text block
+            content = [{ type: 'text', text: content }];
+          } else if (typeof content === 'object' && content !== null) {
+            if (Array.isArray(content)) {
+              // P1: Strip large tool results from older messages
+              if (!isRecent) {
+                content = content.map((block: any) => {
+                  if (block.type === 'tool_result') {
+                    // Replace with lightweight placeholder
+                    const toolInfo = block.tool_use_id || block.name || 'unknown';
+                    const pathInfo = block.content && typeof block.content === 'string'
+                      ? block.content.substring(0, 100)
+                      : '';
+                    return {
+                      type: 'text',
+                      text: `[Tool executed: ${toolInfo}${pathInfo ? ' - ' + pathInfo.split('\n')[0] : ''}]`,
+                    };
+                  }
+                  if (block.type === 'tool_use' && block.input?.content && block.input.content.length > 500) {
+                    // Truncate large tool inputs in older messages
+                    return {
+                      ...block,
+                      input: {
+                        ...block.input,
+                        content: block.input.content.substring(0, 500) + '... [truncated]',
+                      },
+                    };
+                  }
+                  return block;
+                });
+              }
+              // Already an array - use as-is (possibly sanitized)
+              content = content;
+            } else if ('text' in content && content.text) {
+              // Object with text property - wrap in array
+              content = [{ type: 'text', text: content.text }];
+            } else {
+              // Other object - stringify and wrap
+              content = [{ type: 'text', text: JSON.stringify(content) }];
+            }
+          } else {
+            // Fallback for any other type
+            content = [{ type: 'text', text: String(content) }];
+          }
+
+          return {
+            role: msg.role as 'user' | 'assistant',
+            content,
+          };
+        });
     } else {
-      // No compaction yet, load last 10 messages
-      previousMessages = await this.messagesRepo.findRecentBySession(this.sessionId, 10);
+      // Auto-fix mode: no conversation history - agent starts fresh with only error context
+      console.log('[DatabaseAgent] Auto-fix mode: skipping conversation history to minimize tokens');
     }
 
-    // Convert database messages to Agent message format (filter out system/tool messages)
-    // P1: Sanitize old tool results to prevent context bloat
-    const conversationHistory = previousMessages
-      .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
-      .map((msg, index) => {
-        let content = msg.content;
-
-        // P1: Determine if this is a recent message (last 5 messages keep full tool results)
-        const isRecent = index >= previousMessages.length - 5;
-
-        // Ensure content is always an array (Claude API requirement)
-        if (typeof content === 'string') {
-          // Plain string - wrap in text block
-          content = [{ type: 'text', text: content }];
-        } else if (typeof content === 'object' && content !== null) {
-          if (Array.isArray(content)) {
-            // P1: Strip large tool results from older messages
-            if (!isRecent) {
-              content = content.map((block: any) => {
-                if (block.type === 'tool_result') {
-                  // Replace with lightweight placeholder
-                  const toolInfo = block.tool_use_id || block.name || 'unknown';
-                  const pathInfo = block.content && typeof block.content === 'string'
-                    ? block.content.substring(0, 100)
-                    : '';
-                  return {
-                    type: 'text',
-                    text: `[Tool executed: ${toolInfo}${pathInfo ? ' - ' + pathInfo.split('\n')[0] : ''}]`,
-                  };
-                }
-                if (block.type === 'tool_use' && block.input?.content && block.input.content.length > 500) {
-                  // Truncate large tool inputs in older messages
-                  return {
-                    ...block,
-                    input: {
-                      ...block.input,
-                      content: block.input.content.substring(0, 500) + '... [truncated]',
-                    },
-                  };
-                }
-                return block;
-              });
-            }
-            // Already an array - use as-is (possibly sanitized)
-            content = content;
-          } else if ('text' in content && content.text) {
-            // Object with text property - wrap in array
-            content = [{ type: 'text', text: content.text }];
-          } else {
-            // Other object - stringify and wrap
-            content = [{ type: 'text', text: JSON.stringify(content) }];
-          }
-        } else {
-          // Fallback for any other type
-          content = [{ type: 'text', text: String(content) }];
-        }
-
-        return {
-          role: msg.role as 'user' | 'assistant',
-          content,
-        };
-      });
-
-    // Load conversation history into agent
+    // Load conversation history into agent (empty array for auto-fix)
     this.agent.loadConversationHistory(conversationHistory);
 
     const userMessage = await this.messagesRepo.create(
       this.sessionId,
-      'user' as const,
+      messageRole as 'user' | 'system', // Use provided role (user or system for auto-fix)
       { text: prompt },
       undefined,
       undefined,

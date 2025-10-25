@@ -38,19 +38,14 @@ export class WorkbenchStore {
   #filteredFiles = computed([this.#filesStore.files, sessionContext], (allFiles, session) => {
     const { currentSessionId } = session;
 
-    console.log('[WorkbenchStore] Filtering files for session:', currentSessionId);
-    console.log('[WorkbenchStore] All files:', Object.keys(allFiles));
-
     // If no active session, return empty file map
     if (!currentSessionId) {
-      console.log('[WorkbenchStore] No active session, returning empty');
       return {};
     }
 
     // FilesStore paths: /home/project/__session_xxx__/src/App.jsx
     // We want to strip only the __session_xxx__ part: /home/project/src/App.jsx
     const sessionInfix = `__session_${currentSessionId}__/`;
-    console.log('[WorkbenchStore] Looking for files with session infix:', sessionInfix);
 
     const filteredFiles: FileMap = {};
 
@@ -60,11 +55,9 @@ export class WorkbenchStore {
         // Strip only the session infix, keeping /home/project/ prefix
         const normalizedPath = filePath.replace(sessionInfix, '');
         filteredFiles[normalizedPath] = dirent;
-        console.log('[WorkbenchStore] Matched file:', filePath, '→', normalizedPath);
       }
     }
 
-    console.log('[WorkbenchStore] Filtered files:', Object.keys(filteredFiles));
     return filteredFiles;
   });
 

@@ -493,6 +493,9 @@ await fastify.register(async (fastify) => {
     connection.socket.on('message', async (message: Buffer) => {
       const data = JSON.parse(message.toString());
 
+      // Debug: Log received message
+      console.log('[WebSocket] Received message:', { type: data.type, role: data.role, promptLength: data.prompt?.length });
+
       if (data.type === 'prompt') {
         try {
           let response: string;
@@ -584,8 +587,17 @@ await fastify.register(async (fastify) => {
             // Enrich prompt with brand kit context if available
             const enrichedPrompt = await enrichPromptWithBrandKit(data.prompt, session, fileStore);
 
+            // Extract role from message (default to 'user' if not specified)
+            const messageRole = data.role || 'user';
+
+            // Auto-fix mode: skip conversation history to minimize tokens
+            const skipHistory = messageRole === 'system';
+
+            // Debug: Log auto-fix detection
+            console.log('[Auto-Fix Debug] messageRole:', messageRole, 'skipHistory:', skipHistory);
+
             // Process request with streaming
-            response = await dbAgent.processRequest(enrichedPrompt, streamingCallbacks);
+            response = await dbAgent.processRequest(enrichedPrompt, streamingCallbacks, messageRole, skipHistory);
 
             // Send stream_end event with token usage
             sender.send(StreamEvents.streamEnd(messageId, tokenUsage));

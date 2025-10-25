@@ -527,7 +527,9 @@ function detectBuildError(output: string, sessionRoot: string): void {
     /Internal server error:\s+(.+?\.(?:jsx?|tsx?|vue|svelte)):\s+(.+?)$/mi,
     // Vite plugin errors with full details: [plugin:vite:react-babel] /path/file.jsx: error message (line:col)
     /\[plugin:([^\]]+)\]\s+(.+?)\.(?:jsx?|tsx?|vue|svelte):\s*(.+?)(?:\s+\((\d+):(\d+)\))?/s,
-    // ESBuild errors: Expected ">" but found "<"
+    // ESBuild errors with file path on next line: "Expected X" followed by "src/file.jsx:line:col"
+    /(?:ERROR|error).*?(?:Expected|Unexpected|Unterminated)[\s\S]{0,200}?\n\s+(src\/[^\s:]+\.(?:jsx?|tsx?)):(\d+):(\d+)/i,
+    // ESBuild errors: Expected ">" but found "<" (without file - will extract later)
     /ERROR.*Expected\s+"(.+?)"\s+but\s+found\s+"(.+?)"/i,
     // Syntax errors with file location
     /([^\s]+\.(?:js|jsx|ts|tsx|vue|svelte)):\s+(.+?)\s+\((\d+):(\d+)\)/,
@@ -623,6 +625,24 @@ function detectBuildError(output: string, sessionRoot: string): void {
       if (errorLineIndex > 0) {
         stack = lines.slice(Math.max(0, errorLineIndex - 3), errorLineIndex + 2).join('\n');
       }
+    }
+  } else if (errorMatch[0].match(/(?:Expected|Unexpected|Unterminated)/i)) {
+    // ESBuild errors with file path on next line (new pattern)
+    // Extract error message from the error match
+    const errorLineMatch = cleanOutput.match(/(?:Expected|Unexpected|Unterminated).+/i);
+    message = errorLineMatch ? errorLineMatch[0] : 'Syntax error';
+
+    // File info is captured in groups 1, 2, 3 (file, line, column)
+    if (errorMatch[1]) {
+      file = errorMatch[1].replace(sessionRoot, '').replace(/^\//, '').replace(/^__session_[^_]+__\//, '');
+      line = errorMatch[2] ? parseInt(errorMatch[2], 10) : 0;
+      column = errorMatch[3] ? parseInt(errorMatch[3], 10) : 0;
+    }
+
+    // Extract code snippet
+    const snippetMatch = output.match(/(\d+)\s*\|[^\n]*\n[^\n]*\^\n?/);
+    if (snippetMatch) {
+      stack = snippetMatch[0];
     }
   } else if (errorMatch[0].includes('Error:')) {
     message = errorMatch[1];

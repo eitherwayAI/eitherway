@@ -674,7 +674,7 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
     setChatStarted(true);
   };
 
-  const sendMessage = async (_event: React.UIEvent, messageInput?: string) => {
+  const sendMessage = async (_event: React.UIEvent, messageInput?: string, isSystemMessage = false) => {
     const _input = messageInput || input;
 
     if (_input.length === 0 || isLoading) {
@@ -720,7 +720,13 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
       },
     };
 
-    setMessages((prev) => [...prev, userMessage, assistantMessage]);
+    // Only add messages to UI if it's not a system message (like auto-fix)
+    if (!isSystemMessage) {
+      setMessages((prev) => [...prev, userMessage, assistantMessage]);
+    } else {
+      // For system messages, only add the assistant message to receive the response
+      setMessages((prev) => [...prev, assistantMessage]);
+    }
     setInput('');
     setIsLoading(true);
 
@@ -826,6 +832,7 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
       const controller = await streamFromWebSocket({
         prompt: _input,
         sessionId: session.id, // Use session ID from database
+        messageRole: isSystemMessage ? 'system' : 'user', // Mark auto-fix messages as system
         onChunk: (chunk) => {
           setMessages((prev) => {
             return prev.map((msg) => {
@@ -1031,6 +1038,20 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
       logger.error('Failed to start streaming:', error);
     }
   };
+
+  // Listen for auto-fix requests from ErrorOverlay
+  useEffect(() => {
+    const handleAutoFix = (event: CustomEvent) => {
+      const { prompt } = event.detail;
+      logger.info('[Chat] Auto-fix request received, sending as system message');
+
+      // Send the auto-fix prompt as a system message (hidden from UI)
+      sendMessage(new UIEvent('submit'), prompt, true);
+    };
+
+    window.addEventListener('chat:send-auto-fix', handleAutoFix as EventListener);
+    return () => window.removeEventListener('chat:send-auto-fix', handleAutoFix as EventListener);
+  }, [sendMessage]);
 
   const [messageRef, scrollRef] = useSnapScroll();
 

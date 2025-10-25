@@ -4,7 +4,6 @@
  * Provides one-click automatic fixing via direct agent WebSocket communication
  */
 import { useState } from 'react';
-import { streamFromWebSocket } from '~/utils/websocketClient';
 
 interface ErrorData {
   message: string;
@@ -25,11 +24,9 @@ interface ErrorOverlayProps {
 
 export function ErrorOverlay({ error, sessionId, onResolved }: ErrorOverlayProps) {
   const [fixing, setFixing] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
   const [fixAttempts, setFixAttempts] = useState(0);
   const [failedPermanently, setFailedPermanently] = useState(false);
   const [fixProgress, setFixProgress] = useState<{step: number; message: string}>({ step: 0, message: '' });
-  const [agentMessage, setAgentMessage] = useState<string>('');
 
   /**
    * Cycling motivational phrases for fix attempts
@@ -134,101 +131,55 @@ Execute STEP 1 now: either-view ${errorData.file || 'src/App.jsx'}`;
       const fixPrompt = buildFixPrompt(error);
       console.log('[ErrorOverlay] Fix prompt:', fixPrompt);
 
-      // Progress: Step 2 - Triggering AI agent
-      setFixProgress({ step: 2, message: 'AI agent is analyzing...' });
+      // Progress: Step 2 - Dispatching auto-fix to chat
+      setFixProgress({ step: 2, message: 'Sending to AI...' });
 
-      let agentStartedFixing = false;
-      let agentResponse = '';
+      // Dispatch event to chat to send auto-fix prompt
+      // This will make it stream in real-time in the chat UI
+      window.dispatchEvent(new CustomEvent('chat:send-auto-fix', {
+        detail: { prompt: fixPrompt }
+      }));
 
-      // Set up preview load listener BEFORE triggering the fix
-      const waitForPreviewLoad = new Promise<boolean>((resolve) => {
-        const timeout = setTimeout(() => {
-          console.log('[ErrorOverlay] Preview load timeout - assuming success');
-          resolve(true);
-        }, 15000); // 15 second max wait
+      console.log('[ErrorOverlay] Auto-fix request sent to chat');
 
-        const handlePreviewLoad = (event: MessageEvent) => {
-          if (event.data.type === 'PREVIEW_LOADED') {
-            console.log('[ErrorOverlay] ✅ Preview loaded successfully after fix!');
-            clearTimeout(timeout);
-            window.removeEventListener('message', handlePreviewLoad);
-            resolve(true);
-          }
-        };
+      // Listen for fix completion via file updates
+      const handleFileUpdate = () => {
+        console.log('[ErrorOverlay] Files updated - fix in progress');
+        setFixProgress({ step: 3, message: 'AI is applying fixes...' });
+      };
 
-        window.addEventListener('message', handlePreviewLoad);
-      });
+      const handlePreviewLoad = (event: MessageEvent) => {
+        if (event.data.type === 'PREVIEW_LOADED') {
+          console.log('[ErrorOverlay] ✅ Preview loaded successfully after fix!');
+          setFixProgress({ step: 4, message: 'Fix verified!' });
 
-      // Trigger the agent via WebSocket (same as sending a chat message)
-      await streamFromWebSocket({
-        prompt: fixPrompt,
-        sessionId,
-        onChunk: (chunk) => {
-          // Accumulate agent's response
-          agentResponse += chunk;
-          setAgentMessage(agentResponse); // Update UI with agent's response in real-time
-
-          // Agent is responding - we're making progress
-          if (!agentStartedFixing) {
-            agentStartedFixing = true;
-            setFixProgress({ step: 3, message: 'AI is applying fixes...' });
-          }
-        },
-        onPhase: (phase) => {
-          console.log('[ErrorOverlay] Agent phase:', phase);
-          if (phase === 'code-writing') {
-            setFixProgress({ step: 3, message: 'Writing code fixes...' });
-          } else if (phase === 'building') {
-            setFixProgress({ step: 4, message: 'Building and testing...' });
-          }
-        },
-        onFilesUpdated: async (files) => {
-          console.log('[ErrorOverlay] Files updated, triggering preview reload:', files);
-          setFixProgress({ step: 4, message: 'Reloading preview...' });
-
-          // Dispatch event to trigger Preview component reload
-          window.dispatchEvent(new CustomEvent('webcontainer:file-updated'));
-
-          // Wait for preview to actually load successfully
-          console.log('[ErrorOverlay] Waiting for preview to load...');
-          const loaded = await waitForPreviewLoad;
-
-          if (loaded) {
-            console.log('[ErrorOverlay] Fix verified - preview loaded!');
-            setFixProgress({ step: 4, message: 'Fix verified!' });
-
-            // Trigger chat to refetch messages so the auto-fix conversation appears
-            window.dispatchEvent(new Event('chat:refetch-messages'));
-
-            // Show the fix message briefly before clearing
-            setTimeout(() => {
-              setFixing(false);
-              setFixProgress({ step: 0, message: '' });
-              onResolved(); // Clear the error overlay
-            }, 1500);
-          }
-        },
-        onComplete: () => {
-          console.log('[ErrorOverlay] Agent finished processing fix');
-          console.log('[ErrorOverlay] Agent response:', agentResponse);
-
-          // If files weren't updated, assume no fix was needed
+          // Show success briefly then clear overlay
           setTimeout(() => {
             setFixing(false);
             setFixProgress({ step: 0, message: '' });
-          }, 2000);
-        },
-        onError: (errorMsg) => {
-          console.error('[ErrorOverlay] Agent error:', errorMsg);
-          setFixing(false);
-          setFixProgress({ step: 0, message: '' });
+            onResolved();
+          }, 1500);
 
-          // Don't mark as permanently failed on first error
-          if (fixAttempts >= 2) {
-            setFailedPermanently(true);
-          }
-        },
-      });
+          // Clean up listeners
+          window.removeEventListener('webcontainer:file-updated', handleFileUpdate);
+          window.removeEventListener('message', handlePreviewLoad);
+        }
+      };
+
+      window.addEventListener('webcontainer:file-updated', handleFileUpdate);
+      window.addEventListener('message', handlePreviewLoad);
+
+      // Timeout if fix takes too long
+      setTimeout(() => {
+        setFixing(false);
+        setFixProgress({ step: 0, message: '' });
+        if (fixAttempts >= 2) {
+          setFailedPermanently(true);
+        }
+        // Clean up listeners
+        window.removeEventListener('webcontainer:file-updated', handleFileUpdate);
+        window.removeEventListener('message', handlePreviewLoad);
+      }, 60000); // 60 second timeout
 
     } catch (err) {
       console.error('[ErrorOverlay] Error during fix attempt:', err);
@@ -263,14 +214,6 @@ Execute STEP 1 now: either-view ${errorData.file || 'src/App.jsx'}`;
                 ></div>
               </div>
             )}
-            {agentMessage && (
-              <div className="mt-6 p-4 bg-gray-900 rounded-lg border border-gray-700 max-h-48 overflow-y-auto text-left">
-                <div className="text-xs font-semibold text-blue-400 mb-2">🤖 AI Agent:</div>
-                <div className="text-sm text-gray-300 whitespace-pre-wrap font-mono">
-                  {agentMessage}
-                </div>
-              </div>
-            )}
           </div>
         ) : failedPermanently ? (
           <div className="text-center">
@@ -278,28 +221,9 @@ Execute STEP 1 now: either-view ${errorData.file || 'src/App.jsx'}`;
             <h3 className="text-xl font-semibold mb-2 text-white">
               Need Manual Attention
             </h3>
-            <p className="text-sm text-gray-400 mb-4">
+            <p className="text-sm text-gray-400">
               Automatic fix attempts didn't resolve this issue. Please describe the problem in the chat.
             </p>
-            <button
-              onClick={() => setShowDetails(!showDetails)}
-              className="text-sm text-blue-400 hover:text-blue-300"
-            >
-              {showDetails ? 'Hide' : 'Show'} error details
-            </button>
-            {showDetails && (
-              <div className="mt-4 p-4 bg-gray-900 rounded text-left text-xs overflow-auto max-h-40 font-mono">
-                <div className="text-red-400 mb-2">{error.message}</div>
-                {error.file && (
-                  <div className="text-gray-500 mb-2">
-                    {error.file}:{error.line}:{error.column}
-                  </div>
-                )}
-                {error.stack && (
-                  <pre className="text-gray-600 whitespace-pre-wrap">{error.stack}</pre>
-                )}
-              </div>
-            )}
           </div>
         ) : (
           <div className="text-center">
@@ -313,35 +237,13 @@ Execute STEP 1 now: either-view ${errorData.file || 'src/App.jsx'}`;
 
             <button
               onClick={handleFix}
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-lg mb-3 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
               AI Auto-Fix
             </button>
-
-            <button
-              onClick={() => setShowDetails(!showDetails)}
-              className="text-sm text-gray-400 hover:text-gray-300 transition-colors"
-            >
-              {showDetails ? '▼ Hide error details' : '▶ Show error details'}
-            </button>
-
-            {showDetails && (
-              <div className="mt-4 p-4 bg-gray-900 rounded text-left text-xs overflow-auto max-h-40 font-mono border border-gray-800">
-                <div className="text-red-400 font-semibold mb-2">{error.message}</div>
-                {error.file && (
-                  <div className="text-blue-400 mb-2">
-                    📄 {error.file}
-                    {error.line > 0 && <span className="text-gray-500"> (line {error.line}{error.column > 0 && `:${error.column}`})</span>}
-                  </div>
-                )}
-                {error.stack && (
-                  <pre className="text-gray-500 whitespace-pre-wrap mt-2 pt-2 border-t border-gray-800">{error.stack}</pre>
-                )}
-              </div>
-            )}
           </div>
         )}
       </div>

@@ -6,6 +6,7 @@
 export interface StreamOptions {
   prompt: string;
   sessionId?: string;
+  messageRole?: 'user' | 'system'; // Add role to mark system messages (like auto-fix)
   onChunk: (chunk: string) => void;
   onComplete: () => void;
   onError: (error: string) => void;
@@ -35,6 +36,7 @@ export async function streamFromWebSocket(options: StreamOptions): Promise<Strea
   const {
     prompt,
     sessionId = `session-${Date.now()}`,
+    messageRole = 'user', // Default to 'user' if not specified
     onChunk,
     onComplete,
     onError,
@@ -244,12 +246,13 @@ export async function streamFromWebSocket(options: StreamOptions): Promise<Strea
     // Initial connection
     await connectWebSocket();
 
-    console.log('[WebSocket] Sending prompt:', prompt);
+    console.log('[WebSocket] Sending prompt:', prompt, 'Role:', messageRole);
     if (ws) {
       ws.send(
         JSON.stringify({
           type: 'prompt',
           prompt: prompt,
+          role: messageRole, // Pass role to backend for proper message storage
         }),
       );
     }
