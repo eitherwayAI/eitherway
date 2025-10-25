@@ -25,6 +25,12 @@ let installInProgress = false;
 let pendingInstall: NodeJS.Timeout | null = null;
 const INSTALL_DEBOUNCE_MS = 1000; // 1 second debounce
 
+// Build error detection debouncing
+let lastErrorHash: string | null = null;
+let lastErrorTime = 0;
+const ERROR_DEBOUNCE_MS = 2000; // Don't report same error within 2 seconds
+let hasActiveError = false; // Track if we currently have an error
+
 /**
  * Compute hash of package.json content for change detection
  */
@@ -477,6 +483,184 @@ server.listen(PORT, () => {
 }
 
 /**
+ * Simple hash function for error deduplication
+ */
+function simpleHash(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return hash.toString(16);
+}
+
+/**
+ * Strip ANSI color codes and control sequences from terminal output
+ */
+function stripAnsi(str: string): string {
+  // Remove all ANSI escape sequences comprehensively
+  return str
+    .replace(/\x1B\[[0-9;?]*[a-zA-Z]/g, '') // CSI sequences: ESC [ ... letter (includes cursor positioning)
+    .replace(/\x1B\][^\x07]*\x07/g, '') // OSC sequences: ESC ] ... BEL
+    .replace(/\x1B\]/g, '') // Incomplete OSC
+    .replace(/\x1B[=>]/g, ''); // Mode switches
+}
+
+/**
+ * Detect and parse build errors from dev server output
+ */
+function detectBuildError(output: string, sessionRoot: string): void {
+  // Strip ANSI codes for cleaner pattern matching
+  const cleanOutput = stripAnsi(output);
+
+  // Don't try to detect build success from terminal output - it's unreliable
+  // Success is detected when the iframe actually loads (PREVIEW_LOADED message)
+  // This prevents false positives from "VITE ready" messages that appear at server start
+
+  // Common Vite/build error patterns (check on clean output without ANSI codes)
+  const errorPatterns = [
+    // Vite error with plugin: Internal server error: /path/file.jsx: Error message
+    /Internal server error:\s+(.+?\.(?:jsx?|tsx?|vue|svelte)):\s+(.+?)$/mi,
+    // Vite plugin errors with full details: [plugin:vite:react-babel] /path/file.jsx: error message (line:col)
+    /\[plugin:([^\]]+)\]\s+(.+?)\.(?:jsx?|tsx?|vue|svelte):\s*(.+?)(?:\s+\((\d+):(\d+)\))?/s,
+    // ESBuild errors: Expected ">" but found "<"
+    /ERROR.*Expected\s+"(.+?)"\s+but\s+found\s+"(.+?)"/i,
+    // Syntax errors with file location
+    /([^\s]+\.(?:js|jsx|ts|tsx|vue|svelte)):\s+(.+?)\s+\((\d+):(\d+)\)/,
+    // Unexpected token errors
+    /Unexpected\s+token\s+\((\d+):(\d+)\)/i,
+    // Failed to scan dependencies
+    /Failed to scan for dependencies/i,
+  ];
+
+  let errorMatch = null;
+  let matchedPattern = null;
+
+  for (const pattern of errorPatterns) {
+    const match = cleanOutput.match(pattern);
+    if (match) {
+      errorMatch = match;
+      matchedPattern = pattern;
+      break;
+    }
+  }
+
+  if (!errorMatch) {
+    return; // No recognizable error pattern
+  }
+
+  logger.error('🚨 Build error pattern matched:', errorMatch[0].substring(0, 100));
+
+  // Extract error details
+  let message = '';
+  let file = '';
+  let line = 0;
+  let column = 0;
+  let stack = '';
+
+  // Parse based on which pattern matched
+  if (errorMatch[0].includes('[plugin:')) {
+    // Plugin error format: [plugin:vite:react-babel] /path/to/file.jsx: error message (line:col)
+    const pluginName = errorMatch[1];
+    let errorText = errorMatch[2];
+
+    // Extract the full error message - look for the complete error description
+    // Format: [plugin:name] /path/file.ext: 'message' (line:col)
+    const fullErrorMatch = output.match(/\[plugin:[^\]]+\]\s+([^\n:]+\.(?:js|jsx|ts|tsx|vue|svelte)):\s*(.+?)(?:\s+\((\d+):(\d+)\))?/);
+
+    if (fullErrorMatch) {
+      file = fullErrorMatch[1];
+      // Remove session path prefix for cleaner display
+      file = file.replace(sessionRoot, '').replace(/^\//, '').replace(/^__session_[^_]+__\//, '');
+
+      errorText = fullErrorMatch[2].trim();
+
+      if (fullErrorMatch[3] && fullErrorMatch[4]) {
+        line = parseInt(fullErrorMatch[3], 10);
+        column = parseInt(fullErrorMatch[4], 10);
+      }
+    } else {
+      // Fallback: Try to find any file path in the output
+      const filePathMatch = output.match(/([^\s]+\.(?:js|jsx|ts|tsx|vue|svelte))(?::(\d+):(\d+))?/);
+      if (filePathMatch) {
+        file = filePathMatch[1].replace(sessionRoot, '').replace(/^\//, '').replace(/^__session_[^_]+__\//, '');
+        if (filePathMatch[2]) line = parseInt(filePathMatch[2], 10);
+        if (filePathMatch[3]) column = parseInt(filePathMatch[3], 10);
+      }
+    }
+
+    message = errorText || `Build error in ${file || 'unknown file'}`;
+
+    // Extract code snippet if available (Vite shows code with line numbers and caret)
+    const snippetMatch = output.match(/(\d+)\s*\|[^\n]*\n[^\n]*\^\n?/);
+    if (snippetMatch) {
+      stack = snippetMatch[0];
+    } else {
+      // Try to get a longer context from the output
+      const lines = output.split('\n');
+      const errorLineIndex = lines.findIndex(l => l.includes('^'));
+      if (errorLineIndex > 0) {
+        stack = lines.slice(Math.max(0, errorLineIndex - 3), errorLineIndex + 2).join('\n');
+      }
+    }
+  } else if (errorMatch[0].includes('Error:')) {
+    message = errorMatch[1];
+  } else if (errorMatch[0].includes('failed')) {
+    message = `Failed to ${errorMatch[1]}`;
+  }
+
+  // If we couldn't extract a message, use a generic one
+  if (!message) {
+    message = 'Build error occurred';
+  }
+
+  // Try to extract file location from the full output if not already found
+  if (!file) {
+    const filePathMatch = output.match(/(?:\/[^\s:]+|[a-zA-Z]:[^\s:]+)\.(?:js|jsx|ts|tsx|vue|svelte)/);
+    if (filePathMatch) {
+      file = filePathMatch[0].replace(sessionRoot, '').replace(/^\//, '');
+    }
+  }
+
+  // Construct a comprehensive error object
+  const errorData = {
+    message,
+    stack: stack || output.slice(-500), // Last 500 chars of output as fallback stack
+    source: 'build',
+    timestamp: Date.now(),
+    file,
+    line,
+    column,
+  };
+
+  // Debounce duplicate errors
+  const errorHash = simpleHash(message + file + line);
+  const now = Date.now();
+
+  if (errorHash === lastErrorHash && (now - lastErrorTime) < ERROR_DEBOUNCE_MS) {
+    // Same error within debounce window - skip
+    return;
+  }
+
+  // Update tracking
+  lastErrorHash = errorHash;
+  lastErrorTime = now;
+  hasActiveError = true; // Mark that we have an active error
+
+  logger.error('🚨 Build error detected:', errorData);
+
+  // Emit error to the window for Preview component to catch
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('webcontainer:build-error', {
+        detail: errorData,
+      }),
+    );
+  }
+}
+
+/**
  * Run npm install and start dev server in WebContainer
  */
 export async function runDevServer(webcontainer: WebContainer, files: any[]): Promise<void> {
@@ -581,10 +765,36 @@ export async function runDevServer(webcontainer: WebContainer, files: any[]): Pr
       logger.info('Starting dev server in session:', sessionRoot);
       devServerProcess = await wc.spawn('npm', ['run', 'dev'], { cwd: sessionRoot });
 
+      // Parse dev server output for build errors
+      let outputBuffer = '';
+      let lastErrorCheck = 0;
+      const ERROR_CHECK_INTERVAL = 500; // Check for errors every 500ms
+
       devServerProcess.output.pipeTo(
         new WritableStream({
           write(data) {
             logger.debug('[npm run dev]', data);
+
+            // Accumulate output for error detection
+            outputBuffer += data;
+
+            // Throttle error detection to avoid excessive processing
+            const now = Date.now();
+            const shouldCheck =
+              outputBuffer.toLowerCase().includes('error') ||
+              outputBuffer.toLowerCase().includes('failed') ||
+              outputBuffer.includes('[plugin:') ||
+              (now - lastErrorCheck) > ERROR_CHECK_INTERVAL;
+
+            if (shouldCheck) {
+              detectBuildError(outputBuffer, sessionRoot);
+              lastErrorCheck = now;
+            }
+
+            // Keep buffer size reasonable (last 8000 chars for better context)
+            if (outputBuffer.length > 8000) {
+              outputBuffer = outputBuffer.slice(-8000);
+            }
           },
         }),
       );

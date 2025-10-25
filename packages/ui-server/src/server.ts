@@ -26,6 +26,7 @@ import { registerDeploymentRoutes } from './routes/deployments.js';
 import { registerAppRoutes } from './routes/apps.js';
 import { registerBrandKitRoutes } from './routes/brand-kits.js';
 import { registerUploadRoutes } from './routes/uploads.js';
+import { registerErrorFixRoutes } from './routes/error-fixes.js';
 import { constants } from 'fs';
 import { randomUUID } from 'crypto';
 import { StreamEvents, createEventSender } from './events/index.js';
@@ -109,6 +110,7 @@ try {
     await registerDeploymentRoutes(fastify, db, WORKSPACE_DIR);
     await registerBrandKitRoutes(fastify, db);
     await registerUploadRoutes(fastify, db);
+    await registerErrorFixRoutes(fastify, db);
   } else {
     console.log('⚠ Database not available - files will only be saved to filesystem');
   }

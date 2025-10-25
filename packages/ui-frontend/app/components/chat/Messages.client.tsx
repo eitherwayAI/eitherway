@@ -26,6 +26,7 @@ interface ExtendedMessage extends Message {
     fileOperations?: Array<{ operation: string; filePath: string }>;
     tokenUsage?: { inputTokens: number; outputTokens: number } | null;
     phase?: 'pending' | 'thinking' | 'reasoning' | 'code-writing' | 'building' | 'completed' | null;
+    auto_fix?: boolean; // Flag for auto-generated error fix messages
   };
 }
 
@@ -65,7 +66,13 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
       )}
     >
       {messages.length > 0
-        ? messages.map((message, index) => {
+        ? messages
+            // Filter out auto-fix messages (invisible error fix requests)
+            .filter((message) => {
+              const extMsg = message as ExtendedMessage;
+              return !extMsg.metadata?.auto_fix;
+            })
+            .map((message, index) => {
             const { role, content } = message as ExtendedMessage;
             const isUserMessage = role === 'user';
             const isFirst = index === 0;
