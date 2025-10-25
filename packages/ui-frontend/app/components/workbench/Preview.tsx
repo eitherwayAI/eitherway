@@ -299,8 +299,15 @@ class UniversalErrorCapture { constructor() { this.capturedErrors = []; this.err
   }, [previews]);
 
   const reloadPreview = useCallback(() => {
-    if (iframeRef.current) {
-      iframeRef.current.src = iframeRef.current.src;
+    if (iframeRef.current && iframeRef.current.src) {
+      const currentSrc = iframeRef.current.src;
+      const url = new URL(currentSrc);
+
+      // Add/update cache-busting timestamp to force reload
+      url.searchParams.set('_reload', Date.now().toString());
+
+      logger.info('🔄 Reloading preview with cache-bust:', url.toString());
+      iframeRef.current.src = url.toString();
     }
   }, []);
 

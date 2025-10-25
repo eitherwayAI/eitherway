@@ -74,7 +74,7 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
 
   'either-write': {
     name: 'either-write',
-    description: 'Create a NEW file with provided content. Fails if file exists unless overwrite=true.',
+    description: 'Create a NEW file with provided content. Fails if file exists unless overwrite=true. IMPORTANT: Never use emojis in generated code - use SVG icons or text labels instead.',
     input_schema: {
       type: 'object',
       properties: {
@@ -104,7 +104,7 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
 
   'either-line-replace': {
     name: 'either-line-replace',
-    description: 'Targeted edits in EXISTING files. Prefer this over rewriting entire files.',
+    description: 'Targeted edits in EXISTING files. Prefer this over rewriting entire files. IMPORTANT: Never use emojis in generated code - use SVG icons or text labels instead.',
     input_schema: {
       type: 'object',
       properties: {

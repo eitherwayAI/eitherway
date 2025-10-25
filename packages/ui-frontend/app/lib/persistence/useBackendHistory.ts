@@ -34,6 +34,18 @@ export function useBackendHistory() {
   const [files, setFiles] = useState<FileNode[]>([]);
   const [ready, setReady] = useState<boolean>(false);
   const [sessionTitle, setSessionTitle] = useState<string>('');
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
+
+  // Listen for refetch requests (e.g., after auto-fix completes)
+  useEffect(() => {
+    const handleRefetch = () => {
+      logger.info('🔄 Refetch requested - reloading messages');
+      setRefetchTrigger((prev) => prev + 1);
+    };
+
+    window.addEventListener('chat:refetch-messages', handleRefetch);
+    return () => window.removeEventListener('chat:refetch-messages', handleRefetch);
+  }, []);
 
   useEffect(() => {
     if (!sessionId) {
@@ -108,7 +120,7 @@ export function useBackendHistory() {
         navigate('/chat', { replace: true });
         setReady(true);
       });
-  }, [sessionId, navigate]);
+  }, [sessionId, navigate, refetchTrigger]);
 
   // Simplified storeMessageHistory - backend storage happens via WebSocket streaming
   const storeMessageHistory = async (messages: Message[]) => {

@@ -29,6 +29,7 @@ export function ErrorOverlay({ error, sessionId, onResolved }: ErrorOverlayProps
   const [fixAttempts, setFixAttempts] = useState(0);
   const [failedPermanently, setFailedPermanently] = useState(false);
   const [fixProgress, setFixProgress] = useState<{step: number; message: string}>({ step: 0, message: '' });
+  const [agentMessage, setAgentMessage] = useState<string>('');
 
   /**
    * Cycling motivational phrases for fix attempts
@@ -47,31 +48,65 @@ export function ErrorOverlay({ error, sessionId, onResolved }: ErrorOverlayProps
   };
 
   /**
-   * Build fix prompt from error data
+   * Build AI-powered fix prompt with systematic diagnostic approach
    */
   const buildFixPrompt = (errorData: ErrorData): string => {
-    const fileInfo = errorData.file
-      ? `\nFILE: ${errorData.file}:${errorData.line}:${errorData.column}`
-      : '';
+    const fileInfo = errorData.file ? `${errorData.file}:${errorData.line}:${errorData.column}` : 'unknown file';
+    const errorMsg = errorData.message || 'Build error occurred';
+    const stack = errorData.stack || '';
 
-    const stackInfo = errorData.stack
-      ? `\n\nSTACK TRACE:\n${errorData.stack}`
-      : '';
-
-    return `The preview encountered a build error. Please fix it immediately.
+    return `🔧 AUTO-FIX MODE: Build Error Detected
 
 ERROR:
-${errorData.message}${fileInfo}${stackInfo}
+${errorMsg}
+File: ${fileInfo}
 
-Please identify and fix the issue. Common causes:
-- Missing dependencies (run npm install)
-- Wrong import paths
-- Syntax errors
-- Missing files
-- Configuration issues
-- Type errors
+${stack ? `Stack Trace:\n${stack}\n\n` : ''}⚠️ MANDATORY DIAGNOSTIC PROTOCOL - FOLLOW EXACTLY:
 
-Fix now without asking me anything.`;
+STEP 1 (REQUIRED): READ THE FILE
+Execute this command FIRST: either-view ${errorData.file || 'src/App.jsx'}
+You MUST read the file before proceeding. Do NOT skip this step.
+
+STEP 2 (REQUIRED): IDENTIFY ROOT CAUSE
+${errorMsg.includes('Failed to resolve import') || errorMsg.includes('Cannot resolve') ? `
+⚡ MISSING PACKAGE ERROR DETECTED
+The package is not installed. You MUST:
+1. Extract package name from error message
+2. Run: bash command "npm install <package-name>"
+3. Verify package.json contains the new package
+Do NOT just remove the import - install the package!
+` : ''}${errorMsg.includes('Unexpected token') || errorMsg.includes('expected') || errorMsg.includes('SyntaxError') ? `
+⚡ SYNTAX ERROR DETECTED
+Invalid JavaScript/JSX syntax at line ${errorData.line || 'unknown'}.
+Common causes: missing ), }, ], >, comma, semicolon
+You MUST use either-line-replace to fix the EXACT line shown.
+` : ''}${errorMsg.includes('Cannot find module') || errorMsg.includes('does not exist') ? `
+⚡ MISSING FILE ERROR
+Required file doesn't exist. You MUST:
+1. Check if path is correct
+2. Create the file with either-write if needed
+` : ''}
+STEP 3 (REQUIRED): APPLY FIX
+Execute the appropriate tool:
+- Missing package → bash command "npm install <package>"
+- Syntax error → either-line-replace on the exact line
+- Missing file → either-write to create it
+- Wrong import → Fix the import statement
+
+STEP 4 (REQUIRED): REPORT
+After fixing, explain in 1-2 sentences:
+- What was wrong
+- What you did to fix it
+Keep it concise - user is waiting.
+
+🚨 CRITICAL RULES:
+1. You MUST use either-view FIRST - no exceptions
+2. For packages: npm install is MANDATORY (don't just delete imports)
+3. Fix ONLY the error - no refactoring, no extras
+4. Use the EXACT tools mentioned above
+5. Be fast - user needs the preview working NOW
+
+Execute STEP 1 now: either-view ${errorData.file || 'src/App.jsx'}`;
   };
 
   /**
@@ -103,12 +138,36 @@ Fix now without asking me anything.`;
       setFixProgress({ step: 2, message: 'AI agent is analyzing...' });
 
       let agentStartedFixing = false;
+      let agentResponse = '';
+
+      // Set up preview load listener BEFORE triggering the fix
+      const waitForPreviewLoad = new Promise<boolean>((resolve) => {
+        const timeout = setTimeout(() => {
+          console.log('[ErrorOverlay] Preview load timeout - assuming success');
+          resolve(true);
+        }, 15000); // 15 second max wait
+
+        const handlePreviewLoad = (event: MessageEvent) => {
+          if (event.data.type === 'PREVIEW_LOADED') {
+            console.log('[ErrorOverlay] ✅ Preview loaded successfully after fix!');
+            clearTimeout(timeout);
+            window.removeEventListener('message', handlePreviewLoad);
+            resolve(true);
+          }
+        };
+
+        window.addEventListener('message', handlePreviewLoad);
+      });
 
       // Trigger the agent via WebSocket (same as sending a chat message)
       await streamFromWebSocket({
         prompt: fixPrompt,
         sessionId,
         onChunk: (chunk) => {
+          // Accumulate agent's response
+          agentResponse += chunk;
+          setAgentMessage(agentResponse); // Update UI with agent's response in real-time
+
           // Agent is responding - we're making progress
           if (!agentStartedFixing) {
             agentStartedFixing = true;
@@ -123,24 +182,37 @@ Fix now without asking me anything.`;
             setFixProgress({ step: 4, message: 'Building and testing...' });
           }
         },
-        onFilesUpdated: (files) => {
+        onFilesUpdated: async (files) => {
           console.log('[ErrorOverlay] Files updated, triggering preview reload:', files);
           setFixProgress({ step: 4, message: 'Reloading preview...' });
 
           // Dispatch event to trigger Preview component reload
           window.dispatchEvent(new CustomEvent('webcontainer:file-updated'));
 
-          // Give the preview time to reload
-          setTimeout(() => {
-            setFixing(false);
-            setFixProgress({ step: 0, message: '' });
-            // onResolved will be called when preview loads successfully
-          }, 2000);
+          // Wait for preview to actually load successfully
+          console.log('[ErrorOverlay] Waiting for preview to load...');
+          const loaded = await waitForPreviewLoad;
+
+          if (loaded) {
+            console.log('[ErrorOverlay] Fix verified - preview loaded!');
+            setFixProgress({ step: 4, message: 'Fix verified!' });
+
+            // Trigger chat to refetch messages so the auto-fix conversation appears
+            window.dispatchEvent(new Event('chat:refetch-messages'));
+
+            // Show the fix message briefly before clearing
+            setTimeout(() => {
+              setFixing(false);
+              setFixProgress({ step: 0, message: '' });
+              onResolved(); // Clear the error overlay
+            }, 1500);
+          }
         },
         onComplete: () => {
           console.log('[ErrorOverlay] Agent finished processing fix');
+          console.log('[ErrorOverlay] Agent response:', agentResponse);
 
-          // If files weren't updated via onFilesUpdated, still finish gracefully
+          // If files weren't updated, assume no fix was needed
           setTimeout(() => {
             setFixing(false);
             setFixProgress({ step: 0, message: '' });
@@ -189,6 +261,14 @@ Fix now without asking me anything.`;
                   className="bg-blue-500 h-full transition-all duration-500 ease-out"
                   style={{ width: `${(fixProgress.step / 4) * 100}%` }}
                 ></div>
+              </div>
+            )}
+            {agentMessage && (
+              <div className="mt-6 p-4 bg-gray-900 rounded-lg border border-gray-700 max-h-48 overflow-y-auto text-left">
+                <div className="text-xs font-semibold text-blue-400 mb-2">🤖 AI Agent:</div>
+                <div className="text-sm text-gray-300 whitespace-pre-wrap font-mono">
+                  {agentMessage}
+                </div>
               </div>
             )}
           </div>
