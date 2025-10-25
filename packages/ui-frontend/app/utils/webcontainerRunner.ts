@@ -520,6 +520,8 @@ function detectBuildError(output: string, sessionRoot: string): void {
 
   // Common Vite/build error patterns (check on clean output without ANSI codes)
   const errorPatterns = [
+    // Failed to resolve import errors: "Failed to resolve import X from Y"
+    /Failed to resolve import\s+"([^"]+)"\s+from\s+"([^"]+)"/i,
     // Vite error with plugin: Internal server error: /path/file.jsx: Error message
     /Internal server error:\s+(.+?\.(?:jsx?|tsx?|vue|svelte)):\s+(.+?)$/mi,
     // Vite plugin errors with full details: [plugin:vite:react-babel] /path/file.jsx: error message (line:col)
@@ -560,7 +562,24 @@ function detectBuildError(output: string, sessionRoot: string): void {
   let stack = '';
 
   // Parse based on which pattern matched
-  if (errorMatch[0].includes('[plugin:')) {
+  if (errorMatch[0].includes('Failed to resolve import')) {
+    // Failed to resolve import pattern: Failed to resolve import "package" from "file.jsx"
+    const importName = errorMatch[1];
+    const fromFile = errorMatch[2];
+
+    message = `Failed to resolve import "${importName}"`;
+    file = fromFile.replace(sessionRoot, '').replace(/^\//, '').replace(/^__session_[^_]+__\//, '');
+
+    // Try to find file location in the error output
+    const fileLocationMatch = output.match(/File:\s+([^\n:]+\.(?:js|jsx|ts|tsx|vue|svelte)):(\d+):(\d+)/);
+    if (fileLocationMatch) {
+      line = parseInt(fileLocationMatch[2], 10);
+      column = parseInt(fileLocationMatch[3], 10);
+    }
+
+    // Extract stack trace
+    stack = output.slice(-1000); // Use more of the output for context
+  } else if (errorMatch[0].includes('[plugin:')) {
     // Plugin error format: [plugin:vite:react-babel] /path/to/file.jsx: error message (line:col)
     const pluginName = errorMatch[1];
     let errorText = errorMatch[2];

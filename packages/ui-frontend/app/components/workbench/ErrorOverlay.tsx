@@ -31,6 +31,22 @@ export function ErrorOverlay({ error, sessionId, onResolved }: ErrorOverlayProps
   const [fixProgress, setFixProgress] = useState<{step: number; message: string}>({ step: 0, message: '' });
 
   /**
+   * Cycling motivational phrases for fix attempts
+   */
+  const getMotivationalPhrase = (attemptNumber: number): string => {
+    const phrases = [
+      "Analyzing the issue...",
+      "Finding the root cause...",
+      "Diving deeper into the code...",
+      "Exploring alternative solutions...",
+      "Double-checking the fix...",
+      "Almost there...",
+      "One more try...",
+    ];
+    return phrases[attemptNumber % phrases.length];
+  };
+
+  /**
    * Build fix prompt from error data
    */
   const buildFixPrompt = (errorData: ErrorData): string => {
@@ -67,12 +83,13 @@ Fix now without asking me anything.`;
       return;
     }
 
+    const currentAttempt = fixAttempts;
     setFixing(true);
     setFixAttempts(prev => prev + 1);
 
     try {
-      // Progress: Step 1 - Analyzing error
-      setFixProgress({ step: 1, message: 'Analyzing error...' });
+      // Progress: Step 1 - Show motivational phrase
+      setFixProgress({ step: 1, message: getMotivationalPhrase(currentAttempt) });
       console.log('[ErrorOverlay] Starting AI fix for session:', sessionId);
       console.log('[ErrorOverlay] Error data:', error);
 
@@ -106,15 +123,27 @@ Fix now without asking me anything.`;
             setFixProgress({ step: 4, message: 'Building and testing...' });
           }
         },
-        onComplete: () => {
-          console.log('[ErrorOverlay] Agent finished processing fix');
-          setFixProgress({ step: 4, message: 'Verifying fix...' });
+        onFilesUpdated: (files) => {
+          console.log('[ErrorOverlay] Files updated, triggering preview reload:', files);
+          setFixProgress({ step: 4, message: 'Reloading preview...' });
 
-          // Wait a bit for the preview to reload after file changes
+          // Dispatch event to trigger Preview component reload
+          window.dispatchEvent(new CustomEvent('webcontainer:file-updated'));
+
+          // Give the preview time to reload
           setTimeout(() => {
             setFixing(false);
             setFixProgress({ step: 0, message: '' });
             // onResolved will be called when preview loads successfully
+          }, 2000);
+        },
+        onComplete: () => {
+          console.log('[ErrorOverlay] Agent finished processing fix');
+
+          // If files weren't updated via onFilesUpdated, still finish gracefully
+          setTimeout(() => {
+            setFixing(false);
+            setFixProgress({ step: 0, message: '' });
           }, 2000);
         },
         onError: (errorMsg) => {
@@ -152,7 +181,7 @@ Fix now without asking me anything.`;
             </div>
             <p className="text-lg font-medium text-white">{fixProgress.message || 'Fixing...'}</p>
             <p className="text-sm text-gray-400 mt-2">
-              {fixAttempts === 1 ? 'First attempt' : fixAttempts === 2 ? 'Second attempt' : 'Final attempt'}
+              {getMotivationalPhrase(fixAttempts - 1)}
             </p>
             {fixProgress.step > 0 && (
               <div className="mt-4 w-full bg-gray-700 rounded-full h-2 overflow-hidden">
