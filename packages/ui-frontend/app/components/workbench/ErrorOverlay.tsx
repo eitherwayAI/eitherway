@@ -1,9 +1,10 @@
 /**
  * ErrorOverlay Component
  * Displays a user-friendly overlay when preview errors occur
- * Provides one-click automatic fixing
+ * Provides one-click automatic fixing via direct agent WebSocket communication
  */
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { streamFromWebSocket } from '~/utils/websocketClient';
 
 interface ErrorData {
   message: string;
@@ -30,7 +31,35 @@ export function ErrorOverlay({ error, sessionId, onResolved }: ErrorOverlayProps
   const [fixProgress, setFixProgress] = useState<{step: number; message: string}>({ step: 0, message: '' });
 
   /**
-   * Attempt to automatically fix the error
+   * Build fix prompt from error data
+   */
+  const buildFixPrompt = (errorData: ErrorData): string => {
+    const fileInfo = errorData.file
+      ? `\nFILE: ${errorData.file}:${errorData.line}:${errorData.column}`
+      : '';
+
+    const stackInfo = errorData.stack
+      ? `\n\nSTACK TRACE:\n${errorData.stack}`
+      : '';
+
+    return `The preview encountered a build error. Please fix it immediately.
+
+ERROR:
+${errorData.message}${fileInfo}${stackInfo}
+
+Please identify and fix the issue. Common causes:
+- Missing dependencies (run npm install)
+- Wrong import paths
+- Syntax errors
+- Missing files
+- Configuration issues
+- Type errors
+
+Fix now without asking me anything.`;
+  };
+
+  /**
+   * Attempt to automatically fix the error by triggering the agent via WebSocket
    */
   const handleFix = async () => {
     if (fixAttempts >= 3) {
@@ -44,89 +73,71 @@ export function ErrorOverlay({ error, sessionId, onResolved }: ErrorOverlayProps
     try {
       // Progress: Step 1 - Analyzing error
       setFixProgress({ step: 1, message: 'Analyzing error...' });
-      console.log('[ErrorOverlay] Sending fix request for session:', sessionId);
+      console.log('[ErrorOverlay] Starting AI fix for session:', sessionId);
+      console.log('[ErrorOverlay] Error data:', error);
 
       await new Promise(resolve => setTimeout(resolve, 500)); // Brief delay for UX
 
-      const apiUrl = `/api/sessions/${sessionId}/fix-error`;
-      console.log('[ErrorOverlay] Sending fix request to:', apiUrl);
-      console.log('[ErrorOverlay] Session ID:', sessionId);
-      console.log('[ErrorOverlay] Error data:', error);
+      // Build the fix prompt
+      const fixPrompt = buildFixPrompt(error);
+      console.log('[ErrorOverlay] Fix prompt:', fixPrompt);
 
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      // Progress: Step 2 - Triggering AI agent
+      setFixProgress({ step: 2, message: 'AI agent is analyzing...' });
+
+      let agentStartedFixing = false;
+
+      // Trigger the agent via WebSocket (same as sending a chat message)
+      await streamFromWebSocket({
+        prompt: fixPrompt,
+        sessionId,
+        onChunk: (chunk) => {
+          // Agent is responding - we're making progress
+          if (!agentStartedFixing) {
+            agentStartedFixing = true;
+            setFixProgress({ step: 3, message: 'AI is applying fixes...' });
+          }
         },
-        body: JSON.stringify({ error }),
+        onPhase: (phase) => {
+          console.log('[ErrorOverlay] Agent phase:', phase);
+          if (phase === 'code-writing') {
+            setFixProgress({ step: 3, message: 'Writing code fixes...' });
+          } else if (phase === 'building') {
+            setFixProgress({ step: 4, message: 'Building and testing...' });
+          }
+        },
+        onComplete: () => {
+          console.log('[ErrorOverlay] Agent finished processing fix');
+          setFixProgress({ step: 4, message: 'Verifying fix...' });
+
+          // Wait a bit for the preview to reload after file changes
+          setTimeout(() => {
+            setFixing(false);
+            setFixProgress({ step: 0, message: '' });
+            // onResolved will be called when preview loads successfully
+          }, 2000);
+        },
+        onError: (errorMsg) => {
+          console.error('[ErrorOverlay] Agent error:', errorMsg);
+          setFixing(false);
+          setFixProgress({ step: 0, message: '' });
+
+          // Don't mark as permanently failed on first error
+          if (fixAttempts >= 2) {
+            setFailedPermanently(true);
+          }
+        },
       });
 
-      console.log('[ErrorOverlay] Response status:', response.status, response.statusText);
-
-      if (!response.ok) {
-        let errorData;
-        const responseText = await response.text();
-        console.error('[ErrorOverlay] Response text:', responseText);
-
-        try {
-          errorData = JSON.parse(responseText);
-        } catch {
-          errorData = { error: responseText || 'Unknown error' };
-        }
-
-        console.error('[ErrorOverlay] Fix request failed:', errorData);
-
-        if (response.status === 400 && errorData.canRetry === false) {
-          setFailedPermanently(true);
-          setFixing(false);
-          return;
-        }
-
-        throw new Error(errorData.error || `Fix request failed (${response.status})`);
-      }
-
-      console.log('[ErrorOverlay] Fix request sent successfully');
-
-      // Progress: Step 2 - Generating fix
-      setFixProgress({ step: 2, message: 'Generating fix with AI...' });
-
-      // Progress: Step 3 - Applying changes
-      setTimeout(() => {
-        setFixProgress({ step: 3, message: 'Applying changes...' });
-      }, 2000);
-
-      // Progress: Step 4 - Verifying
-      setTimeout(() => {
-        setFixProgress({ step: 4, message: 'Verifying fix...' });
-      }, 5000);
-
-      // Wait for resolution - the preview will reload via HMR when files are updated
-      // If error persists after 30 seconds, stop trying
-      const timeout = setTimeout(() => {
-        setFixing(false);
-        setFixProgress({ step: 0, message: '' });
-        console.log('[ErrorOverlay] Fix timeout - error may still be present');
-      }, 30000);
-
-      // Listen for successful preview reload
-      const handlePreviewLoaded = () => {
-        clearTimeout(timeout);
-        setFixing(false);
-        setFixProgress({ step: 0, message: '' });
-        onResolved();
-        console.log('[ErrorOverlay] Preview reloaded successfully - error resolved');
-      };
-
-      window.addEventListener('message', handlePreviewLoaded);
-
-      return () => {
-        clearTimeout(timeout);
-        window.removeEventListener('message', handlePreviewLoaded);
-      };
     } catch (err) {
       console.error('[ErrorOverlay] Error during fix attempt:', err);
       setFixing(false);
       setFixProgress({ step: 0, message: '' });
+
+      // Don't mark as permanently failed unless we've tried multiple times
+      if (fixAttempts >= 2) {
+        setFailedPermanently(true);
+      }
     }
   };
 
