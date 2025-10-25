@@ -341,9 +341,16 @@ class UniversalErrorCapture { constructor() { this.capturedErrors = []; this.err
         logger.error('Preview error received:', event.data.error);
         setPreviewError(event.data.error);
       } else if (event.data.type === 'PREVIEW_LOADED') {
-        // Clear error when preview loads successfully
-        logger.info('Preview loaded successfully - clearing error overlay');
-        setPreviewError(null);
+        // Only clear runtime errors when preview loads
+        // Build errors persist until the code is actually fixed
+        setPreviewError((prevError) => {
+          if (prevError?.source === 'build') {
+            logger.info('Preview loaded but build error persists - keeping overlay visible');
+            return prevError; // Keep the build error visible
+          }
+          logger.info('Preview loaded successfully - clearing error overlay');
+          return null; // Clear runtime/promise/console errors
+        });
       }
     };
 
