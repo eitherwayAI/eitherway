@@ -34,12 +34,11 @@ export async function ensureDevHeaders(webcontainer: WebContainer, sessionRoot: 
     }
   }
 
-  // WebContainer preview must use COEP: credentialless to allow opaque cross-origin fetches
-  const headerLines = `server: { cors: true, headers: {
-    'Cross-Origin-Opener-Policy': 'same-origin',
-    'Cross-Origin-Embedder-Policy': 'credentialless',
-    'Cross-Origin-Resource-Policy': 'cross-origin',
-    'Access-Control-Allow-Origin': '*'
+  // WebContainer needs permissive CORS but NO COEP headers
+  // COEP headers block npm install from StackBlitz CDN - only set them at platform level
+  const headerLines = `server: { cors: true, host: true, headers: {
+    'Access-Control-Allow-Origin': '*',
+    'Cross-Origin-Resource-Policy': 'cross-origin'
   } },`;
 
   if (!configPath || !sessionConfigPath) {
@@ -60,43 +59,44 @@ export default defineConfig({ ${headerLines} plugins:[react()] })
     return;
   }
 
-  // Check if correct headers already exist
-  if (original.includes('Cross-Origin-Embedder-Policy') && original.includes("'credentialless'")) {
-    console.log('[ensureDevHeaders] Headers already correct, skipping');
-    return; // Already has correct credentialless policy
-  }
-
-  // Fix incorrect require-corp policy by replacing it
-  if (original.includes('Cross-Origin-Embedder-Policy')) {
-    console.log('[ensureDevHeaders] Found incorrect COEP header, replacing with credentialless');
-    // Remove existing COEP header section (might be require-corp)
-    const updated = original.replace(
-      /['"]Cross-Origin-Embedder-Policy['"]\s*:\s*['"]require-corp['"]/g,
-      "'Cross-Origin-Embedder-Policy': 'credentialless'",
-    );
-
-    await webcontainer.fs.writeFile(sessionConfigPath, updated);
-    console.log('[ensureDevHeaders] Updated config with credentialless');
+  // Check if server config with CORS already exists
+  if (original.includes("server:") && original.includes("cors: true")) {
+    console.log('[ensureDevHeaders] Server config already exists, skipping');
     return;
   }
 
-  // No COEP header exists, inject it
-  console.log('[ensureDevHeaders] No COEP headers found, injecting...');
-  const idx = original.indexOf('defineConfig(');
+  // Remove any COEP headers if they exist (they break npm install in WebContainer)
+  let updated = original;
+  if (original.includes('Cross-Origin-Embedder-Policy')) {
+    console.log('[ensureDevHeaders] Found COEP header, removing it (breaks npm install)');
+    // Remove COEP header lines
+    updated = updated.replace(
+      /['"]Cross-Origin-Embedder-Policy['"]\s*:\s*['"][^'"]+['"]\s*,?\s*/g,
+      '',
+    );
+    updated = updated.replace(
+      /['"]Cross-Origin-Opener-Policy['"]\s*:\s*['"][^'"]+['"]\s*,?\s*/g,
+      '',
+    );
+  }
+
+  // Inject permissive CORS headers
+  console.log('[ensureDevHeaders] Injecting CORS headers...');
+  const idx = updated.indexOf('defineConfig(');
 
   if (idx === -1) {
     console.log('[ensureDevHeaders] No defineConfig found, skipping');
     return;
   }
 
-  const braceIdx = original.indexOf('{', idx);
+  const braceIdx = updated.indexOf('{', idx);
 
   if (braceIdx === -1) {
     console.log('[ensureDevHeaders] No brace found after defineConfig, skipping');
     return;
   }
 
-  const updated = `${original.slice(0, braceIdx + 1)} ${headerLines} ${original.slice(braceIdx + 1)}`;
-  await webcontainer.fs.writeFile(sessionConfigPath, updated);
-  console.log('[ensureDevHeaders] Injected headers successfully into', sessionConfigPath);
+  const final = `${updated.slice(0, braceIdx + 1)} ${headerLines} ${updated.slice(braceIdx + 1)}`;
+  await webcontainer.fs.writeFile(sessionConfigPath, final);
+  console.log('[ensureDevHeaders] Injected CORS headers successfully into', sessionConfigPath);
 }

@@ -128,7 +128,7 @@ async function checkAndRunInstall(webcontainer: WebContainer, sessionRoot: strin
       installProcess.output.pipeTo(
         new WritableStream({
           write(data) {
-            logger.debug('[npm install]', data);
+            logger.info('[npm install]', data);
           },
         }),
       );
@@ -557,7 +557,7 @@ export async function runDevServer(webcontainer: WebContainer, files: any[]): Pr
       installProcess.output.pipeTo(
         new WritableStream({
           write(data) {
-            logger.debug('[npm install]', data);
+            logger.info('[npm install]', data);
           },
         }),
       );

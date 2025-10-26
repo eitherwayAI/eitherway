@@ -60,11 +60,9 @@ export class WorkbenchStore {
         // Strip only the session infix, keeping /home/project/ prefix
         const normalizedPath = filePath.replace(sessionInfix, '');
         filteredFiles[normalizedPath] = dirent;
-        console.log('[WorkbenchStore] Matched file:', filePath, '→', normalizedPath);
       }
     }
 
-    console.log('[WorkbenchStore] Filtered files:', Object.keys(filteredFiles));
     return filteredFiles;
   });
 

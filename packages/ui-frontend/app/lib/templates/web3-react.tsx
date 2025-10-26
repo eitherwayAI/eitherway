@@ -7,9 +7,8 @@ export const web3ReactTemplate = `
 
 import { createAppKit } from '@reown/appkit/react';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
-import { mainnet, polygon, arbitrum, optimism, base } from 'viem/chains';
+import { mainnet, polygon, arbitrum, optimism, base } from '@reown/appkit/networks';
 import { QueryClient } from '@tanstack/react-query';
-import { http, createConfig } from 'wagmi';
 
 const queryClient = new QueryClient();
 
@@ -22,24 +21,15 @@ const metadata = {
   icons: ['/logo.png']
 };
 
-const chains = [mainnet, polygon, arbitrum, optimism, base] as const;
-
 const wagmiAdapter = new WagmiAdapter({
-  chains,
-  transports: {
-    [mainnet.id]: http(import.meta.env.VITE_RPC_URL_MAINNET || 'https://eth.llamarpc.com'),
-    [polygon.id]: http(import.meta.env.VITE_RPC_URL_POLYGON || 'https://polygon-rpc.com'),
-    [arbitrum.id]: http(import.meta.env.VITE_RPC_URL_ARBITRUM || 'https://arb1.arbitrum.io/rpc'),
-    [optimism.id]: http(import.meta.env.VITE_RPC_URL_OPTIMISM || 'https://mainnet.optimism.io'),
-    [base.id]: http(import.meta.env.VITE_RPC_URL_BASE || 'https://mainnet.base.org')
-  },
+  networks: [mainnet, polygon, arbitrum, optimism, base],
   projectId
 });
 
 createAppKit({
   adapters: [wagmiAdapter],
+  networks: [mainnet, polygon, arbitrum, optimism, base],
   projectId,
-  chains,
   metadata,
   features: {
     analytics: true,
