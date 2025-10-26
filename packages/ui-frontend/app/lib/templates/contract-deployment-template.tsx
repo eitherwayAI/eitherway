@@ -22,7 +22,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://dev.eitherway
 // ============================================================================
 
 // /src/services/contractService.ts
-import { type Hex, parseEther, createWalletClient, custom, createPublicClient, http } from 'viem';
+import { type Hex, parseEther, createWalletClient, custom, createPublicClient, http, getAddress } from 'viem';
 import { sepolia, baseSepolia, arbitrumSepolia } from 'viem/chains';
 
 export interface CompileContractRequest {
@@ -115,6 +115,9 @@ export class ContractService {
     walletAddress: Hex
   ): Promise<DeploymentResult> {
     try {
+      // Ensure address has proper EIP-55 checksum
+      const checksummedAddress = getAddress(walletAddress) as Hex;
+
       // Get the chain configuration
       const chain = this.getChainById(chainId);
       if (!chain) {
@@ -139,7 +142,7 @@ export class ContractService {
         abi,
         bytecode,
         args: constructorArgs,
-        account: walletAddress
+        account: checksummedAddress
       });
 
       console.log('Transaction hash:', hash);

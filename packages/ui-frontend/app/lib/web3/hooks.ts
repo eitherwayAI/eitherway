@@ -1,8 +1,11 @@
 import { useAppKitAccount } from '@reown/appkit/react';
 import { appKit } from './config';
+import { getAddress } from 'viem';
 
 export function useWalletConnection() {
-  const { isConnected, address } = useAppKitAccount();
+  const { isConnected, address: rawAddress } = useAppKitAccount();
+  // Ensure address has proper EIP-55 checksum
+  const address = rawAddress ? getAddress(rawAddress) : undefined;
 
   const connectWallet = async () => {
     console.log('connectWallet called, appKit:', appKit);
