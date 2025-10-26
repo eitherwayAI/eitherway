@@ -34,15 +34,11 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onClose, onAuthe
     setIsCheckingPassword(true);
     setPasswordError('');
 
-    const today = new Date();
-    const todayPassword =
-      today.getDate().toString().padStart(2, '0') +
-      (today.getMonth() + 1).toString().padStart(2, '0') +
-      today.getFullYear().toString();
+    const accessCode = 'veryverysimplecalc';
 
-    if (password === todayPassword) {
+    if (password === accessCode) {
       const passwordData = {
-        password: todayPassword,
+        password: accessCode,
         timestamp: new Date().getTime(),
       };
 
