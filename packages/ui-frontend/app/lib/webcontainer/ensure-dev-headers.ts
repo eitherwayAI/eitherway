@@ -34,11 +34,13 @@ export async function ensureDevHeaders(webcontainer: WebContainer, sessionRoot: 
     }
   }
 
-  // WebContainer needs permissive CORS but NO COEP headers
-  // COEP headers block npm install from StackBlitz CDN - only set them at platform level
-  const headerLines = `server: { cors: true, host: true, headers: {
-    'Access-Control-Allow-Origin': '*',
-    'Cross-Origin-Resource-Policy': 'cross-origin'
+  // WebContainer needs permissive CORS with COEP: credentialless
+  // This enables cross-origin isolation while allowing external resources
+  const headerLines = `server: { cors: true, headers: {
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Embedder-Policy': 'credentialless',
+    'Cross-Origin-Resource-Policy': 'cross-origin',
+    'Access-Control-Allow-Origin': '*'
   } },`;
 
   if (!configPath || !sessionConfigPath) {
@@ -65,23 +67,9 @@ export default defineConfig({ ${headerLines} plugins:[react()] })
     return;
   }
 
-  // Remove any COEP headers if they exist (they break npm install in WebContainer)
+  // Inject CORS and COEP headers if not present
   let updated = original;
-  if (original.includes('Cross-Origin-Embedder-Policy')) {
-    console.log('[ensureDevHeaders] Found COEP header, removing it (breaks npm install)');
-    // Remove COEP header lines
-    updated = updated.replace(
-      /['"]Cross-Origin-Embedder-Policy['"]\s*:\s*['"][^'"]+['"]\s*,?\s*/g,
-      '',
-    );
-    updated = updated.replace(
-      /['"]Cross-Origin-Opener-Policy['"]\s*:\s*['"][^'"]+['"]\s*,?\s*/g,
-      '',
-    );
-  }
-
-  // Inject permissive CORS headers
-  console.log('[ensureDevHeaders] Injecting CORS headers...');
+  console.log('[ensureDevHeaders] Injecting cross-origin headers...');
   const idx = updated.indexOf('defineConfig(');
 
   if (idx === -1) {
@@ -98,5 +86,5 @@ export default defineConfig({ ${headerLines} plugins:[react()] })
 
   const final = `${updated.slice(0, braceIdx + 1)} ${headerLines} ${updated.slice(braceIdx + 1)}`;
   await webcontainer.fs.writeFile(sessionConfigPath, final);
-  console.log('[ensureDevHeaders] Injected CORS headers successfully into', sessionConfigPath);
+  console.log('[ensureDevHeaders] Injected cross-origin headers successfully into', sessionConfigPath);
 }

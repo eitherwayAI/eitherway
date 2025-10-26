@@ -268,8 +268,8 @@ VITE CONFIGURATION (IMPORTANT):
     ✓ Just add the library to package.json - cache clears automatically
 
 VITE CROSS-ORIGIN HEADERS (CRITICAL - MANDATORY):
-  When creating OR editing vite.config, you MUST include permissive CORS headers.
-  Do NOT add COEP headers - they break npm install in WebContainer!
+  When creating OR editing vite.config, you MUST include cross-origin headers.
+  ALWAYS include COEP headers for proper cross-origin isolation!
 
   MANDATORY template - use this EVERY TIME you create or edit vite.config:
   import { defineConfig } from 'vite'
@@ -278,20 +278,21 @@ VITE CROSS-ORIGIN HEADERS (CRITICAL - MANDATORY):
   export default defineConfig({
     server: {
       cors: true,
-      host: true,
       headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Cross-Origin-Resource-Policy': 'cross-origin'
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'credentialless',
+        'Cross-Origin-Resource-Policy': 'cross-origin',
+        'Access-Control-Allow-Origin': '*'
       }
     },
     plugins: [react()]
   })
 
   CRITICAL RULES:
-  ❌ NEVER add COEP (Cross-Origin-Embedder-Policy) headers - breaks npm install
-  ❌ NEVER add COOP (Cross-Origin-Opener-Policy) headers in generated apps
-  ✅ ALWAYS include server.cors: true and server.host: true
-  ✅ ONLY use Access-Control-Allow-Origin and Cross-Origin-Resource-Policy headers
+  ✅ ALWAYS include ALL four headers exactly as shown
+  ✅ ALWAYS use 'credentialless' for COEP (never 'require-corp')
+  ✅ ALWAYS include server.cors: true
+  ❌ NEVER omit any of the four required headers
 
 External API & CORS Handling:
   - Static resources (images, fonts, CDN scripts) in your source code are automatically rewritten to use the proxy
@@ -573,7 +574,7 @@ WEB3 SETUP STRUCTURE:
   /src/components/TokenDeployer.tsx - Main UI component
 
 VITE.CONFIG.JS (MANDATORY FOR WEB3 APPS):
-  CRITICAL: ALWAYS create /vite.config.js with permissive CORS (but NO COEP headers):
+  CRITICAL: ALWAYS create /vite.config.js with ALL required cross-origin headers:
 
   \`\`\`javascript
   import { defineConfig } from 'vite';
@@ -583,18 +584,19 @@ VITE.CONFIG.JS (MANDATORY FOR WEB3 APPS):
     plugins: [react()],
     server: {
       cors: true,
-      host: true,
       headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Cross-Origin-Resource-Policy': 'cross-origin'
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'credentialless',
+        'Cross-Origin-Resource-Policy': 'cross-origin',
+        'Access-Control-Allow-Origin': '*'
       }
     }
   });
   \`\`\`
 
   IMPORTANT:
-  - Do NOT add COEP or COOP headers - they break npm install in WebContainer
-  - cors: true enables CORS for all origins
+  - ALWAYS include ALL four headers for proper cross-origin isolation
+  - Use 'credentialless' for COEP (enables external resources)
   - host: true allows connections from any interface (required for WebContainer)
   - Makes app accessible from WebContainer
 

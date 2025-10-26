@@ -573,7 +573,7 @@ export async function registerBrandKitRoutes(
           console.log('[Brand Kits API] Sanitized filename:', fileName);
           mimeType = part.mimetype;
           buffer = await part.toBuffer();
-          console.log('[Brand Kits API] File buffered, size:', buffer.length, 'bytes');
+          console.log('[Brand Kits API] File buffered, size:', buffer?.length || 0, 'bytes');
         } else if (part.type === 'field' && part.fieldname === 'category') {
           // This is the category field
           categoryField = part.value as string;
