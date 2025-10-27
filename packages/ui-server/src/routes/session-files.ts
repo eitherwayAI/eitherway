@@ -65,11 +65,16 @@ export async function registerSessionFileRoutes(fastify: FastifyInstance, db: Da
       let content: string;
       if (isBinary) {
         // For binary files, return base64 encoded
+        console.log(`[Read Binary] File: ${path}, Type: ${typeof fileContent.content}, IsBuffer: ${Buffer.isBuffer(fileContent.content)}, Length: ${Buffer.isBuffer(fileContent.content) ? fileContent.content.length : 'N/A'}`);
+
         if (Buffer.isBuffer(fileContent.content)) {
           content = fileContent.content.toString('base64');
+          console.log(`[Read Binary] Converted Buffer to base64, length: ${content.length}`);
         } else if (typeof fileContent.content === 'string') {
+          console.log(`[Read Binary] Content is already string, assuming base64, length: ${fileContent.content.length}`);
           content = fileContent.content;
         } else {
+          console.log(`[Read Binary] Content is unknown type, converting to Buffer first:`, typeof fileContent.content, fileContent.content);
           content = Buffer.from(fileContent.content).toString('base64');
         }
       } else {

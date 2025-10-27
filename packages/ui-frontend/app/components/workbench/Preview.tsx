@@ -7,6 +7,7 @@ import { previewModeStore } from '~/lib/stores/preview-mode';
 import { PortDropdown } from './PortDropdown';
 import { createScopedLogger } from '~/utils/logger';
 import { ErrorOverlay } from './ErrorOverlay';
+import { getBackendUrl } from '~/config/api';
 
 const logger = createScopedLogger('Preview');
 
@@ -334,15 +335,22 @@ class UniversalErrorCapture { constructor() { this.capturedErrors = []; this.err
     };
   }, [reloadPreview]);
 
-  // Listen for error messages from preview iframe
+  // Combined PostMessage handler for error reporting AND API proxy
+  // Handles: PREVIEW_ERROR, PREVIEW_LOADED (error overlay v2.0), api-proxy (Web3 contract compilation)
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data.type === 'PREVIEW_ERROR') {
+    const handleMessage = async (event: MessageEvent) => {
+      const { type, id, payload } = event.data;
+
+      // Handle error messages from preview iframe (beta-aifix2.0)
+      if (type === 'PREVIEW_ERROR') {
         logger.error('Preview error received:', event.data.error);
         setPreviewError(event.data.error);
-      } else if (event.data.type === 'PREVIEW_LOADED') {
+        return;
+      }
+
+      if (type === 'PREVIEW_LOADED') {
         // Clear errors when preview loads successfully
-        // Exception: Keep build errors visible UNLESS auto-fix has completed
+        // Exception: Keep build errors visible UNLESS auto-fix has completed (v2.0 improvement)
         setPreviewError((prevError) => {
           if (prevError?.source === 'build') {
             // Check if auto-fix just completed (phase is 'completed')
@@ -357,12 +365,68 @@ class UniversalErrorCapture { constructor() { this.capturedErrors = []; this.err
           logger.info('Preview loaded successfully - clearing error overlay');
           return null; // Clear runtime/promise/console errors
         });
+        return;
+      }
+
+      // Handle API proxy requests (beta-web3api)
+      // Security: Only accept messages from our preview iframe
+      if (!iframeRef.current || event.source !== iframeRef.current.contentWindow) {
+        return;
+      }
+
+      // Handle contract compilation requests
+      if (type === 'api-proxy' && payload?.endpoint === '/api/contracts/compile') {
+        logger.info('📨 [PostMessage Proxy] Received contract compilation request:', id);
+
+        try {
+          const backendUrl = getBackendUrl();
+          const response = await fetch(`${backendUrl}${payload.endpoint}`, {
+            method: payload.method || 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...payload.headers,
+            },
+            body: JSON.stringify(payload.body),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || `HTTP ${response.status}`);
+          }
+
+          logger.info('✅ [PostMessage Proxy] Contract compilation successful');
+
+          // Send success response back to iframe
+          iframeRef.current?.contentWindow?.postMessage(
+            {
+              type: 'api-proxy-response',
+              id,
+              success: true,
+              data,
+            },
+            '*',
+          );
+        } catch (error) {
+          logger.error('❌ [PostMessage Proxy] Contract compilation failed:', error);
+
+          // Send error response back to iframe
+          iframeRef.current?.contentWindow?.postMessage(
+            {
+              type: 'api-proxy-response',
+              id,
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            },
+            '*',
+          );
+        }
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [currentPhase]); // Re-create handler when phase changes to access latest value
+  }, [iframeRef, currentPhase]); // Re-create handler when phase changes to access latest value
 
   // Listen for build errors from WebContainer dev server output
   useEffect(() => {

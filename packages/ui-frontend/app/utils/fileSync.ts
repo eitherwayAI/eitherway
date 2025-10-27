@@ -121,6 +121,16 @@ export async function syncFilesToWebContainer(
         // DEBUG: Log first 100 chars of content to verify it's changing
         logger.debug(`📥 Fetched ${filePath}: ${fileData.content.substring(0, 100)}...`);
 
+        // DIAGNOSTIC: Check binary content for images specifically
+        if (fileData.isBinary && filePath.includes('public/assets/')) {
+          logger.info(`🔍 [DIAGNOSTIC] Binary asset from backend: ${filePath}`);
+          logger.info(`   - isBinary: ${fileData.isBinary}`);
+          logger.info(`   - mimeType: ${fileData.mimeType}`);
+          logger.info(`   - content type: ${typeof fileData.content}`);
+          logger.info(`   - content length: ${fileData.content?.length || 0}`);
+          logger.info(`   - first 50 chars: ${fileData.content?.substring(0, 50)}`);
+        }
+
         if (fileData.isBinary && fileData.content) {
           // Binary file: decode base64 and write as Uint8Array for Vite dev server
           // Vite doesn't understand __BASE64__ prefix, needs actual binary

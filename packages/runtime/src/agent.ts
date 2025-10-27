@@ -717,9 +717,7 @@ ENVIRONMENT VARIABLES - AUTOMATIC CONFIGURATION:
   1. Create /.env file with this content:
      \`\`\`
      # EitherWay Backend API (for contract compilation)
-     # WSL2 users: Use WSL IP address instead of localhost
-     # WebContainer cannot access "localhost" - needs actual network IP
-     VITE_API_BASE_URL=https://172.30.69.249:3001
+     VITE_API_BASE_URL=https://localhost:3001
 
      # WalletConnect Project ID (for MetaMask connection)
      # Using EitherWay's demo project ID - works immediately, no signup needed!
