@@ -74,29 +74,62 @@ export function buildBrandKitContext(brandKit: BrandKitData): string {
   const fonts = brandKit.assets.filter(a => a.metadata?.kind === 'font');
   const videos = brandKit.assets.filter(a => a.metadata?.kind === 'video');
 
-  // FAVICONS (Auto-generated from icons or square logos)
-  const faviconSources = icons.length > 0 ? icons : logos.filter(l => l.metadata?.aspectRatio === 'square');
+  // FAVICONS (Auto-generated from square logos or icons)
+  const faviconSources = logos.filter(l => l.metadata?.aspectRatio === 'square').length > 0
+    ? logos.filter(l => l.metadata?.aspectRatio === 'square')
+    : icons;
 
   if (faviconSources.length > 0) {
     context += `🔖 FAVICONS (Browser & App Icons)\n`;
     context += `─────────────────────────────────\n`;
-    context += `We auto-generated multi-resolution favicons from your brand assets.\n\n`;
 
     const source = faviconSources[0];
-    if (source.metadata?.aiAnalysis?.description) {
-      context += `Visual: ${source.metadata.aiAnalysis.description}\n\n`;
+
+    // Check if favicon variants exist
+    const hasFaviconVariants = source.metadata?.variants?.some(v => v.purpose === 'favicon');
+
+    if (hasFaviconVariants) {
+      context += `We auto-generated multi-resolution favicons from your brand assets.\n\n`;
+
+      if (source.metadata?.aiAnalysis?.description) {
+        context += `Visual: ${source.metadata.aiAnalysis.description}\n\n`;
+      }
+
+      context += `Add to your HTML <head> tag:\n`;
+      context += `\`\`\`html\n`;
+      context += `<link rel="icon" type="image/x-icon" href="/favicon.ico" />\n`;
+      context += `<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />\n`;
+      context += `<link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />\n`;
+      context += `<link rel="apple-touch-icon" sizes="128x128" href="/favicon-128.png" />\n`;
+      context += `\`\`\`\n\n`;
+
+      context += `❌ NEVER use horizontal/vertical logos for favicons - they're the wrong shape!\n`;
+      context += `✅ These favicons are optimized and ready to use.\n\n`;
+    } else {
+      // No favicon variants - use base icon file
+      context += `Using your uploaded icon for favicons.\n\n`;
+
+      if (source.metadata?.aiAnalysis?.description) {
+        context += `Visual: ${source.metadata.aiAnalysis.description}\n\n`;
+      }
+
+      // Determine path based on asset kind
+      const iconPath = source.metadata?.kind === 'icon' ? `/${source.fileName}` : `/assets/${source.fileName}`;
+
+      context += `Add to your HTML <head> tag:\n`;
+      context += `\`\`\`html\n`;
+      context += `<link rel="icon" type="image/png" href="${iconPath}" />\n`;
+      context += `<link rel="apple-touch-icon" href="${iconPath}" />\n`;
+      context += `\`\`\`\n\n`;
+
+      context += `Use in components (e.g., navbar):\n`;
+      context += `\`\`\`jsx\n`;
+      context += `<img src="${iconPath}" alt="Icon" className="h-8 w-8" />\n`;
+      context += `\`\`\`\n\n`;
+
+      context += `❌ NEVER use horizontal/vertical logos for favicons - they're the wrong shape!\n`;
+      context += `✅ Always use this exact path: ${iconPath}\n\n`;
     }
-
-    context += `Add to your HTML <head> tag:\n`;
-    context += `\`\`\`html\n`;
-    context += `<link rel="icon" type="image/x-icon" href="/favicon.ico" />\n`;
-    context += `<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />\n`;
-    context += `<link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />\n`;
-    context += `<link rel="apple-touch-icon" sizes="128x128" href="/favicon-128.png" />\n`;
-    context += `\`\`\`\n\n`;
-
-    context += `❌ NEVER use horizontal/vertical logos for favicons - they're the wrong shape!\n`;
-    context += `✅ These favicons are optimized and ready to use.\n\n`;
   }
 
   // LOGOS (Navbar, Footer, Hero)

@@ -113,7 +113,12 @@ function arrayBufferToString(buffer: ArrayBuffer): string {
 export async function syncBrandAssetsToWebContainer(
   webcontainer: WebContainer,
   assets: BrandAsset[],
-): Promise<{ synced: number; skipped: number; failed: number }> {
+): Promise<{
+  synced: number;
+  skipped: number;
+  failed: number;
+  syncedAssets: Array<{ assetId: string; syncedVariants: any[]; syncedBase: boolean }>;
+}> {
   try {
     validateSessionOperation('sync brand assets');
 
@@ -123,10 +128,14 @@ export async function syncBrandAssetsToWebContainer(
     let synced = 0;
     let skipped = 0;
     let failed = 0;
+    const syncedAssets: Array<{ assetId: string; syncedVariants: any[]; syncedBase: boolean }> = [];
 
     for (const asset of assets) {
+      const syncResult = { assetId: asset.id, syncedVariants: [] as any[], syncedBase: false };
       try {
-        const hasVariants = asset.metadata?.variants && asset.metadata.variants.length > 0;
+        // TEMPORARY: Disable variant processing - always use base files
+        // TODO: Re-enable when variant storage is reliable and files exist
+        const hasVariants = false; // asset.metadata?.variants && asset.metadata.variants.length > 0;
 
         if (hasVariants) {
           // Sync all variants with intelligent routing
@@ -167,9 +176,43 @@ export async function syncBrandAssetsToWebContainer(
               }
 
               logger.info(`✓ Synced variant: ${variant.purpose} → ${sessionPath}`);
+              syncResult.syncedVariants.push(variant);
               synced++;
             } catch (error) {
               logger.error(`Failed to sync variant ${variant.fileName}:`, error);
+              failed++;
+            }
+          }
+
+          // FALLBACK: If ALL variants failed, try syncing base file instead
+          if (syncResult.syncedVariants.length === 0) {
+            logger.warn(`All variants failed for ${asset.fileName}, falling back to base file`);
+            try {
+              const destPath = getAssetDestinationPath(asset);
+              if (destPath) {
+                const sessionPath = getSessionPath(destPath);
+                const dirPath = sessionPath.split('/').slice(0, -1).join('/');
+                if (dirPath) {
+                  await wc.fs.mkdir(dirPath, { recursive: true });
+                }
+
+                const fileBuffer = await fetchBrandAssetFile(asset.storageKey);
+                const isTextFile = asset.mimeType.includes('svg') || asset.mimeType.includes('text');
+
+                if (isTextFile) {
+                  const textContents = arrayBufferToString(fileBuffer);
+                  await wc.fs.writeFile(sessionPath, textContents);
+                } else {
+                  const binaryContents = new Uint8Array(fileBuffer);
+                  await wc.fs.writeFile(sessionPath, binaryContents);
+                }
+
+                logger.info(`✓ Synced base file fallback: ${sessionPath}`);
+                syncResult.syncedBase = true;
+                synced++;
+              }
+            } catch (error) {
+              logger.error(`Fallback base file sync also failed for ${asset.fileName}:`, error);
               failed++;
             }
           }
@@ -203,16 +246,19 @@ export async function syncBrandAssetsToWebContainer(
           }
 
           logger.info(`✓ Synced brand asset: ${sessionPath}`);
+          syncResult.syncedBase = true;
           synced++;
         }
       } catch (error) {
         logger.error(`Failed to sync asset ${asset.fileName}:`, error);
         failed++;
       }
+
+      syncedAssets.push(syncResult);
     }
 
     logger.info(`Brand asset sync complete: ${synced} synced, ${skipped} skipped, ${failed} failed`);
-    return { synced, skipped, failed };
+    return { synced, skipped, failed, syncedAssets };
   } catch (error) {
     logger.error('Brand asset sync failed:', error);
     throw error;

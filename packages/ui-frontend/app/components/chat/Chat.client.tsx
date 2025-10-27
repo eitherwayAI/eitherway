@@ -207,6 +207,19 @@ async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: st
       throw new Error('No assets were synced to WebContainer - files will not be available in preview');
     }
 
+    // Update assets with ONLY the variants that actually synced
+    const syncedAssetMap = new Map(result.syncedAssets.map(s => [s.assetId, s]));
+    assets.forEach((asset: any) => {
+      const syncResult = syncedAssetMap.get(asset.id);
+      if (syncResult) {
+        // Only include variants that successfully synced
+        if (asset.metadata) {
+          asset.metadata.variants = syncResult.syncedVariants;
+          asset.metadata._syncedBase = syncResult.syncedBase;
+        }
+      }
+    });
+
     // 3) Push to the server session workspace
     let serverSynced = 0;
     const serverFailed: string[] = [];
@@ -337,7 +350,7 @@ async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: st
           })),
           // Map assets with COMPLETE metadata including kind, variants, AI analysis
           // CRITICAL FIX: Use sanitizeFilename to match actual VFS filenames
-          // DON'T include variants array - those files aren't synced to VFS!
+          // Variants ARE synced to /assets/ by brandAssetSync.ts - AI needs them for correct paths!
           assets: assets.map((a: any) => ({
             id: a.id,
             fileName: sanitizeFilename(a.fileName), // Match actual synced filename
@@ -351,8 +364,13 @@ async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: st
               familyName: a.metadata?.familyName,
               weight: a.metadata?.weight,
               style: a.metadata?.style,
-              // REMOVED: variants array causes agent to reference non-existent files
-              // variants: a.metadata?.variants || [],
+              // CRITICAL: Include variants so AI uses correct filenames
+              // brandAssetSync syncs ONLY variants when they exist, NOT base files
+              // So AI must reference variant filenames (e.g., filename-original.png) not base (filename.jpeg)
+              variants: a.metadata?.variants?.map((v: any) => ({
+                ...v,
+                fileName: sanitizeFilename(v.fileName) // Ensure consistency
+              })) || [],
               aiAnalysis: a.metadata?.aiAnalysis || undefined,
             },
           })),
