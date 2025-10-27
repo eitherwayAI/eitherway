@@ -6,6 +6,7 @@ import { chatStore } from '~/lib/stores/chat';
 import { previewModeStore } from '~/lib/stores/preview-mode';
 import { PortDropdown } from './PortDropdown';
 import { createScopedLogger } from '~/utils/logger';
+import { getBackendUrl } from '~/config/api';
 
 const logger = createScopedLogger('Preview');
 
@@ -312,6 +313,74 @@ export const Preview = memo(() => {
       window.removeEventListener('webcontainer:static-reload', handleStaticReload);
     };
   }, [reloadPreview]);
+
+  // PostMessage proxy for WebContainer API requests
+  // WebContainer cannot access localhost, so parent window proxies requests to backend
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      // Security: Only accept messages from our preview iframe
+      if (!iframeRef.current || event.source !== iframeRef.current.contentWindow) {
+        return;
+      }
+
+      const { type, id, payload } = event.data;
+
+      // Handle contract compilation requests
+      if (type === 'api-proxy' && payload?.endpoint === '/api/contracts/compile') {
+        logger.info('📨 [PostMessage Proxy] Received contract compilation request:', id);
+
+        try {
+          const backendUrl = getBackendUrl();
+          const response = await fetch(`${backendUrl}${payload.endpoint}`, {
+            method: payload.method || 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...payload.headers,
+            },
+            body: JSON.stringify(payload.body),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || `HTTP ${response.status}`);
+          }
+
+          logger.info('✅ [PostMessage Proxy] Contract compilation successful');
+
+          // Send success response back to iframe
+          iframeRef.current?.contentWindow?.postMessage(
+            {
+              type: 'api-proxy-response',
+              id,
+              success: true,
+              data,
+            },
+            '*',
+          );
+        } catch (error) {
+          logger.error('❌ [PostMessage Proxy] Contract compilation failed:', error);
+
+          // Send error response back to iframe
+          iframeRef.current?.contentWindow?.postMessage(
+            {
+              type: 'api-proxy-response',
+              id,
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            },
+            '*',
+          );
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [iframeRef]);
 
   return (
     <div className="w-full h-full flex flex-col">

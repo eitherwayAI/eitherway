@@ -336,9 +336,11 @@ async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: st
             pixelPercentage: c.pixelPercentage,
           })),
           // Map assets with COMPLETE metadata including kind, variants, AI analysis
+          // CRITICAL FIX: Use sanitizeFilename to match actual VFS filenames
+          // DON'T include variants array - those files aren't synced to VFS!
           assets: assets.map((a: any) => ({
             id: a.id,
-            fileName: a.fileName,
+            fileName: sanitizeFilename(a.fileName), // Match actual synced filename
             assetType: a.assetType,
             mimeType: a.mimeType,
             // CRITICAL: metadata.kind is required for buildBrandKitContext() filtering!
@@ -349,7 +351,8 @@ async function ensureBrandAssetsSyncedBeforeStream(sessionId: string, userId: st
               familyName: a.metadata?.familyName,
               weight: a.metadata?.weight,
               style: a.metadata?.style,
-              variants: a.metadata?.variants || [],
+              // REMOVED: variants array causes agent to reference non-existent files
+              // variants: a.metadata?.variants || [],
               aiAnalysis: a.metadata?.aiAnalysis || undefined,
             },
           })),

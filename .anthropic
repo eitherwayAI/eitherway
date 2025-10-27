@@ -1,0 +1,10 @@
+{
+  "config": {
+    "model": "claude-sonnet-4-5",
+    "maxTokens": 64000,
+    "thinking": {
+      "type": "enabled",
+      "budget_tokens": 10000
+    }
+  }
+}

@@ -151,13 +151,45 @@ export class NetlifyService {
     sessionId?: string
   ): Promise<{ siteId: string; url: string; adminUrl: string; netlifyId: string }> {
     const existingSite = await this.netlifySites.getByAppId(appId);
+
+    // Verify site still exists on Netlify if we have one in DB
     if (existingSite) {
-      return {
-        siteId: existingSite.id,
-        url: existingSite.url,
-        adminUrl: existingSite.admin_url || '',
-        netlifyId: existingSite.netlify_site_id
-      };
+      console.log(`[NetlifyService] Found existing site in DB: ${existingSite.netlify_site_id}, verifying it exists on Netlify...`);
+      const token = await this.getUserToken(userId);
+      if (token) {
+        try {
+          // Check if site still exists on Netlify
+          const verifyResponse = await fetch(
+            `https://api.netlify.com/api/v1/sites/${existingSite.netlify_site_id}`,
+            {
+              headers: { 'Authorization': `Bearer ${token}` }
+            }
+          );
+
+          console.log(`[NetlifyService] Netlify verification response: ${verifyResponse.status} ${verifyResponse.statusText}`);
+
+          if (verifyResponse.ok) {
+            // Site exists, use it
+            console.log(`[NetlifyService] Site verified, using existing site`);
+            return {
+              siteId: existingSite.id,
+              url: existingSite.url,
+              adminUrl: existingSite.admin_url || '',
+              netlifyId: existingSite.netlify_site_id
+            };
+          } else {
+            // Site doesn't exist on Netlify anymore (404), delete from our DB and create new one
+            console.log(`[NetlifyService] Site ${existingSite.netlify_site_id} no longer exists on Netlify (${verifyResponse.status}), deleting from DB and creating new site`);
+            await this.netlifySites.delete(existingSite.id);
+          }
+        } catch (error) {
+          console.error('[NetlifyService] Error verifying site existence:', error);
+          // Delete stale site and continue to create new one
+          await this.netlifySites.delete(existingSite.id);
+        }
+      } else {
+        console.log('[NetlifyService] No token available for verification, will try to use existing site');
+      }
     }
 
     const token = await this.getUserToken(userId);

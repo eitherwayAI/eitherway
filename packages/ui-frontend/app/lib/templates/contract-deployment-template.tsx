@@ -22,9 +22,8 @@ const getApiBaseUrl = () => {
     return import.meta.env.VITE_API_BASE_URL;
   }
 
-  // Default: Use WSL IP for WebContainer compatibility
-  // WebContainer cannot access "localhost" from host machine
-  return 'https://172.30.69.249:3001';
+  // Default: Use localhost for local development
+  return 'https://localhost:3001';
 };
 
 const API_BASE_URL = getApiBaseUrl();
@@ -77,61 +76,65 @@ export class ContractService {
   }
 
   /**
-   * Compile a smart contract using the backend API
-   * Returns bytecode and ABI needed for deployment
-   * Automatically tries HTTPS, then falls back to HTTP if needed
+   * Compile a smart contract using the backend API via postMessage proxy
+   * WebContainer apps cannot access localhost directly, so we send a message to the parent window
+   * which proxies the request to the backend API
    */
   async compileContract(request: CompileContractRequest): Promise<CompileContractResponse> {
-    const tryFetch = async (url: string): Promise<Response> => {
-      return fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(request),
-        // Permissive fetch options
-        mode: 'cors',
-        credentials: 'omit',
-        // @ts-ignore - Allow insecure connections in development
-        rejectUnauthorized: false
-      });
-    };
-
     try {
-      // Try with configured URL first
-      let response: Response;
+      // Generate unique request ID
+      const requestId = \`compile-\${Date.now()}-\${Math.random().toString(36).substr(2, 9)}\`;
 
-      try {
-        console.log(\`[ContractService] Attempting to compile via: \${this.apiBaseUrl}/api/contracts/compile\`);
-        response = await tryFetch(\`\${this.apiBaseUrl}/api/contracts/compile\`);
-      } catch (httpsError) {
-        // If HTTPS fails, try HTTP
-        if (this.apiBaseUrl.startsWith('https://')) {
-          const httpUrl = this.apiBaseUrl.replace('https://', 'http://');
-          console.log(\`[ContractService] HTTPS failed, trying HTTP: \${httpUrl}/api/contracts/compile\`);
-          response = await tryFetch(\`\${httpUrl}/api/contracts/compile\`);
-        } else {
-          throw httpsError;
+      console.log('[ContractService] Sending compilation request via postMessage:', requestId);
+
+      // Send request to parent window (main app) via postMessage
+      window.parent.postMessage({
+        type: 'api-proxy',
+        id: requestId,
+        payload: {
+          endpoint: '/api/contracts/compile',
+          method: 'POST',
+          body: request
         }
-      }
+      }, '*');
 
-      if (!response.ok) {
-        const error = await response.json();
-        return {
-          success: false,
-          error: error.error || 'Compilation failed'
+      // Wait for response from parent window
+      const result = await new Promise<CompileContractResponse>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          cleanup();
+          reject(new Error('Request timeout - parent window did not respond'));
+        }, 30000); // 30 second timeout
+
+        const handleMessage = (event: MessageEvent) => {
+          const { type, id, success, data, error } = event.data;
+
+          // Only handle responses for our request
+          if (type === 'api-proxy-response' && id === requestId) {
+            cleanup();
+
+            if (success) {
+              console.log('[ContractService] Compilation successful via postMessage');
+              resolve(data);
+            } else {
+              reject(new Error(error || 'Compilation failed'));
+            }
+          }
         };
-      }
 
-      const result = await response.json();
-      console.log('[ContractService] Compilation successful');
+        const cleanup = () => {
+          clearTimeout(timeout);
+          window.removeEventListener('message', handleMessage);
+        };
+
+        window.addEventListener('message', handleMessage);
+      });
+
       return result;
     } catch (error: any) {
       console.error('[ContractService] Compilation error:', error);
       return {
         success: false,
-        error: \`Failed to connect to backend API: \${error.message}. Make sure the EitherWay backend is running on localhost:3001.\`
+        error: \`Failed to compile contract: \${error.message}\`
       };
     }
   }
@@ -818,9 +821,7 @@ export default defineConfig({
 // CRITICAL: Create a .env file in your project root with this exact content:
 /*
 # EitherWay Backend API (for contract compilation)
-# WSL2 users: Use WSL IP address instead of localhost
-# WebContainer cannot access "localhost" - needs actual network IP
-VITE_API_BASE_URL=https://172.30.69.249:3001
+VITE_API_BASE_URL=https://localhost:3001
 
 # WalletConnect Project ID (for MetaMask connection)
 # Using EitherWay's demo project ID - works immediately, no signup needed!
