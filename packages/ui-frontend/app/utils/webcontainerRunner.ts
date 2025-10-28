@@ -589,26 +589,38 @@ function detectBuildError(output: string, sessionRoot: string): void {
 
     // Extract the full error message - look for the complete error description
     // Format: [plugin:name] /path/file.ext: 'message' (line:col)
-    const fullErrorMatch = output.match(/\[plugin:[^\]]+\]\s+([^\n:]+\.(?:js|jsx|ts|tsx|vue|svelte)):\s*(.+?)(?:\s+\((\d+):(\d+)\))?/);
+    // Use cleanOutput to avoid ANSI codes breaking the regex
+    const fullErrorMatch = cleanOutput.match(/\[plugin:[^\]]+\]\s+([^\n:]+\.(?:js|jsx|ts|tsx|vue|svelte))(?::(\d+):(\d+))?\s*:\s*(.+?)(?:\s+\((\d+):(\d+)\))?/);
 
     if (fullErrorMatch) {
       file = fullErrorMatch[1];
-      // Remove session path prefix for cleaner display
-      file = file.replace(sessionRoot, '').replace(/^\//, '').replace(/^__session_[^_]+__\//, '');
+      errorText = fullErrorMatch[4] ? fullErrorMatch[4].trim() : errorText;
 
-      errorText = fullErrorMatch[2].trim();
-
-      if (fullErrorMatch[3] && fullErrorMatch[4]) {
-        line = parseInt(fullErrorMatch[3], 10);
-        column = parseInt(fullErrorMatch[4], 10);
+      // Try to extract line/col from two possible locations
+      // 1. After filename: file.jsx:28:6
+      if (fullErrorMatch[2] && fullErrorMatch[3]) {
+        line = parseInt(fullErrorMatch[2], 10) || 0;
+        column = parseInt(fullErrorMatch[3], 10) || 0;
+      }
+      // 2. At end in parens: (28:6)
+      else if (fullErrorMatch[5] && fullErrorMatch[6]) {
+        line = parseInt(fullErrorMatch[5], 10) || 0;
+        column = parseInt(fullErrorMatch[6], 10) || 0;
+      }
+      // 3. Fallback: extract from code snippet line number
+      else {
+        const snippetLineMatch = output.match(/(\d+)\s*\|[^\n]*\n[^\n]*\^/);
+        if (snippetLineMatch) {
+          line = parseInt(snippetLineMatch[1], 10) || 0;
+        }
       }
     } else {
-      // Fallback: Try to find any file path in the output
-      const filePathMatch = output.match(/([^\s]+\.(?:js|jsx|ts|tsx|vue|svelte))(?::(\d+):(\d+))?/);
+      // Fallback: Try to find any file path with line:col in clean output
+      const filePathMatch = cleanOutput.match(/([^\s]+\.(?:js|jsx|ts|tsx|vue|svelte))(?::(\d+):(\d+))?/);
       if (filePathMatch) {
-        file = filePathMatch[1].replace(sessionRoot, '').replace(/^\//, '').replace(/^__session_[^_]+__\//, '');
-        if (filePathMatch[2]) line = parseInt(filePathMatch[2], 10);
-        if (filePathMatch[3]) column = parseInt(filePathMatch[3], 10);
+        file = filePathMatch[1];
+        if (filePathMatch[2]) line = parseInt(filePathMatch[2], 10) || 0;
+        if (filePathMatch[3]) column = parseInt(filePathMatch[3], 10) || 0;
       }
     }
 
@@ -634,9 +646,17 @@ function detectBuildError(output: string, sessionRoot: string): void {
 
     // File info is captured in groups 1, 2, 3 (file, line, column)
     if (errorMatch[1]) {
-      file = errorMatch[1].replace(sessionRoot, '').replace(/^\//, '').replace(/^__session_[^_]+__\//, '');
-      line = errorMatch[2] ? parseInt(errorMatch[2], 10) : 0;
-      column = errorMatch[3] ? parseInt(errorMatch[3], 10) : 0;
+      file = errorMatch[1];
+      line = errorMatch[2] ? parseInt(errorMatch[2], 10) || 0 : 0;
+      column = errorMatch[3] ? parseInt(errorMatch[3], 10) || 0 : 0;
+    }
+
+    // Fallback: extract from code snippet if line/col not found
+    if (!line) {
+      const snippetLineMatch = output.match(/(\d+)\s*\|[^\n]*\n[^\n]*\^/);
+      if (snippetLineMatch) {
+        line = parseInt(snippetLineMatch[1], 10) || 0;
+      }
     }
 
     // Extract code snippet
@@ -657,16 +677,26 @@ function detectBuildError(output: string, sessionRoot: string): void {
 
   // Try to extract file location from the full output if not already found
   if (!file) {
-    const filePathMatch = output.match(/(?:\/[^\s:]+|[a-zA-Z]:[^\s:]+)\.(?:js|jsx|ts|tsx|vue|svelte)/);
+    const filePathMatch = cleanOutput.match(/([^\s:]+\.(?:js|jsx|ts|tsx|vue|svelte))(?::(\d+):(\d+))?/);
     if (filePathMatch) {
-      file = filePathMatch[0].replace(sessionRoot, '').replace(/^\//, '');
+      file = filePathMatch[1];
+      if (!line && filePathMatch[2]) line = parseInt(filePathMatch[2], 10) || 0;
+      if (!column && filePathMatch[3]) column = parseInt(filePathMatch[3], 10) || 0;
     }
   }
 
-  // Construct a comprehensive error object
+  // Clean up file path: remove session root and session directory prefix
+  if (file) {
+    file = file
+      .replace(sessionRoot, '') // Remove session root path
+      .replace(/^__session_[^_]+__\/?/, '') // Remove session directory prefix (with or without slash)
+      .replace(/^\/+/, ''); // Remove any leading slashes
+  }
+
+  // Construct a comprehensive error object with more context
   const errorData = {
     message,
-    stack: stack || output.slice(-500), // Last 500 chars of output as fallback stack
+    stack: stack || output.slice(-2000), // Increased from 500 to 2000 chars for better context
     source: 'build',
     timestamp: Date.now(),
     file,

@@ -21,6 +21,12 @@ export const Preview = memo(() => {
   // Subscribe to streaming phase for building overlay
   const { currentPhase, sessionId } = useStore(chatStore);
 
+  // Auto-fix state tracking (must be declared before useEffects that use it)
+  const [autoFixInProgress, setAutoFixInProgress] = useState(false);
+
+  // BUGFIX: Track if auto-fix was actually triggered in this session (prevents false suppression from leaked state)
+  const autoFixTriggeredThisSession = useRef(false); // Tracks manual trigger to prevent false error suppression
+
   // Debug logging for phase changes and reset timer when code-writing starts
   useEffect(() => {
     console.log('🎯 [Preview] currentPhase changed to:', currentPhase);
@@ -30,7 +36,56 @@ export const Preview = memo(() => {
       setElapsedSeconds(0);
       logger.info('⏱️  Build timer reset - code-writing phase started');
     }
-  }, [currentPhase]);
+
+    // Auto-fix completion detection - ONLY if auto-fix was actually triggered in this session
+    if (currentPhase === 'completed' && autoFixInProgress && autoFixTriggeredThisSession.current) {
+      // Auto-fix just completed, wait for build to finish then clear flags and error
+      logger.info('🔧 Auto-fix completed, waiting for final build...');
+      setTimeout(() => {
+        setAutoFixInProgress(false);
+        autoFixTriggeredThisSession.current = false; // Reset the trigger flag
+        logger.info('✅ Auto-fix process finished, re-enabling error overlay');
+
+        // Clear the error after a brief delay to allow PREVIEW_LOADED to fire first
+        // If PREVIEW_LOADED doesn't fire, we still clear it as a fallback
+        setTimeout(() => {
+          setPreviewError((prevError) => {
+            if (prevError?.source === 'build') {
+              logger.info('🧹 Clearing stale build error after auto-fix completion');
+              return null;
+            }
+            return prevError; // Keep non-build errors if any
+          });
+        }, 2000); // Additional 2 seconds for PREVIEW_LOADED to fire
+      }, 3000); // Wait 3 seconds for build to complete
+    }
+  }, [currentPhase, autoFixInProgress]);
+
+  // Listen for auto-fix start event
+  useEffect(() => {
+    const handleAutoFixStart = () => {
+      logger.info('🔧 Auto-fix started - keeping overlay visible to show progress');
+      setAutoFixInProgress(true);
+      autoFixTriggeredThisSession.current = true; // Mark that auto-fix was manually triggered
+      // DON'T clear previewError - keep overlay visible to show fixing progress
+    };
+
+    window.addEventListener('chat:send-auto-fix', handleAutoFixStart);
+    return () => window.removeEventListener('chat:send-auto-fix', handleAutoFixStart);
+  }, []);
+
+  // BUGFIX: Reset autoFixInProgress if stuck (prevents state leak)
+  useEffect(() => {
+    if (autoFixInProgress) {
+      const resetTimer = setTimeout(() => {
+        logger.warn('⚠️ Auto-fix state leak detected - forcing reset after 30s');
+        setAutoFixInProgress(false);
+        autoFixTriggeredThisSession.current = false; // Also reset the trigger flag
+      }, 30000); // 30 second maximum
+
+      return () => clearTimeout(resetTimer);
+    }
+  }, [autoFixInProgress]);
 
   // always start with building status when Preview component mounts
   const [buildStatus, setBuildStatus] = useState<'building' | 'ready'>('building');
@@ -350,20 +405,21 @@ class UniversalErrorCapture { constructor() { this.capturedErrors = []; this.err
 
       if (type === 'PREVIEW_LOADED') {
         // Clear errors when preview loads successfully
-        // Exception: Keep build errors visible UNLESS auto-fix has completed (v2.0 improvement)
         setPreviewError((prevError) => {
           if (prevError?.source === 'build') {
-            // Check if auto-fix just completed (phase is 'completed')
-            // If so, the build error is stale (from intermediate file sync states)
-            if (currentPhase === 'completed') {
-              logger.info('Auto-fix completed and preview loaded - clearing stale build error');
-              return null; // Clear the build error
+            // If auto-fix is in progress or just completed, clear the build error
+            if (autoFixInProgress || autoFixTriggeredThisSession.current) {
+              logger.info('✅ Preview loaded after auto-fix - clearing build error');
+              return null; // Auto-fix succeeded, clear the error
             }
+            // Keep build error visible if auto-fix wasn't triggered
+            // (user needs to manually fix or trigger auto-fix)
             logger.info('Preview loaded but build error persists - keeping overlay visible');
             return prevError; // Keep the build error visible
           }
-          logger.info('Preview loaded successfully - clearing error overlay');
-          return null; // Clear runtime/promise/console errors
+          // Clear runtime/promise/console errors since successful page load means they're resolved
+          logger.info('Preview loaded successfully - clearing runtime errors');
+          return null; // Clear transient errors
         });
         return;
       }
@@ -431,6 +487,12 @@ class UniversalErrorCapture { constructor() { this.capturedErrors = []; this.err
   // Listen for build errors from WebContainer dev server output
   useEffect(() => {
     const handleBuildError = (event: CustomEvent) => {
+      // Suppress build errors during auto-fix to prevent overlay from reappearing
+      if (autoFixInProgress) {
+        logger.info('Build error detected during auto-fix - suppressing overlay:', event.detail.message);
+        return;
+      }
+
       logger.error('Build error detected:', event.detail);
       setPreviewError(event.detail);
     };
@@ -443,18 +505,17 @@ class UniversalErrorCapture { constructor() { this.capturedErrors = []; this.err
     return () => {
       window.removeEventListener('webcontainer:build-error', handleBuildError as EventListener);
     };
-  }, []);
+  }, [autoFixInProgress]); // Re-create handler when autoFixInProgress changes
 
   // Clear error when files are updated (auto-fix is in progress)
   useEffect(() => {
     const handleFileChange = () => {
-      // Give the preview a moment to reload, then check if error is gone
-      setTimeout(() => {
-        if (previewError) {
-          logger.info('Files updated - clearing error overlay');
-          setPreviewError(null);
-        }
-      }, 2000);
+      if (previewError) {
+        logger.info('Files updated - clearing error overlay (auto-fix in progress)');
+        // Clear immediately to show user that auto-fix is working
+        // If error persists after build, it will be re-detected automatically
+        setPreviewError(null);
+      }
     };
 
     window.addEventListener('webcontainer:file-updated', handleFileChange);
@@ -584,6 +645,7 @@ class UniversalErrorCapture { constructor() { this.capturedErrors = []; this.err
                   error={previewError}
                   sessionId={sessionId}
                   onResolved={() => setPreviewError(null)}
+                  isFixing={autoFixInProgress}
                 />
               ) : null;
             })()}
