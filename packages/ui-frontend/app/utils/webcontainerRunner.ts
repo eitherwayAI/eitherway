@@ -8,7 +8,6 @@ import type { WebContainer } from '@webcontainer/api';
 import { createScopedLogger } from './logger';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { ensureDevHeaders } from '~/lib/webcontainer/ensure-dev-headers';
-import { injectErrorCapture } from '~/lib/webcontainer/inject-error-capture';
 import { PREVIEW_REGISTRATION_TIMEOUT_MS, WEBCONTAINER_DEFAULT_PORT } from './constants';
 import type { WebContainerProcess, ExtendedWebContainer } from '~/types/webcontainer';
 import serverTemplate from '~/templates/webcontainer-server.template.js?raw';
@@ -720,9 +719,6 @@ export async function runDevServer(webcontainer: WebContainer, files: any[]): Pr
     if (hasPackageJson) {
       await ensureDevHeaders(wc, sessionRoot);
     }
-
-    // Inject error capture script to enable runtime error detection
-    await injectErrorCapture(wc, sessionRoot);
 
     // For npm-based apps with HMR, skip restart if already running
     // But still check if package.json changed and run install if needed

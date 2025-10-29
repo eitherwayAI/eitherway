@@ -6,7 +6,6 @@ import { chatStore } from '~/lib/stores/chat';
 import { previewModeStore } from '~/lib/stores/preview-mode';
 import { PortDropdown } from './PortDropdown';
 import { createScopedLogger } from '~/utils/logger';
-import { ErrorOverlay } from './ErrorOverlay';
 import { getBackendUrl } from '~/config/api';
 
 const logger = createScopedLogger('Preview');
@@ -47,7 +46,6 @@ export const Preview = memo(() => {
 
   const [url, setUrl] = useState('');
   const [iframeUrl, setIframeUrl] = useState<string | undefined>();
-  const [previewError, setPreviewError] = useState<any | null>(null);
 
   useEffect(() => {
     const current = workbenchStore.isAppReadyForDeploy.get();
@@ -173,24 +171,12 @@ export const Preview = memo(() => {
             needsEnv = !html.includes('/scripts/env-loader.js');
           } catch {}
 
-          // Check if error capture script is already injected
-          const needsErrorCapture = !html.includes('__errorCapture') && !html.includes('UniversalErrorCapture');
-
-          if (!needsBase && !needsStyles && !needsEnv && !needsErrorCapture) return;
-
-          // Get session ID for error reporting
-          const currentSessionId = sessionId || 'unknown';
+          if (!needsBase && !needsStyles && !needsEnv) return;
 
           const insertion = [
             needsBase ? '<link rel="stylesheet" href="/base.css">' : '',
             needsStyles ? '<link rel="stylesheet" href="/styles.css">' : '',
             needsEnv ? '<script type="module" src="/scripts/env-loader.js"></script>' : '',
-            // Set session ID first
-            needsErrorCapture ? `<script>window.__SESSION_ID__ = "${currentSessionId}";</script>` : '',
-            // Inject error capture script as ES module
-            needsErrorCapture ? `<script type="module">
-class UniversalErrorCapture { constructor() { this.capturedErrors = []; this.errorCount = 0; this.sessionId = window.__SESSION_ID__ || 'unknown'; this.viteOverlayObserver = null; console.log('[ErrorCapture] Initializing v2 with session:', this.sessionId); this.initCapture(); this.hideViteOverlay(); console.log('[ErrorCapture] Ready and monitoring'); } initCapture() { if (import.meta.hot) { console.log('[ErrorCapture] Vite HMR detected, installing hooks'); import.meta.hot.on('vite:error', (payload) => { console.log('[ErrorCapture] Vite error event:', payload); const error = payload.err || payload.error || payload; this.capture({ message: error.message || String(payload), stack: error.stack || (payload.stack) || '', file: error.file || error.id || '', line: error.line || error.loc?.line || 0, column: error.column || error.loc?.column || 0 }, 'build'); }); import.meta.hot.on('vite:beforeUpdate', () => { this.hideViteOverlay(); }); } window.addEventListener('error', (event) => { console.log('[ErrorCapture] Runtime error:', event); this.capture({ message: event.message || 'Runtime error', stack: event.error?.stack || '', file: event.filename || '', line: event.lineno || 0, column: event.colno || 0 }, 'runtime'); event.preventDefault(); return true; }, true); window.addEventListener('unhandledrejection', (event) => { console.log('[ErrorCapture] Promise rejection:', event); const reason = event.reason; this.capture({ message: reason?.message || String(reason), stack: reason?.stack || new Error(String(reason)).stack || '' }, 'promise'); event.preventDefault(); return true; }); const originalError = console.error; console.error = (...args) => { const firstArg = args[0]; if (firstArg instanceof Error) { this.capture({ message: firstArg.message, stack: firstArg.stack || '' }, 'console'); } else if (typeof firstArg === 'object' && firstArg?.message) { this.capture({ message: firstArg.message || String(firstArg), stack: firstArg.stack || '' }, 'console'); } else if (typeof firstArg === 'string') { const msg = args.join(' '); if (msg.includes('Error') || msg.includes('Failed') || msg.includes('failed')) { this.capture({ message: msg, stack: new Error().stack || '' }, 'console'); } } originalError.apply(console, args); }; console.log('[ErrorCapture] All error listeners registered'); } hideViteOverlay() { const existing = document.querySelector('vite-error-overlay'); if (existing) { existing.style.display = 'none'; console.log('[ErrorCapture] Hid existing Vite overlay'); } if (!this.viteOverlayObserver) { this.viteOverlayObserver = new MutationObserver((mutations) => { for (const mutation of mutations) { for (const node of mutation.addedNodes) { if (node.nodeName === 'VITE-ERROR-OVERLAY') { node.style.display = 'none'; console.log('[ErrorCapture] Intercepted and hid Vite overlay'); } } } }); this.viteOverlayObserver.observe(document.documentElement, { childList: true, subtree: true }); console.log('[ErrorCapture] MutationObserver watching for Vite overlays'); } } capture(errorData, source) { this.errorCount++; const error = { message: errorData.message || 'Unknown error', stack: errorData.stack || '', source: source, timestamp: Date.now(), url: window.location.href, file: errorData.file || '', line: errorData.line || 0, column: errorData.column || 0, errorNumber: this.errorCount }; console.log(\`[ErrorCapture] Captured error #\${this.errorCount} (\${source}):\`, error.message); console.log('[ErrorCapture] Full error data:', error); try { window.parent.postMessage({ type: 'PREVIEW_ERROR', error: error, sessionId: this.sessionId }, '*'); console.log('[ErrorCapture] Error sent to parent window'); } catch (err) { console.error('[ErrorCapture] Failed to send error to parent:', err); } this.capturedErrors.push(error); if (this.capturedErrors.length > 10) { this.capturedErrors.shift(); } } getErrors() { return this.capturedErrors; } clearErrors() { this.capturedErrors = []; this.errorCount = 0; console.log('[ErrorCapture] Cleared all errors'); }}try { window.__errorCapture = new UniversalErrorCapture(); console.log('[ErrorCapture] System active'); window.parent.postMessage({ type: 'PREVIEW_LOADED', timestamp: Date.now() }, '*');} catch (error) { console.error('[ErrorCapture] Failed to initialize:', error);}
-</script>` : '',
           ]
             .filter(Boolean)
             .join('\n  ');
@@ -335,38 +321,10 @@ class UniversalErrorCapture { constructor() { this.capturedErrors = []; this.err
     };
   }, [reloadPreview]);
 
-  // Combined PostMessage handler for error reporting AND API proxy
-  // Handles: PREVIEW_ERROR, PREVIEW_LOADED (error overlay v2.0), api-proxy (Web3 contract compilation)
+  // Combined PostMessage handler for API proxy (Web3 contract compilation)
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
       const { type, id, payload } = event.data;
-
-      // Handle error messages from preview iframe (beta-aifix2.0)
-      if (type === 'PREVIEW_ERROR') {
-        logger.error('Preview error received:', event.data.error);
-        setPreviewError(event.data.error);
-        return;
-      }
-
-      if (type === 'PREVIEW_LOADED') {
-        // Clear errors when preview loads successfully
-        // Exception: Keep build errors visible UNLESS auto-fix has completed (v2.0 improvement)
-        setPreviewError((prevError) => {
-          if (prevError?.source === 'build') {
-            // Check if auto-fix just completed (phase is 'completed')
-            // If so, the build error is stale (from intermediate file sync states)
-            if (currentPhase === 'completed') {
-              logger.info('Auto-fix completed and preview loaded - clearing stale build error');
-              return null; // Clear the build error
-            }
-            logger.info('Preview loaded but build error persists - keeping overlay visible');
-            return prevError; // Keep the build error visible
-          }
-          logger.info('Preview loaded successfully - clearing error overlay');
-          return null; // Clear runtime/promise/console errors
-        });
-        return;
-      }
 
       // Handle API proxy requests (beta-web3api)
       // Security: Only accept messages from our preview iframe
@@ -470,40 +428,7 @@ class UniversalErrorCapture { constructor() { this.capturedErrors = []; this.err
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [iframeRef, currentPhase]); // Re-create handler when phase changes to access latest value
-
-  // Listen for build errors from WebContainer dev server output
-  useEffect(() => {
-    const handleBuildError = (event: CustomEvent) => {
-      logger.error('Build error detected:', event.detail);
-      setPreviewError(event.detail);
-    };
-
-    // Note: We don't listen for build-success events because terminal output is unreliable
-    // Success is detected when the iframe loads (PREVIEW_LOADED message above)
-
-    window.addEventListener('webcontainer:build-error', handleBuildError as EventListener);
-
-    return () => {
-      window.removeEventListener('webcontainer:build-error', handleBuildError as EventListener);
-    };
-  }, []);
-
-  // Clear error when files are updated (auto-fix is in progress)
-  useEffect(() => {
-    const handleFileChange = () => {
-      // Give the preview a moment to reload, then check if error is gone
-      setTimeout(() => {
-        if (previewError) {
-          logger.info('Files updated - clearing error overlay');
-          setPreviewError(null);
-        }
-      }, 2000);
-    };
-
-    window.addEventListener('webcontainer:file-updated', handleFileChange);
-    return () => window.removeEventListener('webcontainer:file-updated', handleFileChange);
-  }, [previewError]);
+  }, [iframeRef]);
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -612,23 +537,6 @@ class UniversalErrorCapture { constructor() { this.capturedErrors = []; this.err
                     </div>
                   </div>
                 </div>
-              ) : null;
-            })()}
-            {/* Error overlay when preview encounters errors */}
-            {(() => {
-              console.log('🔴 [Error Overlay Check]', {
-                hasError: !!previewError,
-                errorType: previewError?.source,
-                hasSessionId: !!sessionId,
-                sessionId,
-                willShow: !!(previewError && sessionId)
-              });
-              return previewError && sessionId ? (
-                <ErrorOverlay
-                  error={previewError}
-                  sessionId={sessionId}
-                  onResolved={() => setPreviewError(null)}
-                />
               ) : null;
             })()}
           </>

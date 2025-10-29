@@ -77,7 +77,7 @@ export function useBackendHistory() {
         );
 
         // Transform backend messages to AI SDK format
-        // Filter out system messages (like auto-fix prompts) to keep UI clean
+        // Filter out system messages to keep UI clean
         const transformedMessages: Message[] = messages
           .filter((msg: BackendMessage) => msg.role !== 'system')
           .map((msg: BackendMessage) => ({

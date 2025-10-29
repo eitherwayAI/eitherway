@@ -26,7 +26,6 @@ interface ExtendedMessage extends Message {
     fileOperations?: Array<{ operation: string; filePath: string }>;
     tokenUsage?: { inputTokens: number; outputTokens: number } | null;
     phase?: 'pending' | 'thinking' | 'reasoning' | 'code-writing' | 'building' | 'completed' | null;
-    auto_fix?: boolean; // Flag for auto-generated error fix messages
   };
 }
 
@@ -76,9 +75,6 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
             const extendedMessage = message as ExtendedMessage;
             const messageMetadata = extendedMessage.metadata || {};
 
-            // Check if this is an auto-fix message
-            const isAutoFix = extendedMessage.metadata?.auto_fix;
-
             // Strip brand kit context from user messages (backend enriches prompts with brand context)
             const displayContent = isUserMessage ? stripBrandKitContext(content) : content;
 
@@ -119,23 +115,11 @@ export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: 
 
             return (
               <div key={index}>
-                {isAutoFix && isUserMessage && (
-                  <div className="flex items-center gap-2 mb-2 mt-4">
-                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent"></div>
-                    <div className="text-xs font-semibold text-blue-400 bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/30 flex items-center gap-1.5">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                      Auto-Fix Triggered
-                    </div>
-                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent"></div>
-                  </div>
-                )}
                 <div
                   className={classNames('flex gap-4 relative', {
                     'p-4 bg-black/50 border border-eitherway-elements-borderColor rounded-lg': !isUserMessage,
                     'px-6 py-2 bg-white/10 rounded-lg ml-auto w-fit max-w-[60%]': isUserMessage,
-                    'mt-4': !isFirst && !isAutoFix,
+                    'mt-4': !isFirst,
                   })}
                 >
                   <div

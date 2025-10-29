@@ -69,7 +69,6 @@ export class DatabaseAgent {
     );
 
     // P1.5: Build Memory Prelude for dynamic context
-    // Skip memory prelude for auto-fix to minimize tokens
     let memoryPreludeText = '';
     if (!skipConversationHistory) {
       try {
@@ -84,12 +83,10 @@ export class DatabaseAgent {
         this.agent.setSystemPromptPrefix('');
       }
     } else {
-      // Auto-fix mode: no memory prelude needed
       this.agent.setSystemPromptPrefix('');
     }
 
     // P1: Load previous conversation history with smart bounded history
-    // Skip conversation history for auto-fix to minimize tokens
     let conversationHistory: any[] = [];
 
     if (!skipConversationHistory) {
@@ -170,17 +167,14 @@ export class DatabaseAgent {
             content,
           };
         });
-    } else {
-      // Auto-fix mode: no conversation history - agent starts fresh with only error context
-      console.log('[DatabaseAgent] Auto-fix mode: skipping conversation history to minimize tokens');
     }
 
-    // Load conversation history into agent (empty array for auto-fix)
+    // Load conversation history into agent
     this.agent.loadConversationHistory(conversationHistory);
 
     const userMessage = await this.messagesRepo.create(
       this.sessionId,
-      messageRole as 'user' | 'system', // Use provided role (user or system for auto-fix)
+      messageRole as 'user' | 'system',
       { text: prompt },
       undefined,
       undefined,

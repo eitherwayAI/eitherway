@@ -6,7 +6,7 @@
 export interface StreamOptions {
   prompt: string;
   sessionId?: string;
-  messageRole?: 'user' | 'system'; // Add role to mark system messages (like auto-fix)
+  messageRole?: 'user' | 'system';
   onChunk: (chunk: string) => void;
   onComplete: () => void;
   onError: (error: string) => void;

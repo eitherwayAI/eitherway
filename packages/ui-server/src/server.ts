@@ -26,7 +26,6 @@ import { registerDeploymentRoutes } from './routes/deployments.js';
 import { registerAppRoutes } from './routes/apps.js';
 import { registerBrandKitRoutes } from './routes/brand-kits.js';
 import { registerUploadRoutes } from './routes/uploads.js';
-import { registerErrorFixRoutes } from './routes/error-fixes.js';
 import { registerIPFSRoutes } from './routes/ipfs.js';
 import { constants } from 'fs';
 import { randomUUID } from 'crypto';
@@ -111,7 +110,6 @@ try {
     await registerDeploymentRoutes(fastify, db, WORKSPACE_DIR);
     await registerBrandKitRoutes(fastify, db);
     await registerUploadRoutes(fastify, db);
-    await registerErrorFixRoutes(fastify, db);
     await registerIPFSRoutes(fastify, db);
     fastify.log.info('[IPFS] Routes registered successfully');
   } else {
@@ -593,14 +591,8 @@ await fastify.register(async (fastify) => {
             // Extract role from message (default to 'user' if not specified)
             const messageRole = data.role || 'user';
 
-            // Auto-fix mode: skip conversation history to minimize tokens
-            const skipHistory = messageRole === 'system';
-
-            // Debug: Log auto-fix detection
-            console.log('[Auto-Fix Debug] messageRole:', messageRole, 'skipHistory:', skipHistory);
-
             // Process request with streaming
-            response = await dbAgent.processRequest(enrichedPrompt, streamingCallbacks, messageRole, skipHistory);
+            response = await dbAgent.processRequest(enrichedPrompt, streamingCallbacks, messageRole, false);
 
             // Send stream_end event with token usage
             sender.send(StreamEvents.streamEnd(messageId, tokenUsage));
