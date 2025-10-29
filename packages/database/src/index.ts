@@ -70,4 +70,8 @@ export type { AssetAIAnalysis } from './services/asset-vision-analyzer.js';
 export { ContractService, SUPPORTED_CHAINS } from './services/contract-service.js';
 export type { CompileContractParams, CompileResult, DeployContractParams, DeployResult, ChainConfig } from './services/contract-service.js';
 
+export { PinataService } from './services/pinata-service.js';
+export { NFTService } from './services/nft-service.js';
+export type { NFTMetadata, NFTAttribute, UploadImageResult, UploadMetadataResult, CreateNFTAssetParams, CreateNFTAssetResult } from './types/nft.js';
+
 export type * from './types.js';

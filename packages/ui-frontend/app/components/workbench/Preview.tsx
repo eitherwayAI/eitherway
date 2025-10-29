@@ -374,52 +374,96 @@ class UniversalErrorCapture { constructor() { this.capturedErrors = []; this.err
         return;
       }
 
-      // Handle contract compilation requests
-      if (type === 'api-proxy' && payload?.endpoint === '/api/contracts/compile') {
-        logger.info('📨 [PostMessage Proxy] Received contract compilation request:', id);
+      // Handle API proxy requests (contracts + IPFS)
+      if (type === 'api-proxy' && payload?.endpoint) {
+        const isContractRequest = payload.endpoint === '/api/contracts/compile';
+        const isIPFSRequest = payload.endpoint.startsWith('/api/ipfs/');
 
-        try {
-          const backendUrl = getBackendUrl();
-          const response = await fetch(`${backendUrl}${payload.endpoint}`, {
-            method: payload.method || 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...payload.headers,
-            },
-            body: JSON.stringify(payload.body),
-          });
+        if (isContractRequest || isIPFSRequest) {
+          const requestType = isContractRequest ? 'contract compilation' : 'IPFS upload';
+          logger.info(`📨 [PostMessage Proxy] Received ${requestType} request:`, id);
 
-          const data = await response.json();
+          try {
+            const backendUrl = getBackendUrl();
 
-          if (!response.ok) {
-            throw new Error(data.error || `HTTP ${response.status}`);
+            // Handle multipart form data for IPFS uploads
+            let requestBody: any;
+            let requestHeaders: any = {};
+
+            if (payload.contentType === 'multipart/form-data' && payload.body?.file) {
+              // Convert base64 back to blob for multipart upload
+              const base64Data = payload.body.file.split(',')[1] || payload.body.file;
+              const byteCharacters = atob(base64Data);
+              const byteNumbers = new Array(byteCharacters.length);
+              for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+              }
+              const byteArray = new Uint8Array(byteNumbers);
+              const blob = new Blob([byteArray]);
+
+              const formData = new FormData();
+              formData.append('file', blob, payload.body.filename);
+
+              // Add additional fields for create-nft-asset endpoint
+              if (payload.body.nftName) {
+                formData.append('nftName', payload.body.nftName);
+              }
+              if (payload.body.nftDescription) {
+                formData.append('nftDescription', payload.body.nftDescription);
+              }
+              if (payload.body.attributes) {
+                formData.append('attributes', JSON.stringify(payload.body.attributes));
+              }
+
+              requestBody = formData;
+              // Don't set Content-Type header - browser will set it with boundary
+            } else {
+              // JSON request
+              requestHeaders['Content-Type'] = 'application/json';
+              requestBody = JSON.stringify(payload.body);
+            }
+
+            const response = await fetch(`${backendUrl}${payload.endpoint}`, {
+              method: payload.method || 'POST',
+              headers: {
+                ...requestHeaders,
+                ...payload.headers,
+              },
+              body: requestBody,
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+              throw new Error(data.error || `HTTP ${response.status}`);
+            }
+
+            logger.info(`✅ [PostMessage Proxy] ${requestType} successful`);
+
+            // Send success response back to iframe
+            iframeRef.current?.contentWindow?.postMessage(
+              {
+                type: 'api-proxy-response',
+                id,
+                success: true,
+                data,
+              },
+              '*',
+            );
+          } catch (error) {
+            logger.error(`❌ [PostMessage Proxy] ${requestType} failed:`, error);
+
+            // Send error response back to iframe
+            iframeRef.current?.contentWindow?.postMessage(
+              {
+                type: 'api-proxy-response',
+                id,
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error',
+              },
+              '*',
+            );
           }
-
-          logger.info('✅ [PostMessage Proxy] Contract compilation successful');
-
-          // Send success response back to iframe
-          iframeRef.current?.contentWindow?.postMessage(
-            {
-              type: 'api-proxy-response',
-              id,
-              success: true,
-              data,
-            },
-            '*',
-          );
-        } catch (error) {
-          logger.error('❌ [PostMessage Proxy] Contract compilation failed:', error);
-
-          // Send error response back to iframe
-          iframeRef.current?.contentWindow?.postMessage(
-            {
-              type: 'api-proxy-response',
-              id,
-              success: false,
-              error: error instanceof Error ? error.message : 'Unknown error',
-            },
-            '*',
-          );
         }
       }
     };

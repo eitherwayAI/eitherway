@@ -550,6 +550,18 @@ BACKEND API ENDPOINTS (EITHERWAY SERVER):
   - POST /api/contracts/:id/deployment - Optional: Report deployment for tracking
     Request: { deployed_address, deployment_tx_hash, deployed_chain_id, block_number }
 
+  - POST /api/ipfs/upload-image - Upload image to IPFS (for NFTs)
+    Request: multipart/form-data with image file
+    Response: { success, ipfsCID, ipfsUrl, gatewayUrl }
+
+  - POST /api/ipfs/create-nft-asset - Upload image + generate metadata (all-in-one)
+    Request: multipart/form-data { file, nftName, nftDescription, attributes }
+    Response: { success, imageCID, imageUrl, metadataCID, tokenURI }
+
+  - POST /api/ipfs/create-metadata - Create metadata JSON from existing image CID
+    Request: { imageCID, nftName, nftDescription, attributes?, externalUrl? }
+    Response: { success, metadataCID, tokenURI }
+
 DEPLOYMENT FLOW (MANDATORY FOR WEB3 APPS):
   Step 1: User fills out token details (name, symbol, supply, chain)
   Step 2: Frontend calls POST /api/contracts/compile with user input
@@ -750,6 +762,62 @@ WHEN NOT TO USE (use contract interaction pattern instead):
   - User wants to interact with EXISTING deployed contracts
   - User wants to read/write from contracts (use wagmi's useReadContract/useWriteContract)
   - User wants portfolio tracker, NFT gallery, token dashboard (no deployment needed)
+
+========================================
+NFT MINTING APPS WITH IPFS/PINATA
+========================================
+
+When building NFT minting apps where users upload images:
+
+NFT APP TYPES:
+  1. NFT CONTRACT DEPLOYMENT - Deploy ERC-721 contract (like token deployer but no totalSupply)
+  2. NFT MINTING INTERFACE - Upload images to IPFS + mint NFTs with metadata
+  3. NFT GALLERY - View all minted NFTs from a collection
+
+NFT MINTING FLOW (IMAGE UPLOAD + MINT):
+  Step 1: User uploads image file (drag & drop)
+  Step 2: Frontend calls POST /api/ipfs/create-nft-asset via postMessage
+  Step 3: Backend uploads image to IPFS (Pinata)
+  Step 4: Backend generates ERC-721 metadata JSON
+  Step 5: Backend uploads metadata to IPFS
+  Step 6: Backend returns tokenURI (ipfs://...)
+  Step 7: Frontend calls contract.mint(userAddress, tokenURI) using wagmi
+  Step 8: User approves transaction in MetaMask
+  Step 9: NFT is minted with IPFS metadata
+
+NFT MINTING APP STRUCTURE:
+  /src/services/ipfsService.ts - IPFS upload via postMessage API proxy
+  /src/hooks/useNFTMinting.ts - Upload + mint flow
+  /src/components/ImageUpload.tsx - Drag & drop image uploader
+  /src/components/AttributeEditor.tsx - NFT trait editor
+  /src/components/NFTMinter.tsx - Main minting UI
+
+CRITICAL NFT PATTERNS:
+  ✓ Use /api/ipfs/create-nft-asset for image upload (NOT client-side IPFS)
+  ✓ Always use postMessage API proxy for IPFS endpoints (WebContainer compatibility)
+  ✓ Generate metadata with ERC-721 standard format
+  ✓ Use ipfs:// URLs in metadata, gateway URLs for preview
+  ✓ Include drag & drop image upload with preview
+  ✓ Allow custom attributes (traits) for NFTs
+  ✓ Show IPFS CID and tokenURI after upload
+  ✓ Wait for transaction confirmation before showing success
+
+NFT METADATA FORMAT (ERC-721 Standard):
+  {
+    "name": "Cool Cat #1",
+    "description": "A very cool cat NFT",
+    "image": "ipfs://QmXxx...",
+    "attributes": [
+      { "trait_type": "Background", "value": "Blue" },
+      { "trait_type": "Hat", "value": "Baseball Cap" },
+      { "trait_type": "Rarity", "value": 95 }
+    ]
+  }
+
+WHEN TO BUILD NFT APPS:
+  - User asks for "NFT minter", "NFT deployer with images", "mint NFTs"
+  - User mentions "upload images", "IPFS", "Pinata", "NFT metadata"
+  - User wants "NFT collection", "mint with attributes", "NFT gallery"
 
 COMMON MISTAKES TO AVOID:
   ❌ Using server .env DEPLOYER_PRIVATE_KEY for user-facing apps
