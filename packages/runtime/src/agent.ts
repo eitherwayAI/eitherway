@@ -8,7 +8,7 @@ import { ToolRunner } from './tool-runner.js';
 import { TranscriptRecorder } from './transcript.js';
 import { VerifierRunner } from './verifier.js';
 import { getAllToolDefinitions } from '@eitherway/tools-core';
-import { MAX_AGENT_TURNS, REASONING_STREAM_CHUNK_SIZE, REASONING_STREAM_DELAY_MS } from './constants.js';
+import { MAX_AGENT_TURNS, MAX_TOKENS_PER_REQUEST, REASONING_STREAM_CHUNK_SIZE, REASONING_STREAM_DELAY_MS } from './constants.js';
 import type { Message, ToolUse, ToolResult, ClaudeConfig, AgentConfig, ToolExecutor } from '@eitherway/tools-core';
 
 /**
@@ -32,7 +32,7 @@ export interface StreamingCallbacks {
 }
 
 const SYSTEM_PROMPT = `You are a single agent that builds and edits modern React applications FOR END USERS.
-Use ONLY the tools listed below. Prefer either-line-replace for small, targeted edits.
+Use ONLY the tools listed below. Use either-edit for all file edits.
 
 TECHNOLOGY STACK (MANDATORY):
   - **React 18+** with functional components and hooks
@@ -214,10 +214,10 @@ ICONS AND VISUAL ELEMENTS (CRITICAL PRIORITY ORDER):
   For all UI elements, navigation, buttons, features: ALWAYS use real icons or SVG, NEVER emojis
 
 READ-BEFORE-WRITE DISCIPLINE (CRITICAL):
-  - When EDITING existing files: ALWAYS use either-view BEFORE either-line-replace
+  - When EDITING existing files: ALWAYS use either-view BEFORE either-edit
   - When CREATING new files: NO need to check if file exists - just use either-write
   - either-write will fail if file exists (safe), so don't pre-check with either-view
-  - Use the needle parameter in either-line-replace to ensure you're editing the right lines
+  - either-edit reads files server-side (no token cost), but you still need context
   - Performance: Avoid unnecessary reads - only read files you're about to modify
 
 For execution:
@@ -234,7 +234,7 @@ For execution:
 Determinism:
   - Default temperature low (0.2); fix seeds where supported.
   - Use the smallest change that works; avoid rewrites.
-  - Always prefer either-line-replace over either-write for existing files.
+  - Always prefer either-edit over either-write for existing files.
 
 Safety:
   - File operations restricted to allowed workspaces and globs.
@@ -835,11 +835,99 @@ Output contract:
   - When executing, emit parallel tool_use blocks grouped by task.
   - After tools, review diffs and summarize what changed and why.
 
+========================================
+TOKEN-EFFICIENT FILE OPERATIONS
+========================================
+
+CRITICAL: Minimize token costs with these strategies:
+
+1. SEARCH FIRST, READ STRATEGICALLY
+   ❌ BAD: Read every file to find what you need
+   ✅ GOOD: Use either-search-files first, then read only relevant files
+
+2. USE MODES FOR DIFFERENT NEEDS
+   either-view modes:
+   - mode="summary" - File structure only (imports, functions) - 90-95% token savings
+   - mode="range" - Specific lines (start_line, end_line) - 80-95% savings
+   - mode="context" - Lines with context (line_numbers, context_lines) - 70-90% savings
+   - mode="full" - Complete file (use only for small files < 100 lines)
+
+3. MAKE COMPREHENSIVE EDITS, NOT PIECEMEAL CHANGES (CRITICAL!)
+   When editing a file, make ONE comprehensive edit that includes ALL changes:
+
+   Example for "change all colors to green":
+   ✅ CORRECT: ONE either-edit that replaces entire file/component with ALL colors changed
+   ❌ WRONG: 19 separate either-edit calls (one per color instance)
+
+   How to do it:
+   1. Read file with either-view
+   2. Make ONE either-edit call that replaces the entire component/section
+   3. Include ALL changes in that one edit (all color changes, all text changes, etc.)
+
+   Benefits:
+   - Fewer tool calls = faster execution
+   - No risk of conflicting edits
+   - Easier to review changes
+   - More token efficient
+
+   NEVER make multiple edits to the same file unless you're editing different, non-overlapping sections!
+
+4. USE EITHER-EDIT FOR COMPREHENSIVE CHANGES
+   When changing multiple things in a file (like colors), replace the ENTIRE relevant section:
+
+   ✅ CORRECT for "change all colors to green":
+   either-edit: {
+     path: "src/App.jsx",
+     operation: "replace",
+     locator: { start_line: 1, end_line: 200 },  // Replace entire component
+     content: "... full component code with ALL colors changed to green ..."
+   }
+
+   ❌ WRONG:
+   either-edit for line 10
+   either-edit for line 15
+   either-edit for line 20
+   ... 19 separate calls
+
+5. USE ELLIPSIS PATTERN FOR LARGE EDITS
+   When editing large files, use content_format="ellipsis":
+
+   ✅ GOOD (saves 70-80% tokens):
+   either-edit: {
+     path: "src/App.jsx",
+     operation: "replace",
+     locator: { start_line: 45, end_line: 50 },
+     content: \`// ... existing code ...
+
+     // <CHANGE> Updated button color
+     <button className="bg-blue-500">Login</button>
+
+     // ... existing code ...\`,
+     content_format: "ellipsis",
+     return_context: "minimal"
+   }
+
+   CRITICAL: For replace operations, ALWAYS provide accurate start_line and end_line.
+   When replacing entire files, set end_line to the EXACT last line number (get from either-view).
+   Incorrect end_line causes content duplication bugs!
+
+5. USE either-list-files TO EXPLORE STRUCTURE
+   Before reading files, understand the project:
+   either-list-files: { path: "src", recursive: true, max_depth: 2 }
+   Token savings: 95% vs reading all files
+
+6. BATCH INDEPENDENT OPERATIONS
+   Read multiple files in parallel (one turn) when possible
+
+REMEMBER: You're judged on completing tasks efficiently, not showing content.
+ALWAYS prefer minimal context unless debugging is needed.
+
 Tools available:
-  - either-view: Read files (returns sha256, line_count, encoding)
+  - either-view: Read files with modes (summary/range/context/full for token efficiency)
   - either-search-files: Search code (supports regex, context lines)
-  - either-line-replace: Edit lines (returns unified diff, verifies with sha256)
-  - either-write: Create files (returns diff summary)
+  - either-list-files: List directory structure without reading content (95% token savings)
+  - either-edit: **Edit files** - Server-side processing. return_context="minimal" for best efficiency. Batch multiple edits in PARALLEL!
+  - either-write: Create new files
   - web_search: Search the web for up-to-date information (server-side, automatic citations)
   - eithergen--generate_image: Generate images (OpenAI/custom provider, saves to disk)`;
 
@@ -867,7 +955,7 @@ export class Agent {
   private systemPromptPrefix: string; // P1.5: Dynamic system prompt prefix
 
   // --- READ-before-WRITE enforcement constants ---
-  private static readonly WRITE_TOOLS = new Set(['either-line-replace', 'either-write']);
+  private static readonly WRITE_TOOLS = new Set(['either-edit', 'either-write']);
   private static readonly READ_TOOL = 'either-view';
 
   constructor(options: AgentOptions) {
@@ -998,6 +1086,22 @@ export class Agent {
       // Accumulate token usage
       totalInputTokens += response.usage.inputTokens;
       totalOutputTokens += response.usage.outputTokens;
+
+      // Check token cap to prevent runaway usage
+      const totalTokens = totalInputTokens + totalOutputTokens;
+      if (totalTokens > MAX_TOKENS_PER_REQUEST) {
+        const errorMsg = `⚠️  Token limit exceeded: ${totalTokens.toLocaleString()} / ${MAX_TOKENS_PER_REQUEST.toLocaleString()} tokens used. Stopping to prevent excessive costs.`;
+        console.warn(`[Agent] ${errorMsg}`);
+
+        // Add error message to conversation
+        this.conversationHistory.push({
+          role: 'assistant',
+          content: [{ type: 'text', text: errorMsg }],
+        });
+
+        // Return error with token usage stats
+        return `${errorMsg}\n\nToken breakdown:\n- Input: ${totalInputTokens.toLocaleString()}\n- Output: ${totalOutputTokens.toLocaleString()}\n- Total: ${totalTokens.toLocaleString()}`;
+      }
 
       // Record assistant response
       this.recorder.addEntry({
@@ -1139,25 +1243,22 @@ export class Agent {
         // Track new file operations this turn (for emitting)
         const newFileOpsThisTurn = new Map<string, 'create' | 'edit'>();
 
-        // Emit tool start events and execute tools
-        toolResults = [];
+        // CRITICAL: Emit events BEFORE executing tools, then execute ALL tools in ONE batch
+        // This allows tool-runner to serialize edits to the same file
+
+        // Step 1: Emit "creating/editing" events for all file operations
         for (const toolUse of toolUses) {
-          // Extract file path for file operation tools
           const filePath = (toolUse.input as any)?.path;
 
-          // Track file operations (deduplicate and determine correct operation type)
-          if (filePath && (toolUse.name === 'either-write' || toolUse.name === 'either-line-replace')) {
+          if (filePath && (toolUse.name === 'either-write' || toolUse.name === 'either-edit')) {
             // Determine operation: 'create' if new file, 'edit' if already exists
             let operation: 'create' | 'edit';
             if (filesCreatedThisRequest.has(filePath)) {
-              // File was created earlier in this request, so this is an edit
               operation = 'edit';
             } else if (toolUse.name === 'either-write') {
-              // either-write creates a new file
               operation = 'create';
               filesCreatedThisRequest.add(filePath);
             } else {
-              // either-line-replace edits existing file
               operation = 'edit';
             }
 
@@ -1166,16 +1267,16 @@ export class Agent {
               fileOpsThisRequest.set(filePath, operation);
               newFileOpsThisTurn.set(filePath, operation);
 
-              // Emit "Creating..." or "Editing..." message before execution
+              // Emit "Creating..." or "Editing..." message
               if (callbacks?.onFileOperation) {
-                await new Promise((resolve) => setTimeout(resolve, 200)); // Delay between file operations
+                await new Promise((resolve) => setTimeout(resolve, 200));
                 const progressiveState: 'creating' | 'editing' = operation === 'create' ? 'creating' : 'editing';
                 callbacks.onFileOperation(progressiveState, filePath);
               }
             }
           }
 
-          // Emit tool start (hidden for file operations, shown for others)
+          // Emit tool start (for non-file operations)
           if (callbacks?.onToolStart && !filePath) {
             callbacks.onToolStart({
               name: toolUse.name,
@@ -1183,22 +1284,26 @@ export class Agent {
               filePath,
             });
           }
+        }
 
-          // Execute single tool
-          const result = await this.toolRunner.executeTools([toolUse]);
-          toolResults.push(...result);
+        // Step 2: Execute ALL tools in ONE batch (enables serialization for same-file edits)
+        toolResults = await this.toolRunner.executeTools(toolUses);
 
-          // Emit "Created" or "Edited" message after execution (only for new operations)
+        // Step 3: Emit "created/edited" completion events
+        for (const toolUse of toolUses) {
+          const filePath = (toolUse.input as any)?.path;
+
+          // Emit "Created" or "Edited" message after execution
           if (filePath && newFileOpsThisTurn.has(filePath)) {
             if (callbacks?.onFileOperation) {
-              await new Promise((resolve) => setTimeout(resolve, 300)); // Delay before completion message
+              await new Promise((resolve) => setTimeout(resolve, 300));
               const operation = newFileOpsThisTurn.get(filePath);
               const completedState: 'created' | 'edited' = operation === 'create' ? 'created' : 'edited';
               callbacks.onFileOperation(completedState, filePath);
             }
           }
 
-          // Emit tool end (hidden for file operations, shown for others)
+          // Emit tool end (for non-file operations)
           if (callbacks?.onToolEnd && !filePath) {
             callbacks.onToolEnd({
               name: toolUse.name,
@@ -1247,6 +1352,19 @@ export class Agent {
         role: 'user',
         content: toolResults,
       });
+
+      // CRITICAL: Stop loop after file edits to prevent sequential editing
+      // Check if any file edit tools were executed
+      const hasFileEdits = toolUses.some(
+        (tu) => tu.name === 'either-edit' || tu.name === 'either-write'
+      );
+
+      if (hasFileEdits) {
+        // File edits detected - STOP loop to prevent sequential edits
+        console.log('[Agent] File edits detected - stopping loop to prevent sequential editing');
+        finalResponse = 'Files updated successfully.';
+        break;
+      }
 
       // If stop reason was end_turn, continue conversation
       if (response.stopReason === 'end_turn') {
@@ -1300,6 +1418,13 @@ export class Agent {
    */
   setDatabaseContext(fileStore: any, appId: string, sessionId?: string): void {
     this.toolRunner.setDatabaseContext(fileStore, appId, sessionId);
+  }
+
+  /**
+   * PHASE 0: Set file cache for token efficiency
+   */
+  setFileCache(fileCache: any): void {
+    this.toolRunner.setFileCache(fileCache);
   }
 
   /**
@@ -1425,10 +1550,21 @@ export class Agent {
    * preceding read for the same `path` within the same assistant turn.
    * Also returns the final list of tool_uses to execute (in order).
    */
+  /**
+   * PHASE 4: Token Efficiency - Inject reads before writes only if configured
+   *
+   * DEPRECATED: With either-edit tool, this is no longer necessary.
+   * The either-edit tool reads server-side (no token cost).
+   *
+   * Mostly disabled now - either-edit handles reads server-side.
+   */
   private injectReadBeforeWriteBlocks(contentBlocks: any[]): { contentBlocks: any[]; toolUses: ToolUse[] } {
     const out: any[] = [];
     const toolUsesCollected: ToolUse[] = [];
     const seenReadForPath = new Set<string>();
+
+    // PHASE 4: Check config flag - disable forced reads for token efficiency
+    const enableForcedRead = this.options.agentConfig?.policy?.forceReadBeforeWrite ?? false;
 
     const pushAndCollect = (blk: any) => {
       out.push(blk);
@@ -1453,13 +1589,14 @@ export class Agent {
         continue;
       }
 
-      // Before either-line-replace (EDIT), ensure we've read the target file
+      // Before either-edit (EDIT), ensure we've read the target file
+      // PHASE 4: Only inject if forceReadBeforeWrite is enabled
       // NO injection for either-write (CREATE) - it handles file existence checks internally
-      if (blk?.type === 'tool_use' && blk.name === 'either-line-replace') {
+      if (blk?.type === 'tool_use' && blk.name === 'either-edit') {
         const path = blk.input?.path;
 
-        if (typeof path === 'string' && path.length > 0 && !seenReadForPath.has(path)) {
-          // Inject a synthetic read tool_use directly before the edit
+        if (enableForcedRead && typeof path === 'string' && path.length > 0 && !seenReadForPath.has(path)) {
+          // Inject a synthetic read tool_use directly before the edit (legacy behavior)
           const injectedId = `enforcer-view-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
           const injected = {
             type: 'tool_use',
@@ -1471,8 +1608,8 @@ export class Agent {
           seenReadForPath.add(path);
         }
 
-        // Optionally annotate missing needle (soft warning)
-        if (!blk.input?.needle) {
+        // Optionally annotate missing needle (soft warning) - only if forced read is enabled
+        if (enableForcedRead && !blk.input?.needle) {
           blk.input = {
             ...blk.input,
             _enforcerWarning: 'No `needle` provided; injected a read to reduce risk.',
@@ -1514,7 +1651,7 @@ export class Agent {
     // Check HTML files for script/link references
     const htmlWrites = toolUses.filter(
       (tu) =>
-        (tu.name === 'either-write' || tu.name === 'either-line-replace') &&
+        (tu.name === 'either-write' || tu.name === 'either-edit') &&
         tu.input?.path?.toLowerCase().endsWith('.html'),
     );
 
@@ -1566,7 +1703,7 @@ export class Agent {
     // Check React/JSX/TSX files for import statements
     const reactWrites = toolUses.filter(
       (tu) =>
-        (tu.name === 'either-write' || tu.name === 'either-line-replace') &&
+        (tu.name === 'either-write' || tu.name === 'either-edit') &&
         (tu.input?.path?.endsWith('.jsx') ||
           tu.input?.path?.endsWith('.tsx') ||
           tu.input?.path?.endsWith('.js') ||
