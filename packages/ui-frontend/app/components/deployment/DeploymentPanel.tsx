@@ -326,19 +326,9 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
   };
 
   const getCurrentProviderResult = () => {
-    if (!deployResult) {
-      return {
-        provider: provider as DeployProvider,
-        siteUrl: 'https://example-site.netlify.app',
-        adminUrl: 'https://app.netlify.com/sites/example-site',
-      };
-    }
+    if (!deployResult) return null;
     if (deployResult.provider === provider) return deployResult;
-    return {
-      provider: provider as DeployProvider,
-      siteUrl: 'https://example-site.netlify.app',
-      adminUrl: 'https://app.netlify.com/sites/example-site',
-    };
+    return null;
   };
 
   const hasSuccessForCurrentProvider = () => {
