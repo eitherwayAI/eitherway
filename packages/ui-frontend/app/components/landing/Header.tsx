@@ -7,7 +7,7 @@ import { chatStore } from '~/lib/stores/chat';
 import styles from './Landing.module.scss';
 
 function HeaderContent() {
-  const { authenticated, login, logout, getDisplayName, ready } = usePrivyAuth();
+  const { authenticated, login, logout, connectWallet, getDisplayName, ready } = usePrivyAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const chatState = useStore(chatStore);
   const chatStarted = chatState?.started || false;
@@ -22,6 +22,11 @@ function HeaderContent() {
     } else {
       login();
     }
+  };
+
+  const handleBuyEither = () => {
+    // Use connectWallet to show only wallet options (no email/OAuth)
+    connectWallet();
   };
 
   useEffect(() => {
@@ -65,7 +70,7 @@ function HeaderContent() {
                 )}
               </nav>
 
-              <button className={styles['primary-button']} onClick={login}>
+              <button className={styles['primary-button']} onClick={handleBuyEither}>
                 <span className={styles['button-text']}>BUY $EITHER</span>
                 <div className={styles['button-overlay']}></div>
               </button>
@@ -105,7 +110,7 @@ function HeaderContent() {
             )}
           </nav>
           <div className={styles['mobile-wallet-section']}>
-            <button className={styles['mobile-buy-button']} onClick={login}>
+            <button className={styles['mobile-buy-button']} onClick={handleBuyEither}>
               BUY $EITHER
               <div className={styles['button-overlay']}></div>
             </button>

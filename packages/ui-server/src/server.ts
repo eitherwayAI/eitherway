@@ -111,13 +111,22 @@ try {
     await registerDeploymentRoutes(fastify, db, WORKSPACE_DIR);
     await registerBrandKitRoutes(fastify, db);
     await registerUploadRoutes(fastify, db);
-    await registerIPFSRoutes(fastify, db);
+
+    // IPFS routes are optional - only register if PINATA_JWT is configured
+    try {
+      await registerIPFSRoutes(fastify, db);
+      console.log('[IPFS] Routes registered successfully');
+    } catch (error) {
+      console.warn('⚠ IPFS routes not registered - PINATA_JWT not configured');
+    }
+
     await registerPrivyRoutes(fastify, db);
-    fastify.log.info('[IPFS] Routes registered successfully');
+    console.log('[Privy] Routes registered successfully');
   } else {
     console.log('⚠ Database not available - files will only be saved to filesystem');
   }
 } catch (error) {
+  console.error('❌ Error during route registration:', error);
   console.log('⚠ Database not configured - files will only be saved to filesystem');
 }
 

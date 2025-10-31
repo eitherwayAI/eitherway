@@ -11,6 +11,7 @@ export function usePrivyAuth() {
     user,
     login,
     logout,
+    connectWallet,
     linkEmail,
     linkWallet,
     unlinkEmail,
@@ -142,6 +143,7 @@ export function usePrivyAuth() {
     // Authentication methods
     login,
     logout,
+    connectWallet, // Opens wallet-only connection modal
 
     // Account linking methods
     linkEmail,

@@ -49,14 +49,14 @@ export function Menu() {
 
   // Get authenticated user info
   const user = useStore(authStore.user);
-  const { getUserIdentifier } = usePrivyAuth();
+  const { getUserIdentifier, authenticated } = usePrivyAuth();
   // Use Privy's user identification (email, wallet, or user ID)
   const userId = getUserIdentifier();
 
   const loadEntries = useCallback(async () => {
     try {
-      // Only load if user is authenticated
-      if (!userId) {
+      // Only load if user is actually authenticated (not just having a userId of "anonymous")
+      if (!authenticated || !userId || userId === 'anonymous') {
         console.log('No authenticated user, skipping history load');
         setList([]);
         return;
@@ -89,7 +89,7 @@ export function Menu() {
       console.error('Failed to load chat history:', error);
       toast.error('Failed to load chat history');
     }
-  }, [userId]);
+  }, [authenticated, userId]);
 
   const deleteItem = useCallback(
     async (event: React.UIEvent, item: ChatHistoryItem) => {

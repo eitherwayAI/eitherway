@@ -20,13 +20,25 @@ export class UsersRepository {
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    const result = await this.db.query<User>(
+    // First try to find in user_emails table (new Privy schema)
+    let result = await this.db.query<User>(
       `SELECT u.* FROM core.users u
        JOIN core.user_emails e ON u.id = e.user_id
        WHERE e.email = $1
        LIMIT 1`,
       [email],
     );
+
+    if (result.rows[0]) {
+      return result.rows[0];
+    }
+
+    // Fallback: check legacy email column for backwards compatibility
+    result = await this.db.query<User>(
+      `SELECT * FROM core.users WHERE email = $1 LIMIT 1`,
+      [email],
+    );
+
     return result.rows[0] ?? null;
   }
 
@@ -59,8 +71,8 @@ export class UsersRepository {
    * Find or create user by Privy user ID
    */
   async findOrCreateByPrivyId(privyUserId: string, displayName?: string): Promise<User> {
-    const result = await this.db.query<User>(
-      `SELECT * FROM core.find_or_create_user_by_privy_id($1, $2)`,
+    const result = await this.db.query<{ find_or_create_user_by_privy_id: string }>(
+      `SELECT core.find_or_create_user_by_privy_id($1, $2)`,
       [privyUserId, displayName ?? null],
     );
 
@@ -195,7 +207,13 @@ export class UsersRepository {
       return this.findByEmail(identifier);
     }
 
-    // Try as UUID (user ID)
-    return this.findById(identifier);
+    // Try as UUID (user ID) - validate format first
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(identifier)) {
+      return this.findById(identifier);
+    }
+
+    // Unknown identifier format
+    return null;
   }
 }

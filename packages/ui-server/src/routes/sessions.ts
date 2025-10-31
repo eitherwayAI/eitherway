@@ -20,6 +20,7 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
   const appsRepo = new AppsRepository(db);
 
   // User lookup endpoint - does NOT count against rate limits
+  // Accepts email, wallet address, Privy ID, or user ID
   fastify.get<{
     Querystring: { email: string };
   }>('/api/users', async (request, reply) => {
@@ -29,7 +30,18 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
       return reply.code(400).send({ error: 'email is required' });
     }
 
-    const user = await usersRepo.findOrCreate(email);
+    // Try to find user by any identifier
+    let user = await usersRepo.findByAnyIdentifier(email);
+
+    // If not found and it looks like an email, create new user
+    if (!user && email.includes('@')) {
+      user = await usersRepo.findOrCreate(email);
+    }
+
+    if (!user) {
+      return reply.code(404).send({ error: 'User not found' });
+    }
+
     return user;
   });
 
@@ -38,7 +50,21 @@ export async function registerSessionRoutes(fastify: FastifyInstance, db: Databa
   }>('/api/sessions', async (request, reply) => {
     const { email, title } = request.body;
 
-    const user = await usersRepo.findOrCreate(email);
+    // Try to find user by any identifier (email, wallet, Privy ID, or user ID)
+    let user = await usersRepo.findByAnyIdentifier(email);
+
+    // If not found and it looks like an email, create new user
+    if (!user && email.includes('@')) {
+      user = await usersRepo.findOrCreate(email);
+    }
+
+    // If still no user, return error
+    if (!user) {
+      return reply.code(400).send({
+        error: 'User not found',
+        message: 'Please authenticate with Privy first',
+      });
+    }
 
     // Rate limiting disabled for local testing
     // const rateLimitCheck = await rateLimiter.checkSessionCreation(user.id);

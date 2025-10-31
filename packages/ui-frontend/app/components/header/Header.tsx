@@ -14,7 +14,7 @@ import { BrandKitPanel } from '~/components/brand-kit/BrandKitPanel';
 
 export function Header() {
   const chat = useStore(chatStore);
-  const { authenticated, login, logout, getDisplayName, getUserIdentifier, formatAddress } = usePrivyAuth();
+  const { authenticated, login, logout, connectWallet, getDisplayName, getUserIdentifier, formatAddress } = usePrivyAuth();
   const isAppReady = useStore(workbenchStore.isAppReadyForDeploy);
   const previews = useStore(workbenchStore.previews);
   const user = useStore(authStore.user);
@@ -34,6 +34,11 @@ export function Header() {
     } else {
       login();
     }
+  };
+
+  const handleBuyEither = () => {
+    // Use connectWallet to show only wallet options (no email/OAuth)
+    connectWallet();
   };
 
   console.log('Header - chat.started:', chat.started);
@@ -184,7 +189,7 @@ export function Header() {
                 <button
                   className="w-full px-6 py-3 rounded-2xl text-sm font-medium bg-[#0D00FF] text-white transition-colors relative overflow-hidden"
                   onClick={() => {
-                    login();
+                    handleBuyEither();
                     setIsBurgerOpen(false);
                   }}
                 >

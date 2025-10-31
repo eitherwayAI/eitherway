@@ -1,5 +1,6 @@
 import { PrivyProvider } from '@privy-io/react-auth';
 import React from 'react';
+import { PrivyUserSync } from './PrivyUserSync';
 
 interface PrivyAuthProviderProps {
   children: React.ReactNode;
@@ -116,6 +117,7 @@ export function PrivyAuthProvider({ children }: PrivyAuthProviderProps) {
         ],
       }}
     >
+      <PrivyUserSync />
       {children}
     </PrivyProvider>
   );
