@@ -9,7 +9,7 @@ import { chatStore } from '~/lib/stores/chat';
 import { authStore } from '~/lib/stores/auth';
 import { brandKitStore } from '~/lib/stores/brandKit';
 import { workbenchStore } from '~/lib/stores/workbench';
-import { useWalletConnection } from '~/lib/web3/hooks';
+import { usePrivyAuth } from '~/lib/privy/hooks';
 import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger } from '~/utils/logger';
 import { streamFromWebSocket, type StreamController } from '~/utils/websocketClient';
@@ -511,10 +511,10 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
 
   const { showChat } = useStore(chatStore);
   const user = useStore(authStore.user);
-  const { isConnected, address } = useWalletConnection();
+  const { getEmail, getWalletAddress, getUserIdentifier } = usePrivyAuth();
 
-  // Prioritize wallet address (email auth is mostly mock)
-  const userId = (isConnected && address ? address : user?.email) || null;
+  // Use Privy's user identification (email, wallet, or user ID)
+  const userId = getUserIdentifier();
 
   useEffect(() => {
     console.log('Chat.client - setting chatStarted to:', chatStarted);
@@ -782,7 +782,7 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
       // MATCH MAIN BRANCH BEHAVIOR: Clear session for first message to start fresh
       // This ensures each new app request gets a clean workspace
       if (messages.length === 0 || !chatStarted) {
-        clearSession();
+        clearSession(userId);
         console.log('🆕 [Chat] Starting fresh session for new conversation');
       }
 
@@ -817,7 +817,7 @@ export const ChatImpl = memo(({ initialMessages, files, sessionTitle, sessionId,
       } else {
         // New conversation - create new session
         if (messages.length === 0 || !chatStarted) {
-          clearSession();
+          clearSession(userId);
           logger.info('🆕 Starting fresh session for new conversation');
         }
 

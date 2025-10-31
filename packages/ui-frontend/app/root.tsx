@@ -6,7 +6,7 @@ import { themeStore } from './lib/stores/theme';
 import { stripIndents } from './utils/stripIndent';
 import { createHead } from 'remix-island';
 import { useEffect } from 'react';
-import { Web3Provider } from './lib/web3/Web3Provider';
+import { PrivyAuthProvider } from './lib/privy/PrivyAuthProvider';
 
 import reactToastifyStyles from 'react-toastify/dist/ReactToastify.css?url';
 import globalStyles from './styles/index.scss?url';
@@ -123,8 +123,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <Web3Provider>
+    <PrivyAuthProvider>
       <Outlet />
-    </Web3Provider>
+    </PrivyAuthProvider>
   );
 }

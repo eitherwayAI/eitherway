@@ -244,8 +244,9 @@ function convertToFileNodes(files: FileData[]): any[] {
 /**
  * Clear the current session from localStorage
  * Also resets server state and clears WebContainer files (without teardown to preserve port listeners)
+ * @param userId - Optional user identifier for archiving brand kits. If not provided, brand kit archival will be skipped.
  */
-export function clearSession() {
+export function clearSession(userId?: string) {
   const currentSessionId = localStorage.getItem('currentSessionId');
   console.log('🧹 [Session Persistence] Clearing session:', currentSessionId || '(no session)');
   localStorage.removeItem('currentSessionId');
@@ -253,8 +254,6 @@ export function clearSession() {
 
   // Archive active brand kits on backend to prevent old assets from appearing in new session
   console.log('🧹 [Session Persistence] Archiving active brand kits...');
-  const walletAddress = typeof window !== 'undefined' ? localStorage.getItem('walletAddress') : null;
-  const userId = walletAddress || 'user@eitherway.app';
 
   if (userId) {
     fetch(`${BACKEND_URL}/api/brand-kits/user/${encodeURIComponent(userId)}/archive-active`, {

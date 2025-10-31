@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { classNames } from '~/utils/classNames';
 import { Messages } from './Messages.client';
 import { SendButton } from './SendButton.client';
-import { useWalletConnection } from '~/lib/web3/hooks';
+import { usePrivyAuth } from '~/lib/privy/hooks';
 import { ContentBlock1 } from '~/components/landing/ContentBlock1';
 import { PricingBlock } from '~/components/landing/PricingBlock';
 import { FaqBlock } from '~/components/landing/FaqBlockBlue';
@@ -86,8 +86,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     },
     ref,
   ) => {
-    const { isConnected } = useWalletConnection();
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const { authenticated } = usePrivyAuth();
     const [showAuthDialog, setShowAuthDialog] = useState(false);
     const [pendingMessage, setPendingMessage] = useState<string | null>(null);
     const [brandAssets, setBrandAssets] = useState<BrandAsset[]>([]);
@@ -95,41 +94,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const TEXTAREA_MAX_HEIGHT = chatStarted ? 400 : 200;
     console.log(chatStarted);
 
-    const isPasswordVerified = () => {
-      if (typeof window === 'undefined') {
-        return false;
-      }
-
-      if (!isConnected) {
-        return false;
-      }
-
-      const savedPassword = localStorage.getItem('daily_password_verified');
-
-      if (!savedPassword) {
-        return false;
-      }
-
-      try {
-        const { timestamp } = JSON.parse(savedPassword);
-        const now = new Date().getTime();
-        const sevenDays = 7 * 24 * 60 * 60 * 1000;
-
-        if (now - timestamp > sevenDays) {
-          localStorage.removeItem('daily_password_verified');
-          return false;
-        }
-
-        return true;
-      } catch {
-        localStorage.removeItem('daily_password_verified');
-        return false;
-      }
-    };
-
     const handleAuthenticated = (message?: string) => {
-      setIsAuthenticated(true);
-
       if (message && sendMessage) {
         const fakeEvent = {} as React.UIEvent;
         sendMessage(fakeEvent, message);
@@ -137,7 +102,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       }
     };
 
-    const isUserAuthenticated = isAuthenticated || isPasswordVerified();
+    // Use Privy's authenticated state directly
+    const isUserAuthenticated = authenticated;
 
     const fetchBrandAssets = async () => {
       const { pendingBrandKitId } = brandKitStore.get();
@@ -203,16 +169,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       window.addEventListener('brand-kit-updated', handleBrandKitUpdate);
       return () => window.removeEventListener('brand-kit-updated', handleBrandKitUpdate);
     }, [chatStarted]);
-
-    useEffect(() => {
-      if (!isConnected) {
-        localStorage.removeItem('daily_password_verified');
-        setIsAuthenticated(false);
-      } else if (isConnected && !isUserAuthenticated && pendingMessage) {
-        // wallet connected but not authenticated, reopen dialog for password
-        setShowAuthDialog(true);
-      }
-    }, [isConnected, isUserAuthenticated, pendingMessage]);
 
     return (
       <div

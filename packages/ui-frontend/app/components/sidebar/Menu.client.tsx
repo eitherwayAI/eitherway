@@ -13,7 +13,7 @@ import { sidebarStore, openSidebar, closeSidebar } from '~/lib/stores/sidebar';
 import { clearSession } from '~/utils/sessionManager';
 import { BACKEND_URL } from '~/config/api';
 import { authStore } from '~/lib/stores/auth';
-import { useWalletConnection } from '~/lib/web3/hooks';
+import { usePrivyAuth } from '~/lib/privy/hooks';
 
 const menuVariants = {
   closed: {
@@ -49,9 +49,9 @@ export function Menu() {
 
   // Get authenticated user info
   const user = useStore(authStore.user);
-  const { isConnected, address } = useWalletConnection();
-  // Prioritize wallet address (email auth is mostly mock)
-  const userId = (isConnected && address ? address : user?.email) || null;
+  const { getUserIdentifier } = usePrivyAuth();
+  // Use Privy's user identification (email, wallet, or user ID)
+  const userId = getUserIdentifier();
 
   const loadEntries = useCallback(async () => {
     try {
@@ -172,7 +172,7 @@ export function Menu() {
           <button
             onClick={() => {
               // Clear session to start fresh conversation
-              clearSession();
+              clearSession(userId);
               // Navigate to chat page
               window.location.href = '/chat';
             }}
