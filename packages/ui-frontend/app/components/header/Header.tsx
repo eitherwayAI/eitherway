@@ -7,14 +7,14 @@ import { workbenchStore } from '~/lib/stores/workbench';
 import { authStore } from '~/lib/stores/auth';
 import { classNames } from '~/utils/classNames';
 import { HeaderActionButtons } from './HeaderActionButtons.client';
-import { useWalletConnection } from '~/lib/web3/hooks';
+import { usePrivyAuth } from '~/lib/privy/hooks';
 import { Dialog, DialogRoot } from '~/components/ui/Dialog';
 import { DeploymentPanel } from '~/components/deployment/DeploymentPanel';
 import { BrandKitPanel } from '~/components/brand-kit/BrandKitPanel';
 
 export function Header() {
   const chat = useStore(chatStore);
-  const { connectWallet, isConnected, address, formatAddress, disconnectWallet } = useWalletConnection();
+  const { authenticated, login, logout, getDisplayName, getUserIdentifier, formatAddress } = usePrivyAuth();
   const isAppReady = useStore(workbenchStore.isAppReadyForDeploy);
   const previews = useStore(workbenchStore.previews);
   const user = useStore(authStore.user);
@@ -23,10 +23,18 @@ export function Header() {
   const [showBrandKitPanel, setShowBrandKitPanel] = useState(false);
   const [deployPanelTab, setDeployPanelTab] = useState<'deploy' | 'download'>('deploy');
 
-  // Use wallet address as primary identifier (email auth is mostly mock)
-  const userId = (isConnected && address ? address : user?.email) || null;
+  // Use Privy's user identification
+  const userId = getUserIdentifier();
   const sessionId = chat.sessionId || userId || 'demo-session';
   const appId = chat.sessionId || 'demo-app-' + Date.now();
+
+  const handleAuthClick = () => {
+    if (authenticated) {
+      logout();
+    } else {
+      login();
+    }
+  };
 
   console.log('Header - chat.started:', chat.started);
 
@@ -67,9 +75,9 @@ export function Header() {
             {() => (
               <button
                 className="px-6 py-2 rounded-2xl text-sm border bg-eitherway-elements-background-depth-1 text-eitherway-elements-textPrimary border-eitherway-elements-borderColor"
-                onClick={isConnected ? disconnectWallet : connectWallet}
+                onClick={handleAuthClick}
               >
-                {isConnected && address ? formatAddress(address) : 'CONNECT WALLET'}
+                {authenticated ? getDisplayName() : 'SIGN IN'}
               </button>
             )}
           </ClientOnly>
@@ -117,23 +125,36 @@ export function Header() {
                   Documentation
                 </a>
 
-                <div className="flex flex-col gap-3 min-[900px]:hidden">
-                  <ClientOnly>
-                    {() => (
+                <ClientOnly>
+                  {() => (
+                    authenticated ? (
                       <button
-                        className="w-full px-6 py-3 rounded-2xl text-sm font-medium border bg-eitherway-elements-background-depth-1 text-eitherway-elements-textPrimary border-eitherway-elements-borderColor hover:bg-eitherway-elements-item-backgroundActive transition-colors"
+                        className="w-full px-6 py-3 rounded-2xl text-sm font-medium border border-eitherway-elements-borderColor text-center bg-black text-white hover:bg-[#0B00E6] transition-colors"
                         onClick={() => {
-                          if (isConnected) {
-                            disconnectWallet();
-                          } else {
-                            connectWallet();
-                          }
-
+                          handleAuthClick();
                           setIsBurgerOpen(false);
                         }}
                       >
-                        {isConnected && address ? formatAddress(address) : 'CONNECT WALLET'}
+                        {getDisplayName()} (Sign Out)
                       </button>
+                    ) : (
+                      <button
+                        className="w-full px-6 py-3 rounded-2xl text-sm font-medium border border-eitherway-elements-borderColor text-center bg-black text-white hover:bg-[#0B00E6] transition-colors"
+                        onClick={() => {
+                          handleAuthClick();
+                          setIsBurgerOpen(false);
+                        }}
+                      >
+                        Sign In
+                      </button>
+                    )
+                  )}
+                </ClientOnly>
+
+                <div className="flex flex-col gap-3 min-[900px]:hidden">
+                  <ClientOnly>
+                    {() => (
+                      <></>
                     )}
                   </ClientOnly>
                   <button
@@ -163,7 +184,7 @@ export function Header() {
                 <button
                   className="w-full px-6 py-3 rounded-2xl text-sm font-medium bg-[#0D00FF] text-white transition-colors relative overflow-hidden"
                   onClick={() => {
-                    connectWallet();
+                    login();
                     setIsBurgerOpen(false);
                   }}
                 >

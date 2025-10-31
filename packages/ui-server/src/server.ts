@@ -27,6 +27,7 @@ import { registerAppRoutes } from './routes/apps.js';
 import { registerBrandKitRoutes } from './routes/brand-kits.js';
 import { registerUploadRoutes } from './routes/uploads.js';
 import { registerIPFSRoutes } from './routes/ipfs.js';
+import { registerPrivyRoutes } from './routes/privy.js';
 import { constants } from 'fs';
 import { randomUUID } from 'crypto';
 import { StreamEvents, createEventSender } from './events/index.js';
@@ -111,6 +112,7 @@ try {
     await registerBrandKitRoutes(fastify, db);
     await registerUploadRoutes(fastify, db);
     await registerIPFSRoutes(fastify, db);
+    await registerPrivyRoutes(fastify, db);
     fastify.log.info('[IPFS] Routes registered successfully');
   } else {
     console.log('⚠ Database not available - files will only be saved to filesystem');

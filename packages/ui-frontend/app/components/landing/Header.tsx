@@ -1,4 +1,4 @@
-import { useWalletConnection } from '~/lib/web3/hooks';
+import { usePrivyAuth } from '~/lib/privy/hooks';
 import { useState, useEffect } from 'react';
 import { Menu } from '~/components/sidebar/Menu.client';
 import { ClientOnly } from 'remix-utils/client-only';
@@ -7,13 +7,21 @@ import { chatStore } from '~/lib/stores/chat';
 import styles from './Landing.module.scss';
 
 function HeaderContent() {
-  const { connectWallet } = useWalletConnection();
+  const { authenticated, login, logout, getDisplayName, ready } = usePrivyAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const chatState = useStore(chatStore);
   const chatStarted = chatState?.started || false;
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
+  const handleAuthClick = () => {
+    if (authenticated) {
+      logout();
+    } else {
+      login();
+    }
   };
 
   useEffect(() => {
@@ -46,9 +54,18 @@ function HeaderContent() {
                 >
                   Documentation
                 </a>
+                {authenticated ? (
+                  <button onClick={handleAuthClick} className={styles['navbar-link']}>
+                    {getDisplayName()}
+                  </button>
+                ) : (
+                  <button onClick={handleAuthClick} className={styles['navbar-link']}>
+                    Sign In
+                  </button>
+                )}
               </nav>
 
-              <button className={styles['primary-button']} onClick={connectWallet}>
+              <button className={styles['primary-button']} onClick={login}>
                 <span className={styles['button-text']}>BUY $EITHER</span>
                 <div className={styles['button-overlay']}></div>
               </button>
@@ -77,13 +94,18 @@ function HeaderContent() {
             >
               Documentation
             </a>
+            {authenticated ? (
+              <button onClick={handleAuthClick} className={styles['mobile-nav-item']}>
+                {getDisplayName()} (Sign Out)
+              </button>
+            ) : (
+              <button onClick={handleAuthClick} className={styles['mobile-nav-item']}>
+                Sign In
+              </button>
+            )}
           </nav>
           <div className={styles['mobile-wallet-section']}>
-            <button className={styles['mobile-wallet-button']} onClick={connectWallet}>
-              Connect Wallet
-              <div className={styles['button-overlay']}></div>
-            </button>
-            <button className={styles['mobile-buy-button']} onClick={connectWallet}>
+            <button className={styles['mobile-buy-button']} onClick={login}>
               BUY $EITHER
               <div className={styles['button-overlay']}></div>
             </button>

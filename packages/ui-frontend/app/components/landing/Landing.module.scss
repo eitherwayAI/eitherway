@@ -135,6 +135,9 @@
         height: 56px;
         text-decoration: none;
         transition: all 0.2s ease;
+        background: transparent;
+        border: none;
+        cursor: pointer;
 
         &:hover {
           background: rgba(255, 255, 255, 0.05);
@@ -149,8 +152,9 @@
           width: 177px;
         }
 
-        &:last-child {
-          width: 154px;
+        &:nth-child(3) {
+          width: auto;
+          min-width: 100px;
         }
 
         font-family: 'Montserrat', sans-serif;
@@ -286,6 +290,13 @@
       text-decoration: none;
       padding: 12px 0;
       border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+      background: transparent;
+      border-top: none;
+      border-left: none;
+      border-right: none;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
 
       &:last-child {
         border-bottom: none;
