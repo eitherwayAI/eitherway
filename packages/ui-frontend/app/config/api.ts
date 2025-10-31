@@ -11,9 +11,10 @@ export function getBackendUrl(): string {
 
   // Client-side: check if we're on localhost development
   const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const isDevPort = window.location.port === '5173' || window.location.port === '5174';
 
-  if (isDevelopment && window.location.port === '5173') {
-    // Local development: frontend on 5173, backend on 3001
+  if (isDevelopment && isDevPort) {
+    // Local development: frontend on 5173/5174, backend on 3001
     return 'https://localhost:3001';
   }
 
@@ -27,8 +28,9 @@ export function getWebSocketUrl(): string {
   }
 
   const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const isDevPort = window.location.port === '5173' || window.location.port === '5174';
 
-  if (isDevelopment && window.location.port === '5173') {
+  if (isDevelopment && isDevPort) {
     return 'wss://localhost:3001';
   }
 

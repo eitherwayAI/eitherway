@@ -22,20 +22,35 @@ export const AssistantMessage = memo(
     fileOperations = [],
     tokenUsage = null,
   }: AssistantMessageProps) => {
+    // Check if content is empty (waiting for first chunk from AI)
+    const hasNoContent = !content || content.trim().length === 0;
+    // Show thinking loader only when streaming, no content, and no phase yet (before "Working..." appears)
+    const showThinkingLoader = isStreaming && hasNoContent && !phase;
+
     return (
-      <div className="overflow-hidden w-full">
-        {/* Streaming indicators - phase, reasoning, file operations, token usage */}
-        <StreamingIndicators
-          phase={phase}
-          reasoningText={reasoningText}
-          thinkingDuration={thinkingDuration}
-          fileOperations={fileOperations}
-          tokenUsage={tokenUsage}
-          isStreaming={isStreaming}
-        />
+      <div className={`overflow-hidden w-full relative `}>
+        {/* Thinking message - show when streaming but no content yet */}
+        {showThinkingLoader && (
+          <div className="flex items-center gap-2 px-3 py-2 mb-3 bg-black/30 border border-white/10 rounded-lg text-sm">
+            <div className="i-ph:plug text-blue-400 text-lg animate-pulse" />
+            <span className="text-white/90 font-medium">Connecting...</span>
+          </div>
+        )}
+
+        {/* Streaming indicators - phase, reasoning, file operations, token usage - hide when showing connecting */}
+        {!showThinkingLoader && (
+          <StreamingIndicators
+            phase={phase}
+            reasoningText={reasoningText}
+            thinkingDuration={thinkingDuration}
+            fileOperations={fileOperations}
+            tokenUsage={tokenUsage}
+            isStreaming={isStreaming}
+          />
+        )}
 
         {/* Main message content */}
-        <Markdown html>{content}</Markdown>
+        {!showThinkingLoader && <Markdown html>{content}</Markdown>}
 
         {/* Streaming progress bar */}
         {isStreaming && (

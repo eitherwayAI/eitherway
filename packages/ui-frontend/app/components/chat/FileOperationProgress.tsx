@@ -46,7 +46,7 @@ export const FileOperationProgress = memo(({ operations }: FileOperationProgress
   const displayOperations = Object.values(latestOperations).slice(-5); // Show last 5 files
 
   return (
-    <div className="flex flex-col gap-1.5 px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-sm max-w-md">
+    <div className="flex flex-col gap-1.5 w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-sm">
       <div className="text-white/70 text-xs font-medium mb-1">File Operations</div>
       {displayOperations.map((op, index) => {
         const config = operationConfig[op.operation as keyof typeof operationConfig] || {

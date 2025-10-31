@@ -529,8 +529,8 @@ export const Preview = memo(() => {
                 <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-10">
                   <div className="flex flex-col gap-4 items-center">
                     <div className="relative w-12 h-12">
-                      <div className="absolute inset-0 border-4 border-white/20 rounded-full"></div>
-                      <div className="absolute inset-0 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
+                      <div className="absolute inset-0 border-4 border-blue-500 rounded-full"></div>
+                      <div className="absolute inset-0 border-4 border-black rounded-full border-t-transparent animate-spin"></div>
                     </div>
                     <div className="text-white font-medium">
                       {currentPhase === 'code-writing' ? 'Generating code...' : 'Building preview...'}
@@ -544,9 +544,18 @@ export const Preview = memo(() => {
           <div className="flex flex-col gap-6 w-full h-full justify-center items-center p-8 text-center">
             {buildStatus === 'building' ? (
               <>
-                <div className="relative w-16 h-16">
-                  <div className="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
-                  <div className="absolute inset-0 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
+                <div className="relative w-32 h-32">
+                  <div className="absolute inset-0 border-4 border-white/20 border-t-[#0d00ff] rounded-full animate-spin"></div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <img
+                      src="/logonobg.svg"
+                      alt="Eitherway"
+                      className="w-24 h-24"
+                      style={{
+                        animation: 'loader-logo 6s ease-in-out infinite',
+                      }}
+                    />
+                  </div>
                 </div>
                 <div className="flex flex-col gap-2">
                   <div className="font-righteous text-[20px] leading-[100%] text-white">{buildMessage}</div>
@@ -576,6 +585,43 @@ export const Preview = memo(() => {
           </div>
         )}
       </div>
+      <style>{`
+        @keyframes loader-logo {
+          0% {
+            transform: scale(1) rotate(0deg);
+          }
+          10% {
+            transform: scale(1.1) rotate(0deg);
+          }
+          20% {
+            transform: scale(1) rotate(0deg);
+          }
+          30% {
+            transform: scale(1.1) rotate(0deg);
+          }
+          40% {
+            transform: scale(1) rotate(0deg);
+          }
+          50% {
+            transform: scale(1) rotate(180deg);
+          }
+          60% {
+            transform: scale(1.1) rotate(180deg);
+          }
+          70% {
+            transform: scale(1) rotate(180deg);
+          }
+          80% {
+            transform: scale(1.1) rotate(180deg);
+          }
+          90% {
+            transform: scale(1) rotate(180deg);
+          }
+          100% {
+            transform: scale(1) rotate(360deg);
+          }
+        }
+      `}</style>
     </div>
   );
 });

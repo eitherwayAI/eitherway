@@ -458,6 +458,7 @@ export function Chat() {
         />
       )}
       <ToastContainer
+        autoClose={false}
         closeButton={({ closeToast }) => {
           return (
             <button className="Toastify__close-button" onClick={closeToast}>

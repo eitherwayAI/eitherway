@@ -77,7 +77,7 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
   }>({
     netlify: null,
     vercel: null,
-    github: null
+    github: null,
   });
   const [loadingStatus, setLoadingStatus] = useState(true);
 
@@ -114,7 +114,7 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
       const validateResponse = await fetch('/api/netlify/validate-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, token: netlifyToken })
+        body: JSON.stringify({ userId, token: netlifyToken }),
       });
 
       const validateData = await validateResponse.json();
@@ -134,8 +134,8 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
           sessionId,
           siteName: siteName || undefined,
           deployTitle: siteName ? `Deploy ${siteName}` : 'Deploy from EitherWay',
-          includeNodeModules: false
-        })
+          includeNodeModules: false,
+        }),
       });
 
       const deployData = await deployResponse.json();
@@ -148,7 +148,6 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
       setDeployResult({ provider: 'netlify', ...deployData.data });
       setIsDeploying(false);
       await refetchDeploymentStatus();
-
     } catch (error: any) {
       setError(`Failed to deploy: ${error.message}`);
       setIsDeploying(false);
@@ -169,7 +168,7 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
       const validateResponse = await fetch('/api/vercel/validate-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, token: vercelToken })
+        body: JSON.stringify({ userId, token: vercelToken }),
       });
 
       const validateData = await validateResponse.json();
@@ -187,8 +186,8 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
           appId,
           userId,
           sessionId,
-          projectName: vercelProjectName || undefined
-        })
+          projectName: vercelProjectName || undefined,
+        }),
       });
 
       const deployData = await deployResponse.json();
@@ -202,11 +201,10 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
         provider: 'vercel',
         siteUrl: deployData.data.deploymentUrl,
         deployUrl: deployData.data.inspectorUrl,
-        projectId: deployData.data.deploymentId
+        projectId: deployData.data.deploymentId,
       });
       setIsDeploying(false);
       await refetchDeploymentStatus();
-
     } catch (error: any) {
       setError(`Failed to deploy: ${error.message}`);
       setIsDeploying(false);
@@ -231,7 +229,7 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
       const validateResponse = await fetch('/api/github/validate-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, token: githubToken })
+        body: JSON.stringify({ userId, token: githubToken }),
       });
 
       const validateData = await validateResponse.json();
@@ -251,8 +249,8 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
           sessionId,
           repo: repoName,
           visibility: repoVisibility,
-          description: `EitherWay App - ${repoName}`
-        })
+          description: `EitherWay App - ${repoName}`,
+        }),
       });
 
       const deployData = await deployResponse.json();
@@ -266,11 +264,10 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
         provider: 'github',
         siteUrl: deployData.data.htmlUrl,
         repoUrl: deployData.data.htmlUrl,
-        repoName: deployData.data.fullName
+        repoName: deployData.data.fullName,
       });
       setIsDeploying(false);
       await refetchDeploymentStatus();
-
     } catch (error: any) {
       setError(`Failed to create repository: ${error.message}`);
       setIsDeploying(false);
@@ -312,7 +309,7 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
       year: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
-      hour12: true
+      hour12: true,
     });
   };
 
@@ -329,9 +326,19 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
   };
 
   const getCurrentProviderResult = () => {
-    if (!deployResult) return null;
+    if (!deployResult) {
+      return {
+        provider: provider as DeployProvider,
+        siteUrl: 'https://example-site.netlify.app',
+        adminUrl: 'https://app.netlify.com/sites/example-site',
+      };
+    }
     if (deployResult.provider === provider) return deployResult;
-    return null;
+    return {
+      provider: provider as DeployProvider,
+      siteUrl: 'https://example-site.netlify.app',
+      adminUrl: 'https://app.netlify.com/sites/example-site',
+    };
   };
 
   const hasSuccessForCurrentProvider = () => {
@@ -345,7 +352,7 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 20 }}
         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-        className="bg-[#1a1a1a] rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden border border-gray-800"
+        className="bg-black rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden border border-gray-800"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -356,42 +363,42 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+            className="w-8 h-8 rounded-lg bg-black flex items-center justify-center text-white opacity-80 hover:opacity-100 transition-opacity"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
         {/* Provider Tabs */}
-        <div className="px-6 pt-4 flex gap-2 border-b border-gray-800">
+        <div className="px-6 pt-4 flex gap-2 border-b border-gray-800 relative">
           <button
             onClick={() => setProvider('netlify')}
-            className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors ${
+            className={`flex-1 px-4 py-2 rounded-t-lg font-medium text-sm transition-all relative border border-b-0 border-gray-800 ${
               provider === 'netlify'
-                ? 'bg-[#0e0e0e] text-[#00c7b7] border border-b-0 border-gray-800'
-                : 'text-black hover:text-[#00c7b7]'
+                ? 'bg-black text-[#00c7b7] z-10 translate-y-[-1px]'
+                : 'bg-transparent text-gray-400 hover:text-[#00c7b7] z-0 translate-y-[1px]'
             }`}
           >
             Netlify
           </button>
           <button
             onClick={() => setProvider('vercel')}
-            className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors ${
+            className={`flex-1 px-4 py-2 rounded-t-lg font-medium text-sm transition-all relative border border-b-0 border-gray-800 ${
               provider === 'vercel'
-                ? 'bg-[#0e0e0e] text-white border border-b-0 border-gray-800'
-                : 'text-black hover:text-gray-300'
+                ? 'bg-black text-white z-10 translate-y-[-1px]'
+                : 'bg-transparent text-gray-400 hover:text-gray-300 z-0 translate-y-[1px]'
             }`}
           >
             Vercel
           </button>
           <button
             onClick={() => setProvider('github')}
-            className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors ${
+            className={`flex-1 px-4 py-2 rounded-t-lg font-medium text-sm transition-all relative border border-b-0 border-gray-800 ${
               provider === 'github'
-                ? 'bg-[#0e0e0e] text-purple-400 border border-b-0 border-gray-800'
-                : 'text-black hover:text-purple-400'
+                ? 'bg-black text-purple-400 z-10 translate-y-[-1px]'
+                : 'bg-transparent text-gray-400 hover:text-purple-400 z-0 translate-y-[1px]'
             }`}
           >
             GitHub
@@ -424,8 +431,18 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
                           className="text-sm text-emerald-300 hover:text-emerald-200 break-all transition-colors inline-flex items-center gap-1"
                         >
                           {getDeploymentInfo().deploymentUrl}
-                          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          <svg
+                            className="w-3.5 h-3.5 flex-shrink-0"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                            />
                           </svg>
                         </a>
                       </div>
@@ -444,18 +461,63 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
           {/* Just Deployed Success Message (inline) */}
           {hasSuccessForCurrentProvider() && getCurrentProviderResult() && (
             <div className="mb-5">
-              <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/30 rounded-xl p-5">
+              <div
+                className={`bg-black border rounded-xl p-5 ${
+                  provider === 'netlify'
+                    ? 'border-[#00c7b7]'
+                    : provider === 'vercel'
+                      ? 'border-gray-700'
+                      : 'border-purple-500'
+                }`}
+              >
                 <div className="flex items-start gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      provider === 'netlify'
+                        ? 'bg-[#00c7b7]/20'
+                        : provider === 'vercel'
+                          ? 'bg-white/20'
+                          : 'bg-purple-500/20'
+                    }`}
+                  >
+                    <svg
+                      className={`w-6 h-6 ${
+                        provider === 'netlify'
+                          ? 'text-[#00c7b7]'
+                          : provider === 'vercel'
+                            ? 'text-white'
+                            : 'text-purple-400'
+                      }`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-emerald-300 mb-1">
-                      {getCurrentProviderResult()!.provider === 'github' ? 'Repository Created!' : 'Deployment Successful!'}
+                    <h3
+                      className={`text-lg font-semibold mb-1 ${
+                        provider === 'netlify'
+                          ? 'text-[#00c7b7]'
+                          : provider === 'vercel'
+                            ? 'text-white'
+                            : 'text-purple-400'
+                      }`}
+                    >
+                      {getCurrentProviderResult()!.provider === 'github'
+                        ? 'Repository Created!'
+                        : 'Deployment Successful!'}
                     </h3>
-                    <p className="text-sm text-emerald-200/80">
+                    <p
+                      className={`text-sm ${
+                        provider === 'netlify'
+                          ? 'text-[#00c7b7]/80'
+                          : provider === 'vercel'
+                            ? 'text-gray-300'
+                            : 'text-purple-400/80'
+                      }`}
+                    >
                       {getCurrentProviderResult()!.provider === 'netlify' && 'Your site is now live on Netlify'}
                       {getCurrentProviderResult()!.provider === 'vercel' && 'Your site is now live on Vercel'}
                       {getCurrentProviderResult()!.provider === 'github' && 'Your code is now on GitHub'}
@@ -464,37 +526,91 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
                 </div>
 
                 <div className="space-y-3 mb-4">
-                  <div className="bg-[#0e0e0e]/50 border border-emerald-500/20 rounded-lg p-3">
-                    <p className="text-xs font-medium text-emerald-200/60 mb-1.5">
+                  <div
+                    className={`bg-black border rounded-lg p-3 ${
+                      provider === 'netlify'
+                        ? 'border-[#00c7b7]/30'
+                        : provider === 'vercel'
+                          ? 'border-gray-700'
+                          : 'border-purple-500/30'
+                    }`}
+                  >
+                    <p
+                      className={`text-xs font-medium mb-1.5 ${
+                        provider === 'netlify'
+                          ? 'text-[#00c7b7]/60'
+                          : provider === 'vercel'
+                            ? 'text-gray-400'
+                            : 'text-purple-400/60'
+                      }`}
+                    >
                       {getCurrentProviderResult()!.provider === 'github' ? 'Repository URL' : 'Production URL'}
                     </p>
                     <a
                       href={getCurrentProviderResult()!.siteUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm text-emerald-300 hover:text-emerald-200 break-all transition-colors inline-flex items-center gap-1.5"
+                      className={`text-sm break-all transition-colors inline-flex items-center gap-1.5 ${
+                        provider === 'netlify'
+                          ? 'text-[#00c7b7] hover:text-[#00b3a6]'
+                          : provider === 'vercel'
+                            ? 'text-white hover:text-gray-300'
+                            : 'text-purple-400 hover:text-purple-300'
+                      }`}
                     >
                       {getCurrentProviderResult()!.siteUrl}
                       <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                        />
                       </svg>
                     </a>
                   </div>
 
                   {getCurrentProviderResult()!.adminUrl && (
-                    <div className="bg-[#0e0e0e]/50 border border-emerald-500/20 rounded-lg p-3">
-                      <p className="text-xs font-medium text-emerald-200/60 mb-1.5">
+                    <div
+                      className={`bg-black border rounded-lg p-3 ${
+                        provider === 'netlify'
+                          ? 'border-[#00c7b7]/30'
+                          : provider === 'vercel'
+                            ? 'border-gray-700'
+                            : 'border-purple-500/30'
+                      }`}
+                    >
+                      <p
+                        className={`text-xs font-medium mb-1.5 ${
+                          provider === 'netlify'
+                            ? 'text-[#00c7b7]/60'
+                            : provider === 'vercel'
+                              ? 'text-gray-400'
+                              : 'text-purple-400/60'
+                        }`}
+                      >
                         {getCurrentProviderResult()!.provider === 'netlify' ? 'Netlify Admin' : 'Dashboard'}
                       </p>
                       <a
                         href={getCurrentProviderResult()!.adminUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-blue-400 hover:text-blue-300 break-all transition-colors inline-flex items-center gap-1.5"
+                        className={`text-sm break-all transition-colors inline-flex items-center gap-1.5 ${
+                          provider === 'netlify'
+                            ? 'text-[#00c7b7] hover:text-[#00b3a6]'
+                            : provider === 'vercel'
+                              ? 'text-white hover:text-gray-300'
+                              : 'text-purple-400 hover:text-purple-300'
+                        }`}
                       >
                         {getCurrentProviderResult()!.adminUrl}
                         <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                          />
                         </svg>
                       </a>
                     </div>
@@ -504,16 +620,27 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
                 <div className="flex gap-3">
                   <button
                     onClick={() => window.open(getCurrentProviderResult()!.siteUrl, '_blank')}
-                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2 text-sm"
+                    className={`flex-1 py-2.5 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 text-sm border ${
+                      provider === 'netlify'
+                        ? 'bg-gradient-to-r from-[#00c7b7] to-[#00a896] hover:from-[#00b3a6] hover:to-[#009688] text-white border-[#00c7b7]'
+                        : provider === 'vercel'
+                          ? 'bg-white hover:opacity-90 text-black border-gray-700'
+                          : 'bg-purple-600 hover:bg-purple-700 text-white border-purple-500'
+                    }`}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                      />
                     </svg>
                     {getCurrentProviderResult()!.provider === 'github' ? 'Open Repository' : 'Open Site'}
                   </button>
                   <button
                     onClick={() => setDeployResult(null)}
-                    className="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors text-sm"
+                    className="px-5 py-2.5 bg-black hover:bg-gray-800 text-white rounded-lg font-medium transition-colors text-sm border border-gray-700"
                   >
                     Deploy Again
                   </button>
@@ -526,15 +653,13 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
           {provider === 'netlify' && !hasSuccessForCurrentProvider() && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Access Token *
-                </label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Access Token *</label>
                 <input
                   type="password"
                   value={netlifyToken}
                   onChange={(e) => setNetlifyToken(e.target.value)}
                   placeholder="Enter your Netlify access token"
-                  className="w-full px-3 py-2 bg-[#0e0e0e] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#00c7b7] focus:border-transparent"
+                  className="w-full px-3 py-2 bg-black border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#00c7b7] focus:border-transparent"
                 />
                 <p className="mt-1.5 text-xs text-gray-500">
                   Generate a token{' '}
@@ -550,19 +675,15 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Site Name (Optional)
-                </label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Site Name (Optional)</label>
                 <input
                   type="text"
                   value={siteName}
                   onChange={(e) => setSiteName(e.target.value)}
                   placeholder="my-awesome-site"
-                  className="w-full px-3 py-2 bg-[#0e0e0e] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#00c7b7] focus:border-transparent"
+                  className="w-full px-3 py-2 bg-black border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#00c7b7] focus:border-transparent"
                 />
-                <p className="mt-1.5 text-xs text-gray-500">
-                  Leave empty for auto-generated name
-                </p>
+                <p className="mt-1.5 text-xs text-gray-500">Leave empty for auto-generated name</p>
               </div>
             </div>
           )}
@@ -571,15 +692,13 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
           {provider === 'vercel' && !hasSuccessForCurrentProvider() && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Vercel Token *
-                </label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Vercel Token *</label>
                 <input
                   type="password"
                   value={vercelToken}
                   onChange={(e) => setVercelToken(e.target.value)}
                   placeholder="Enter your Vercel access token"
-                  className="w-full px-3 py-2 bg-[#0e0e0e] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent"
+                  className="w-full px-3 py-2 bg-black border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent"
                 />
                 <p className="mt-1.5 text-xs text-gray-500">
                   Generate a token{' '}
@@ -603,11 +722,9 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
                   value={vercelProjectName}
                   onChange={(e) => setVercelProjectName(e.target.value)}
                   placeholder="my-vercel-project"
-                  className="w-full px-3 py-2 bg-[#0e0e0e] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent"
+                  className="w-full px-3 py-2 bg-black border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent"
                 />
-                <p className="mt-1.5 text-xs text-gray-500">
-                  Custom project name (auto-generated if not provided)
-                </p>
+                <p className="mt-1.5 text-xs text-gray-500">Custom project name (auto-generated if not provided)</p>
               </div>
             </div>
           )}
@@ -616,15 +733,13 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
           {provider === 'github' && !hasSuccessForCurrentProvider() && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Access Token *
-                </label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Access Token *</label>
                 <input
                   type="password"
                   value={githubToken}
                   onChange={(e) => setGithubToken(e.target.value)}
                   placeholder="Enter your GitHub personal access token"
-                  className="w-full px-3 py-2 bg-[#0e0e0e] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-3 py-2 bg-black border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
                 <p className="mt-1.5 text-xs text-gray-500">
                   Generate a token with repo scope{' '}
@@ -640,29 +755,25 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Repository Name *
-                </label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Repository Name *</label>
                 <input
                   type="text"
                   value={repoName}
                   onChange={(e) => setRepoName(e.target.value)}
                   placeholder="my-awesome-repo"
-                  className="w-full px-3 py-2 bg-[#0e0e0e] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-3 py-2 bg-black border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Visibility
-                </label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Visibility</label>
                 <div className="flex gap-3">
                   <button
                     onClick={() => setRepoVisibility('public')}
                     className={`flex-1 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
                       repoVisibility === 'public'
                         ? 'bg-purple-600 border-purple-600 text-white'
-                        : 'bg-[#0e0e0e] border-gray-700 text-gray-400 hover:border-gray-600'
+                        : 'bg-black border-gray-700 text-gray-400 hover:border-gray-600'
                     }`}
                   >
                     Public
@@ -672,7 +783,7 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
                     className={`flex-1 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
                       repoVisibility === 'private'
                         ? 'bg-purple-600 border-purple-600 text-white'
-                        : 'bg-[#0e0e0e] border-gray-700 text-gray-400 hover:border-gray-600'
+                        : 'bg-black border-gray-700 text-gray-400 hover:border-gray-600'
                     }`}
                   >
                     Private
@@ -686,8 +797,18 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
           {error && !hasSuccessForCurrentProvider() && (
             <div className="mt-4 bg-red-500/10 border border-red-500/30 rounded-lg p-3">
               <div className="flex gap-2">
-                <svg className="w-5 h-5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg
+                  className="w-5 h-5 text-red-400 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
                 <p className="text-sm text-red-300">{error}</p>
               </div>
@@ -695,65 +816,98 @@ function DeployModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPanel
           )}
 
           {/* Deploy Button */}
-          {!hasSuccessForCurrentProvider() && <button
-            onClick={handleDeploy}
-            disabled={isDeploying || !canDeploy()}
-            className={`mt-6 w-full py-3 rounded-xl font-medium transition-all text-sm flex items-center justify-center gap-2 ${
-              provider === 'netlify'
-                ? 'bg-gradient-to-r from-[#00c7b7] to-[#00a896] hover:from-[#00b3a6] hover:to-[#009688] text-white shadow-lg shadow-[#00c7b7]/20'
-                : provider === 'vercel'
-                ? 'bg-black hover:bg-gray-900 text-white'
-                : 'bg-purple-600 hover:bg-purple-700 text-white'
-            } disabled:from-gray-700 disabled:to-gray-700 disabled:bg-gray-700 disabled:cursor-not-allowed disabled:shadow-none`}
-          >
-            {isDeploying ? (
-              <>
-                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                <span>{provider === 'github' ? 'Creating repository...' : 'Deploying...'}</span>
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                <span>
-                  {isAlreadyDeployed() ? (
-                    <>
-                      {provider === 'netlify' && 'Deploy Again to Netlify'}
-                      {provider === 'vercel' && 'Deploy Again to Vercel'}
-                      {provider === 'github' && 'Create New Repository'}
-                    </>
-                  ) : (
-                    <>
-                      {provider === 'netlify' && 'Deploy to Netlify'}
-                      {provider === 'vercel' && 'Deploy to Vercel'}
-                      {provider === 'github' && 'Create Repository'}
-                    </>
-                  )}
-                </span>
-              </>
-            )}
-          </button>}
+          {!hasSuccessForCurrentProvider() && (
+            <button
+              onClick={handleDeploy}
+              disabled={isDeploying || !canDeploy()}
+              className={`mt-6 w-full py-3 rounded-xl font-medium transition-all text-sm flex items-center justify-center gap-2 border ${
+                provider === 'netlify'
+                  ? 'bg-gradient-to-r from-[#00c7b7] to-[#00a896] hover:opacity-100 disabled:hover:opacity-80 opacity-80 text-white shadow-lg shadow-[#00c7b7]/20 border-[#00c7b7] disabled:bg-black disabled:border-gray-800 disabled:from-black disabled:to-black disabled:shadow-none disabled:cursor-not-allowed disabled:text-white'
+                  : provider === 'vercel'
+                    ? 'bg-white hover:opacity-100 disabled:hover:opacity-80 opacity-80 text-black border-gray-700 disabled:bg-black disabled:border-gray-800 disabled:cursor-not-allowed disabled:text-white'
+                    : 'bg-purple-600 hover:opacity-100 disabled:hover:opacity-80 opacity-80 text-white border-purple-500 disabled:bg-black disabled:border-gray-800 disabled:cursor-not-allowed disabled:text-white'
+              }`}
+            >
+              {isDeploying ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  <span>{provider === 'github' ? 'Creating repository...' : 'Deploying...'}</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                    />
+                  </svg>
+                  <span>
+                    {isAlreadyDeployed() ? (
+                      <>
+                        {provider === 'netlify' && 'Deploy Again to Netlify'}
+                        {provider === 'vercel' && 'Deploy Again to Vercel'}
+                        {provider === 'github' && 'Create New Repository'}
+                      </>
+                    ) : (
+                      <>
+                        {provider === 'netlify' && 'Deploy to Netlify'}
+                        {provider === 'vercel' && 'Deploy to Vercel'}
+                        {provider === 'github' && 'Create Repository'}
+                      </>
+                    )}
+                  </span>
+                </>
+              )}
+            </button>
+          )}
 
           {/* Info Box */}
-          {!hasSuccessForCurrentProvider() && <div className="mt-4 bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-            <div className="flex gap-3">
-              <svg className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <h4 className="text-sm font-semibold text-blue-300 mb-1">Before deploying</h4>
-                <ul className="text-xs text-blue-200/80 space-y-1">
-                  <li>• Ensure your application is production-ready</li>
-                  <li>• {provider === 'github' ? 'Token needs repo creation permissions' : 'Your token needs deployment permissions'}</li>
-                  <li>• {provider === 'github' ? 'Files will be committed to the repository' : 'Build process will run automatically'}</li>
-                </ul>
+          {!hasSuccessForCurrentProvider() && (
+            <div className="mt-4 bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+              <div className="flex gap-3">
+                <svg
+                  className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <div>
+                  <h4 className="text-sm font-semibold text-blue-300 mb-1">Before deploying</h4>
+                  <ul className="text-xs text-blue-200/80 space-y-1">
+                    <li>• Ensure your application is production-ready</li>
+                    <li>
+                      •{' '}
+                      {provider === 'github'
+                        ? 'Token needs repo creation permissions'
+                        : 'Your token needs deployment permissions'}
+                    </li>
+                    <li>
+                      •{' '}
+                      {provider === 'github'
+                        ? 'Files will be committed to the repository'
+                        : 'Build process will run automatically'}
+                    </li>
+                  </ul>
+                </div>
               </div>
             </div>
-          </div>}
+          )}
         </div>
       </motion.div>
     </ModalOverlay>
@@ -776,8 +930,8 @@ function DownloadModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPan
         body: JSON.stringify({
           userId,
           sessionId,
-          includeNodeModules
-        })
+          includeNodeModules,
+        }),
       });
 
       if (response.ok) {
@@ -815,7 +969,7 @@ function DownloadModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPan
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 20 }}
         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-        className="bg-[#1a1a1a] rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden border border-gray-800"
+        className="bg-black rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden border border-gray-800"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -826,7 +980,7 @@ function DownloadModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPan
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-white opacity-80 hover:opacity-100 transition-opacity"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -837,7 +991,7 @@ function DownloadModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPan
         {/* Content */}
         <div className="p-6">
           {/* Export Options Section */}
-          <div className="bg-[#0e0e0e] border border-gray-800 rounded-xl p-5 mb-4">
+          <div className="bg-black border border-gray-800 rounded-xl p-5 mb-4">
             <h3 className="text-base font-semibold text-white mb-4">Export Options</h3>
 
             {/* Checkbox */}
@@ -847,7 +1001,7 @@ function DownloadModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPan
                   type="checkbox"
                   checked={includeNodeModules}
                   onChange={(e) => setIncludeNodeModules(e.target.checked)}
-                  className="w-5 h-5 bg-[#1a1a1a] border-2 border-gray-700 rounded cursor-pointer appearance-none checked:bg-blue-600 checked:border-blue-600 transition-colors"
+                  className="w-5 h-5 bg-black border-2 border-gray-700 rounded cursor-pointer appearance-none checked:bg-blue-600 checked:border-blue-600 transition-colors"
                 />
                 {includeNodeModules && (
                   <svg
@@ -881,14 +1035,23 @@ function DownloadModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPan
               <>
                 <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
                 </svg>
                 <span>Preparing download...</span>
               </>
             ) : (
               <>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  />
                 </svg>
                 <span>Download ZIP</span>
               </>
@@ -898,8 +1061,18 @@ function DownloadModal({ appId, sessionId, userId, onClose }: Omit<DeploymentPan
           {/* What's Included Section */}
           <div className="mt-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4">
             <div className="flex gap-3">
-              <svg className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              <svg
+                className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+                />
               </svg>
               <div>
                 <h4 className="text-sm font-semibold text-emerald-300 mb-2">What's Included</h4>
