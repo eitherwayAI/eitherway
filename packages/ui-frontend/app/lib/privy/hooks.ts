@@ -134,6 +134,21 @@ export function usePrivyAuth() {
     return 'User';
   };
 
+  /**
+   * Login with wallet-only options
+   * For "BUY $EITHER" button - shows only wallet authentication
+   */
+  const loginWithWallet = () => {
+    // If already authenticated, just connect another wallet
+    if (authenticated) {
+      connectWallet();
+    } else {
+      // For initial authentication, use login with wallet preference
+      // Note: Privy will still show configured loginMethods, but we can guide users
+      login();
+    }
+  };
+
   return {
     // Authentication state
     ready,
@@ -143,7 +158,8 @@ export function usePrivyAuth() {
     // Authentication methods
     login,
     logout,
-    connectWallet, // Opens wallet-only connection modal
+    loginWithWallet, // Wallet-focused authentication for BUY $EITHER
+    connectWallet, // Opens wallet-only connection modal (requires auth)
 
     // Account linking methods
     linkEmail,

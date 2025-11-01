@@ -14,7 +14,7 @@ import { BrandKitPanel } from '~/components/brand-kit/BrandKitPanel';
 
 export function Header() {
   const chat = useStore(chatStore);
-  const { authenticated, login, logout, connectWallet, getDisplayName, getUserIdentifier, formatAddress } = usePrivyAuth();
+  const { authenticated, login, logout, loginWithWallet, getDisplayName, getUserIdentifier, formatAddress } = usePrivyAuth();
   const isAppReady = useStore(workbenchStore.isAppReadyForDeploy);
   const previews = useStore(workbenchStore.previews);
   const user = useStore(authStore.user);
@@ -37,8 +37,8 @@ export function Header() {
   };
 
   const handleBuyEither = () => {
-    // Use connectWallet to show only wallet options (no email/OAuth)
-    connectWallet();
+    // Use loginWithWallet for wallet-focused authentication
+    loginWithWallet();
   };
 
   console.log('Header - chat.started:', chat.started);

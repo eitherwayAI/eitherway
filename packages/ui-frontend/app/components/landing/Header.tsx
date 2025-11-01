@@ -7,7 +7,7 @@ import { chatStore } from '~/lib/stores/chat';
 import styles from './Landing.module.scss';
 
 function HeaderContent() {
-  const { authenticated, login, logout, connectWallet, getDisplayName, ready } = usePrivyAuth();
+  const { authenticated, login, logout, loginWithWallet, getDisplayName, ready } = usePrivyAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const chatState = useStore(chatStore);
   const chatStarted = chatState?.started || false;
@@ -25,8 +25,8 @@ function HeaderContent() {
   };
 
   const handleBuyEither = () => {
-    // Use connectWallet to show only wallet options (no email/OAuth)
-    connectWallet();
+    // Use loginWithWallet for wallet-focused authentication
+    loginWithWallet();
   };
 
   useEffect(() => {
